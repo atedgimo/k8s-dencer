@@ -1,0 +1,23 @@
+{{- if .Values.kagent.enabled }}
+{{/*
+Registers the ui-backend's read-only MCP endpoint with Kagent. Mirrors the
+kagent-tool-server pattern that ships with Kagent itself.
+*/}}
+apiVersion: kagent.dev/v1alpha2
+kind: RemoteMCPServer
+metadata:
+  name: {{ include "k8s-dencer.fullname" . }}
+  namespace: {{ include "k8s-dencer.kagentNamespace" . }}
+  labels:
+    {{- include "k8s-dencer.labels" . | nindent 4 }}
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  description: >-
+    Read-only access to the k8s-dencer plan store, constraint analyzer and
+    impact classifier.
+  protocol: STREAMABLE_HTTP
+  url: {{ printf "%s/mcp" (include "k8s-dencer.uiBackendURL" .) | quote }}
+{{- end }}

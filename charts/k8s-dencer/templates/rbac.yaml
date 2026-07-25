@@ -1,0 +1,63 @@
+{{- if .Values.rbac.create }}
+{{/*
+Read-only, cluster-scoped. Phase 1 has no executor, so there is deliberately no
+pods/eviction, no nodes patch (cordon), and no create/update/delete anywhere.
+When the executor lands in Phase 2 it gets its OWN ServiceAccount and Role
+rather than widening this one.
+*/}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "k8s-dencer.fullname" . }}-read
+  labels:
+    {{- include "k8s-dencer.labels" . | nindent 4 }}
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+rules:
+  - apiGroups: [""]
+    resources:
+      - nodes
+      - pods
+      - namespaces
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["policy"]
+    resources:
+      - poddisruptionbudgets
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+      - replicasets
+      - statefulsets
+      - daemonsets
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["dencer.io"]
+    resources:
+      - consolidationpolicies
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["dencer.io"]
+    resources:
+      - consolidationpolicies/status
+    verbs: ["get", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "k8s-dencer.fullname" . }}-read
+  labels:
+    {{- include "k8s-dencer.labels" . | nindent 4 }}
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "k8s-dencer.fullname" . }}-read
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "k8s-dencer.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

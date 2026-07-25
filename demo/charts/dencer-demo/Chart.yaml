@@ -1,0 +1,13 @@
+apiVersion: v2
+name: dencer-demo
+description: |
+  Synthetic cluster topology for exercising the k8s-dencer planner: KWOK fake
+  nodes across three zones plus workloads shaped to trigger specific scheduling
+  constraints.
+
+  POC tooling only. This chart is never a dependency of charts/k8s-dencer and
+  is installed as a separate release so it can be torn down independently.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.27.0-0"

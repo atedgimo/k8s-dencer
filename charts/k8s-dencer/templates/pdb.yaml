@@ -1,0 +1,34 @@
+{{/*
+PodDisruptionBudgets for our own components.
+
+These deliberately use maxUnavailable rather than minAvailable. A PDB that
+cannot be satisfied makes its pods undrainable, which is exactly the pathology
+k8s-dencer exists to detect — shipping one would be indefensible. maxUnavailable
+always leaves a node drain a way through.
+*/}}
+{{- $components := list
+  (dict "name" "planner"     "cfg" .Values.planner)
+  (dict "name" "ui-backend"  "cfg" .Values.uiBackend)
+  (dict "name" "ui-frontend" "cfg" .Values.uiFrontend)
+-}}
+{{- range $c := $components }}
+{{- if $c.cfg.podDisruptionBudget.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "k8s-dencer.fullname" $ }}-{{ $c.name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "k8s-dencer.componentLabels" (dict "ctx" $ "component" $c.name) | nindent 4 }}
+  {{- with $.Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  maxUnavailable: {{ $c.cfg.podDisruptionBudget.maxUnavailable }}
+  selector:
+    matchLabels:
+      {{- include "k8s-dencer.componentSelectorLabels" (dict "ctx" $ "component" $c.name) | nindent 6 }}
+{{- end }}
+{{- end }}

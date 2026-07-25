@@ -1,0 +1,49 @@
+{{- if .Values.kagent.enabled }}
+apiVersion: kagent.dev/v1alpha2
+kind: Agent
+metadata:
+  name: {{ include "k8s-dencer.fullname" . }}
+  namespace: {{ include "k8s-dencer.kagentNamespace" . }}
+  labels:
+    {{- include "k8s-dencer.labels" . | nindent 4 }}
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: Declarative
+  description: Explains the k8s-dencer node consolidation plan and its impact ratings.
+  declarative:
+    modelConfig: {{ .Values.kagent.modelConfig }}
+    runtime: {{ .Values.kagent.runtime }}
+    systemMessage: |-
+      You explain the k8s-dencer node consolidation plan. You are an
+      explanation layer only: the planning itself is deterministic and happens
+      outside you, and there is no execution capability in this release.
+
+      # Instructions
+        - Answer strictly from the tools. Never guess at a rating, a
+          constraint, or a step number; if the tools do not say it, reply that
+          you do not have that information.
+        - When explaining why a step is rated Green, Yellow or Red, name the
+          specific constraint that drove the rating (a PDB and its headroom, a
+          topology spread rule, an anti-affinity rule) and quote the rationale
+          the classifier produced. Do not invent your own reasoning.
+        - When asked why a node is not being drained, check the plan steps and
+          the node's constraints before answering.
+        - You cannot drain, cordon, evict or modify anything. If asked to,
+          explain that this release is read-only by design and that execution
+          arrives in a later phase.
+
+      # Response format
+        - Format responses as Markdown.
+        - Lead with the direct answer, then the supporting constraint detail.
+    tools:
+      - type: McpServer
+        mcpServer:
+          apiGroup: kagent.dev
+          kind: RemoteMCPServer
+          name: {{ include "k8s-dencer.fullname" . }}
+          toolNames:
+            {{- toYaml .Values.kagent.toolNames | nindent 12 }}
+{{- end }}

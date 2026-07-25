@@ -1,0 +1,50 @@
+# Synthetic topology for the k8s-dencer POC.
+#
+# Requires the upstream kwok + stage-fast charts (`make kwok-up`).
+
+# Which constraint scenario to layer on top of the base workload.
+#
+#   a-fragmented      no constraints; pure bin-packing headroom
+#   b-pdb-blocked     PDB with zero disruption headroom
+#   c-topology-spread maxSkew 1 across three zones
+#   d-anti-affinity   required pod anti-affinity singletons
+#   e-tainted-pool    dedicated tainted node pool
+#
+# The base workload is always deployed so every scenario has something to
+# consolidate; the scenario adds the constraint that should change the ratings.
+scenario: a-fragmented
+
+nodes:
+  # 30 fake nodes cost nothing to run (no kubelets) but give the bin-packer a
+  # problem worth solving. Each is deliberately larger than the real node.
+  count: 30
+  zones:
+    - zone-a
+    - zone-b
+    - zone-c
+  capacity:
+    cpu: "8"
+    memory: 32Gi
+    pods: "110"
+  # Fake nodes advertise the host architecture so scheduling predicates behave
+  # the same way they would on a real pool.
+  arch: arm64
+
+# Extra nodes carrying a dedicated taint, used only by scenario e.
+taintedPool:
+  count: 3
+  taint:
+    key: dedicated
+    value: batch
+
+base:
+  # 90 pods over 30 nodes at 1 CPU each is ~37% requested: fragmented enough
+  # that a bin-packer should collapse it to roughly a third of the nodes.
+  replicas: 90
+  resources:
+    cpu: "1"
+    memory: 2Gi
+
+# Pods are never executed: kwok-controller fakes their lifecycle, so this image
+# is never pulled. It exists only to make the podspec valid.
+image: registry.k8s.io/pause:3.9

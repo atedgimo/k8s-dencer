@@ -1,0 +1,45 @@
+{{- if eq .Values.scenario "e-tainted-pool" }}
+{{/*
+Dedicated node pool.
+
+The batch workload tolerates the dedicated taint and selects the pool; nothing
+else can land there. Two things must hold in the plan: general workloads are
+never packed onto the pool (they lack the toleration), and batch pods are never
+moved off it onto general nodes (they would be evicted straight back).
+
+The pool is deliberately under-packed, so a planner that ignores taints will
+see attractive free capacity and propose an impossible move.
+*/}}
+{{- $t := .Values.taintedPool.taint -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-batch
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dencer-demo.labels" . | nindent 4 }}
+    dencer.io/role: tainted-pool
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: dencer-batch
+  template:
+    metadata:
+      labels:
+        app: dencer-batch
+        dencer.io/synthetic: "true"
+    spec:
+      nodeSelector:
+        pool: {{ $t.value }}
+      tolerations:
+        - key: kwok.x-k8s.io/node
+          operator: Exists
+          effect: NoSchedule
+        - key: {{ $t.key }}
+          value: {{ $t.value }}
+          operator: Equal
+          effect: NoSchedule
+      containers:
+        {{- include "dencer-demo.container" (dict "ctx" . "cpu" "1" "memory" "2Gi") | nindent 8 }}
+{{- end }}

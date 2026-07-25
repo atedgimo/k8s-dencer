@@ -1,0 +1,87 @@
+# Cloud-shaped profile. This is the portability gate: `make lint` renders it
+# and asserts the output contains an Ingress, a PVC, a PDB and an annotated
+# ServiceAccount, and contains no OrbStack, LoadBalancer, hostPath or KWOK
+# artifacts anywhere.
+
+serviceAccount:
+  create: true
+  annotations:
+    # EKS IRSA. The GKE equivalent would be iam.gke.io/gcp-service-account.
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/k8s-dencer
+
+imagePullSecrets:
+  - name: registry-credentials
+
+commonLabels:
+  app.kubernetes.io/env: production
+
+persistence:
+  enabled: true
+  storageClass: gp3
+  size: 10Gi
+  accessModes:
+    - ReadWriteOnce
+
+planner:
+  logLevel: info
+  resyncPeriod: 60s
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  priorityClassName: system-cluster-critical
+  tolerations:
+    - key: CriticalAddonsOnly
+      operator: Exists
+
+uiBackend:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+uiFrontend:
+  replicaCount: 3
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: ui-frontend
+  podDisruptionBudget:
+    enabled: true
+    maxUnavailable: 1
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: dencer.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: dencer-tls
+      hosts:
+        - dencer.example.com
+
+networkPolicy:
+  enabled: true
+
+serviceMonitor:
+  enabled: true
+  labels:
+    release: kube-prometheus-stack
+
+kagent:
+  enabled: true
+  namespace: kagent

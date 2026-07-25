@@ -1,0 +1,88 @@
+{{- if eq .Values.scenario "b-pdb-blocked" }}
+{{/*
+Two PDBs with opposite headroom, so the impact classifier has to distinguish
+them rather than just detecting "a PDB exists".
+
+  payments  3 replicas, minAvailable 3  -> zero headroom, evicting any pod is
+                                           refused by the API server. Steps
+                                           touching it must rate Red.
+  catalog   3 replicas, minAvailable 1  -> two pods of headroom. Steps touching
+                                           it should stay Green.
+*/}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-payments
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dencer-demo.labels" . | nindent 4 }}
+    dencer.io/role: pdb-blocked
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: dencer-payments
+  template:
+    metadata:
+      labels:
+        app: dencer-payments
+        dencer.io/synthetic: "true"
+    spec:
+      affinity:
+        {{- include "dencer-demo.nodeAffinity" . | nindent 8 }}
+      {{- include "dencer-demo.tolerations" . | nindent 6 }}
+      containers:
+        {{- include "dencer-demo.container" (dict "ctx" . "cpu" "1" "memory" "2Gi") | nindent 8 }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Release.Name }}-payments
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dencer-demo.labels" . | nindent 4 }}
+spec:
+  # Equal to the replica count: no pod may ever be evicted voluntarily.
+  minAvailable: 3
+  selector:
+    matchLabels:
+      app: dencer-payments
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-catalog
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dencer-demo.labels" . | nindent 4 }}
+    dencer.io/role: pdb-healthy
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: dencer-catalog
+  template:
+    metadata:
+      labels:
+        app: dencer-catalog
+        dencer.io/synthetic: "true"
+    spec:
+      affinity:
+        {{- include "dencer-demo.nodeAffinity" . | nindent 8 }}
+      {{- include "dencer-demo.tolerations" . | nindent 6 }}
+      containers:
+        {{- include "dencer-demo.container" (dict "ctx" . "cpu" "1" "memory" "2Gi") | nindent 8 }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Release.Name }}-catalog
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dencer-demo.labels" . | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: dencer-catalog
+{{- end }}

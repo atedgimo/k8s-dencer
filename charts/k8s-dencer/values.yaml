@@ -1,0 +1,243 @@
+# Default values for k8s-dencer.
+#
+# These defaults are vendor-neutral and must stay installable on any conformant
+# cluster (EKS/GKE/AKS/on-prem). Local-development concerns belong in an
+# overlay under ci/, never here. `make lint` enforces this.
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Applied to every pod in the release.
+imagePullSecrets: []
+commonLabels: {}
+commonAnnotations: {}
+
+serviceAccount:
+  create: true
+  # Defaults to the fullname when empty.
+  name: ""
+  # EKS IRSA / GKE Workload Identity annotations go here.
+  annotations: {}
+
+rbac:
+  # Creates the cluster-scoped read-only role the planner needs to observe
+  # nodes, pods and PDBs. Disable only if you manage RBAC out of band.
+  create: true
+
+# Plan Store backend.
+database:
+  # sqlite | postgres
+  #
+  # postgres is declared for Phase 2 and is NOT implemented yet; selecting it
+  # is rejected by values.schema.json. sqlite is single-writer, which is why
+  # uiBackend is pinned to one replica with a Recreate strategy.
+  type: sqlite
+  sqlite:
+    path: /data/dencer.db
+  postgres:
+    host: ""
+    port: 5432
+    database: dencer
+    user: dencer
+    existingSecret: ""
+    existingSecretPasswordKey: password
+    sslMode: require
+
+# PersistentVolumeClaim backing the SQLite plan store.
+persistence:
+  enabled: true
+  # Bind an existing claim instead of creating one.
+  existingClaim: ""
+  # Empty inherits the cluster's default StorageClass. Never hardcode one.
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 1Gi
+  annotations: {}
+
+# Pod-level security context, applied to all components. Defaults satisfy the
+# restricted Pod Security Standard without modification.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+# Container-level security context for the Go components.
+securityContext:
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  privileged: false
+  capabilities:
+    drop:
+      - ALL
+
+planner:
+  replicaCount: 1
+  image:
+    registry: ghcr.io
+    repository: atedgimo/k8s-dencer-planner
+    # Defaults to .Chart.AppVersion.
+    tag: ""
+    pullPolicy: IfNotPresent
+  logLevel: info
+  # How often the planner recomputes. A cluster-wide pod informer is the
+  # planner's dominant memory cost on a large cluster; raise this and the
+  # resource limits together when scaling up.
+  resyncPeriod: 30s
+  healthPort: 8081
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  podAnnotations: {}
+  podLabels: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []
+  priorityClassName: ""
+  extraEnv: []
+  extraVolumes: []
+  extraVolumeMounts: []
+  # Single-replica by design; a PDB here would either be a no-op or make the
+  # pod undrainable. See podDisruptionBudget below.
+  podDisruptionBudget:
+    enabled: false
+    maxUnavailable: 1
+
+uiBackend:
+  # Pinned to 1 while database.type is sqlite. Enforced by values.schema.json.
+  replicaCount: 1
+  image:
+    registry: ghcr.io
+    repository: atedgimo/k8s-dencer-ui-backend
+    tag: ""
+    pullPolicy: IfNotPresent
+  logLevel: info
+  service:
+    type: ClusterIP
+    port: 8080
+    annotations: {}
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  podAnnotations: {}
+  podLabels: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []
+  priorityClassName: ""
+  extraEnv: []
+  extraVolumes: []
+  extraVolumeMounts: []
+  podDisruptionBudget:
+    enabled: false
+    maxUnavailable: 1
+
+uiFrontend:
+  replicaCount: 2
+  image:
+    registry: ghcr.io
+    repository: atedgimo/k8s-dencer-ui-frontend
+    tag: ""
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+    annotations: {}
+  # Injected into the browser at runtime via ConfigMap, so one image works
+  # against any backend. Empty apiBaseUrl means same-origin through nginx.
+  config:
+    apiBaseUrl: ""
+    # Deep link to the Kagent chat UI; empty hides the header link.
+    kagentUrl: ""
+  # nginx-unprivileged runs as uid 101 and cannot use the Go components'
+  # 65532, so the frontend overrides the shared pod security context.
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 101
+    runAsGroup: 101
+    fsGroup: 101
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    privileged: false
+    capabilities:
+      drop:
+        - ALL
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  podAnnotations: {}
+  podLabels: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []
+  priorityClassName: ""
+  extraEnv: []
+  extraVolumes: []
+  extraVolumeMounts: []
+  # maxUnavailable rather than minAvailable: a PDB that cannot be satisfied is
+  # precisely the pathology this product exists to find, so ours must never
+  # block a node drain.
+  podDisruptionBudget:
+    enabled: true
+    maxUnavailable: 1
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: k8s-dencer.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+networkPolicy:
+  # Restricts ui-backend ingress to the frontend and (when enabled) Kagent.
+  enabled: false
+  # Extra selectors allowed to reach ui-backend, e.g. a Prometheus namespace.
+  extraIngressFrom: []
+
+serviceMonitor:
+  # Requires the Prometheus Operator CRDs.
+  enabled: false
+  interval: 30s
+  scrapeTimeout: 10s
+  labels: {}
+
+# Kagent integration. Off by default so the chart installs on clusters that do
+# not have the kagent.dev CRDs.
+kagent:
+  enabled: false
+  # Defaults to the release namespace.
+  namespace: ""
+  modelConfig: default-model-config
+  runtime: python
+  # Tools exposed to the agent. Read-only by construction: the MVP has no
+  # executor, so there is nothing mutating to expose.
+  toolNames:
+    - list_plan_steps
+    - explain_step
+    - get_node_constraints
+    - why_not_drained

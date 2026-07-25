@@ -1,0 +1,14 @@
+# Go
+/bin/
+*.test
+*.out
+
+# Node
+node_modules/
+ui/dist/
+*.tsbuildinfo
+
+# Local state
+*.db
+*.sqlite
+.DS_Store

@@ -1,0 +1,31 @@
+apiVersion: v2
+name: k8s-dencer
+description: |
+  Continuously analyses Kubernetes scheduling constraints (PDBs, topology
+  spread, affinity, taints) and builds a node consolidation plan as discrete,
+  impact-rated steps. Phase 1 is read-only: it plans and explains, it never
+  evicts.
+type: application
+
+# Chart version tracks the chart; appVersion tracks the images. Component image
+# tags default to appVersion so a chart release pins a coherent image set.
+version: 0.1.0
+appVersion: "0.1.0"
+
+# controller-runtime and the policy/v1 PDB API used here are stable from 1.21,
+# but the chart relies on 1.27-era defaults for restricted Pod Security
+# Standards admission, so that is the supported floor.
+kubeVersion: ">=1.27.0-0"
+
+home: https://github.com/atedgimo/k8s-dencer
+sources:
+  - https://github.com/atedgimo/k8s-dencer
+keywords:
+  - kubernetes
+  - descheduler
+  - consolidation
+  - bin-packing
+  - cost-optimization
+maintainers:
+  - name: Moti Atedgi
+    email: atedgimo@gmail.com

@@ -1,0 +1,24 @@
+# Smallest possible install: every optional feature off.
+#
+# Asserts the chart still renders a valid, restricted-PSS-compliant install
+# when nothing is enabled — the state a first-time user lands in.
+
+persistence:
+  enabled: false
+
+uiFrontend:
+  replicaCount: 1
+  podDisruptionBudget:
+    enabled: false
+
+ingress:
+  enabled: false
+
+networkPolicy:
+  enabled: false
+
+serviceMonitor:
+  enabled: false
+
+kagent:
+  enabled: false
