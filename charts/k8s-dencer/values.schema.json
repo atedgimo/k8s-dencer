@@ -101,6 +101,7 @@
               "type": "array",
               "items": { "type": "string", "minLength": 1 }
             },
+            "retainPlans": { "type": "integer", "minimum": 1 },
             "impact": {
               "type": "object",
               "properties": {
@@ -123,6 +124,7 @@
           "type": "object",
           "properties": {
             "replicaCount": { "type": "integer", "minimum": 1 },
+            "pollInterval": { "$ref": "#/definitions/duration" },
             "image": { "$ref": "#/definitions/image" },
             "logLevel": { "$ref": "#/definitions/logLevel" },
             "service": { "$ref": "#/definitions/service" },

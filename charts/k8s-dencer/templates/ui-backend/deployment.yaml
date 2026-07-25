@@ -79,6 +79,8 @@ spec:
                   key: {{ $.Values.database.postgres.existingSecretPasswordKey }}
             {{- end }}
             {{- end }}
+            - name: POLL_INTERVAL
+              value: {{ .Values.uiBackend.pollInterval | quote }}
             - name: POD_NAMESPACE
               valueFrom:
                 fieldRef:

@@ -27,6 +27,8 @@ import (
 	"github.com/atedgimo/k8s-dencer/internal/impact"
 	"github.com/atedgimo/k8s-dencer/internal/model"
 	"github.com/atedgimo/k8s-dencer/internal/planner"
+	"github.com/atedgimo/k8s-dencer/internal/store"
+	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlite"
 	"github.com/atedgimo/k8s-dencer/internal/telemetry"
 )
 
@@ -63,6 +65,23 @@ func run(ctx context.Context, log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+
+	// The planner writes plans; the ui-backend owns the schema and runs
+	// migrations. Opening read-write here without migrating keeps the
+	// ownership boundary explicit.
+	db, err := sqlitestore.Open(env("DATABASE_PATH", "/data/dencer.db"))
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+
+	// The planner may start before the ui-backend has ever run, in which case
+	// there is no schema to write into. Migrating here too is idempotent and
+	// removes a startup ordering dependency between the two.
+	if err := db.Migrate(ctx); err != nil {
+		return err
+	}
+	retain := intEnv(log, "RETAIN_PLANS", 200)
 
 	var latest atomic.Pointer[model.ClusterSnapshot]
 	var latestAnalysis atomic.Pointer[constraints.Analysis]
@@ -124,7 +143,7 @@ func run(ctx context.Context, log *slog.Logger) error {
 	ticker := time.NewTicker(resync)
 	defer ticker.Stop()
 
-	collect(ctx, log, collector, &latest, &latestAnalysis, &latestPlan, strategy, planOpts, classifier)
+	collect(ctx, log, collector, &latest, &latestAnalysis, &latestPlan, strategy, planOpts, classifier, db, retain)
 
 	for {
 		select {
@@ -135,7 +154,7 @@ func run(ctx context.Context, log *slog.Logger) error {
 		case err := <-serveErr:
 			return err
 		case <-ticker.C:
-			collect(ctx, log, collector, &latest, &latestAnalysis, &latestPlan, strategy, planOpts, classifier)
+			collect(ctx, log, collector, &latest, &latestAnalysis, &latestPlan, strategy, planOpts, classifier, db, retain)
 		}
 	}
 }
@@ -150,6 +169,8 @@ func collect(
 	strategy planner.Strategy,
 	planOpts planner.Options,
 	classifier impact.Classifier,
+	db store.Store,
+	retain int,
 ) {
 	snap, err := c.Snapshot(ctx)
 	if err != nil {
@@ -231,6 +252,31 @@ func collect(
 		"yellow", byRating[model.ImpactYellow],
 		"red", byRating[model.ImpactRed],
 	)
+
+	stored, err := db.Save(ctx, store.Record{
+		Plan:     plan,
+		Snapshot: snap,
+		Analysis: analysis,
+		Strategy: strategy.Name(),
+	})
+	if err != nil {
+		// A store failure must not stop planning: the in-memory plan is still
+		// correct and the next cycle will retry the write.
+		log.Error("storing plan failed", "error", err)
+		return
+	}
+	if !stored {
+		// Same content hash as the previous write, so the cluster has not
+		// changed in any way that alters the plan.
+		return
+	}
+	log.Info("plan stored", "id", plan.ID)
+
+	if pruned, err := db.Prune(ctx, retain); err != nil {
+		log.Warn("pruning plan history failed", "error", err)
+	} else if pruned > 0 {
+		log.Info("pruned plan history", "removed", pruned, "retained", retain)
+	}
 }
 
 func intEnv(log *slog.Logger, key string, fallback int) int {
