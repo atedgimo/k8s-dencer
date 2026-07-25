@@ -1,0 +1,61 @@
+{{- if eq .Values.scenario "f-stateful" }}
+{{/*
+Workloads that make a step Red.
+
+Without this scenario the demo fabric only ever produces Green and Yellow: the
+planner already refuses to drain nodes holding unevictable pods, so a
+zero-headroom PDB never reaches a step, and everything else here is a plain
+Deployment. That would leave the UI's Red state untested and the classifier's
+most consequential rules unexercised end to end.
+
+No volumeClaimTemplates on the StatefulSet: a PVC on a KWOK node would never
+bind, because local-path provisioning waits for a real kubelet that fake nodes
+do not have. The StatefulSet ownership alone is what drives the rating.
+*/}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-ledger
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dencer-demo.labels" . | nindent 4 }}
+    dencer.io/role: stateful
+spec:
+  serviceName: {{ .Release.Name }}-ledger
+  replicas: 3
+  selector:
+    matchLabels:
+      app: dencer-ledger
+  template:
+    metadata:
+      labels:
+        app: dencer-ledger
+        dencer.io/synthetic: "true"
+    spec:
+      affinity:
+        {{- include "dencer-demo.nodeAffinity" . | nindent 8 }}
+      {{- include "dencer-demo.tolerations" . | nindent 6 }}
+      containers:
+        {{- include "dencer-demo.container" (dict "ctx" . "cpu" "1" "memory" "2Gi") | nindent 8 }}
+---
+{{/*
+A bare pod with no controller. Evicting it deletes it permanently — nothing
+recreates it — which is the single most consequential thing a consolidation
+step can do and the classifier's highest-severity rule.
+*/}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ .Release.Name }}-orphan
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dencer-demo.labels" . | nindent 4 }}
+    app: dencer-orphan
+    dencer.io/role: unmanaged
+spec:
+  affinity:
+    {{- include "dencer-demo.nodeAffinity" . | nindent 4 }}
+  {{- include "dencer-demo.tolerations" . | nindent 2 }}
+  containers:
+    {{- include "dencer-demo.container" (dict "ctx" . "cpu" "1" "memory" "2Gi") | nindent 4 }}
+{{- end }}

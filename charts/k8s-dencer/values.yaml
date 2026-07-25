@@ -106,6 +106,20 @@ planner:
   # Pods in these namespaces are treated as immovable, which makes their nodes
   # undrainable.
   excludeNamespaces: []
+
+  # Impact-rating thresholds. Doc §10 is explicit that where PDB headroom stops
+  # being acceptable differs per cluster, so these are tunable rather than
+  # baked in. Defaults are deliberately cautious: an operator who finds them
+  # noisy can loosen them, but one surprised by an outage they were told was
+  # Green will not trust the tool again.
+  impact:
+    # Pods moved in a single step, at or above which the step is Yellow.
+    yellowPodsMoved: 5
+    # Pods moved in a single step, at or above which the step is Red.
+    redPodsMoved: 15
+    # PDB disruption headroom at or below which a covering PDB makes a step
+    # Yellow. Zero headroom is always Red regardless of this value.
+    tightPDBHeadroom: 1
   resources:
     requests:
       cpu: 50m

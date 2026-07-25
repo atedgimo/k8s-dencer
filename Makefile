@@ -276,7 +276,7 @@ demo-down: ## Remove the synthetic topology (deletes the fake nodes)
 .PHONY: scenario
 scenario: ## Switch scenario: make scenario S=b-pdb-blocked
 	@if [ -z "$(S)" ]; then \
-		echo "usage: make scenario S=<a-fragmented|b-pdb-blocked|c-topology-spread|d-anti-affinity|e-tainted-pool>"; \
+		echo "usage: make scenario S=<a-fragmented|b-pdb-blocked|c-topology-spread|d-anti-affinity|e-tainted-pool|f-stateful>"; \
 		exit 1; \
 	fi
 	helm upgrade --install $(DEMO_RELEASE) demo/charts/dencer-demo \

@@ -65,6 +65,12 @@ spec:
             - name: EXCLUDE_NAMESPACES
               value: {{ join "," . | quote }}
             {{- end }}
+            - name: YELLOW_PODS_MOVED
+              value: {{ .Values.planner.impact.yellowPodsMoved | quote }}
+            - name: RED_PODS_MOVED
+              value: {{ .Values.planner.impact.redPodsMoved | quote }}
+            - name: TIGHT_PDB_HEADROOM
+              value: {{ .Values.planner.impact.tightPDBHeadroom | quote }}
             - name: DATABASE_TYPE
               value: {{ .Values.database.type | quote }}
             {{- if eq .Values.database.type "sqlite" }}
