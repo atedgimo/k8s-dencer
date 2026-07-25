@@ -236,15 +236,42 @@ kwok-down: ## Remove the KWOK fabric
 	-helm uninstall kwok-stage-fast --namespace $(KWOK_NAMESPACE)
 	-helm uninstall kwok --namespace $(KWOK_NAMESPACE)
 
+# No --wait on the demo chart. Deployment readiness is not a meaningful gate
+# here: kwok-controller fabricates pod readiness with podPlayStageParallelism 4,
+# and its pod-ready Stage only selects pods still in phase Pending. A pod that
+# reaches Running without Ready=True never re-matches the stage and stays
+# not-ready forever, so --wait turns a cosmetic fabric quirk into a failed
+# install. Use `make demo-wait` to block on pods being *scheduled*, which is
+# what the planner actually cares about.
 .PHONY: demo-up
 demo-up: ## Install the synthetic topology (SCENARIO=a-fragmented)
 	helm upgrade --install $(DEMO_RELEASE) demo/charts/dencer-demo \
 		--namespace $(DEMO_NAMESPACE) --create-namespace \
-		--set scenario=$(SCENARIO) --wait --timeout 3m
+		--set scenario=$(SCENARIO)
 
+.PHONY: demo-wait
+demo-wait: ## Block until every demo pod is scheduled onto a node
+	@echo "==> waiting for demo pods to be scheduled"
+	@for i in $$(seq 1 60); do \
+		unscheduled=$$(kubectl get pods -n $(DEMO_NAMESPACE) \
+			--field-selector spec.nodeName= --no-headers 2>/dev/null | wc -l | tr -d ' '); \
+		total=$$(kubectl get pods -n $(DEMO_NAMESPACE) --no-headers 2>/dev/null | wc -l | tr -d ' '); \
+		if [ "$$unscheduled" = "0" ] && [ "$$total" != "0" ]; then \
+			echo "    $$total pods scheduled"; exit 0; \
+		fi; \
+		sleep 2; \
+	done; \
+	echo "    timed out with $$unscheduled pod(s) unscheduled"; exit 1
+
+# Deletes the namespace as well as the release. A failed `helm upgrade` can
+# leave resources behind that are no longer in the release manifest, and
+# `helm uninstall` will not touch those orphans — they then show up as
+# workloads from a scenario that is supposedly not active.
 .PHONY: demo-down
 demo-down: ## Remove the synthetic topology (deletes the fake nodes)
 	-helm uninstall $(DEMO_RELEASE) --namespace $(DEMO_NAMESPACE)
+	-kubectl delete namespace $(DEMO_NAMESPACE) --wait=false
+	-kubectl delete nodes -l dencer.io/synthetic=true --wait=false
 
 .PHONY: scenario
 scenario: ## Switch scenario: make scenario S=b-pdb-blocked
@@ -254,7 +281,8 @@ scenario: ## Switch scenario: make scenario S=b-pdb-blocked
 	fi
 	helm upgrade --install $(DEMO_RELEASE) demo/charts/dencer-demo \
 		--namespace $(DEMO_NAMESPACE) --create-namespace \
-		--set scenario=$(S) --wait --timeout 3m
+		--set scenario=$(S)
+	@$(MAKE) --no-print-directory demo-wait
 
 .PHONY: demo
 demo: kwok-up demo-up images images-load deploy ## Full POC: fabric + topology + product

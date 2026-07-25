@@ -17,8 +17,8 @@ Phase 1 (MVP) — visibility and explainability. No execution capability.
 | **M0** | Helm chart to full production contract, three images, delivery skeleton | **done** |
 | **M1** | KWOK fake-node fabric + five constraint scenarios as Helm releases | **done** |
 | **M2** | Domain model + informer-backed cluster state collector | **done** |
-| M3 | Constraint analyzer (PDB headroom, topology, affinity, taints) | next |
-| M4 | Consolidation planner (greedy first-fit-decreasing) | pending |
+| **M3** | Constraint analyzer + placement feasibility evaluator | **done** |
+| M4 | Consolidation planner (greedy first-fit-decreasing) | next |
 | M5 | Impact classifier (Green/Yellow/Red + rationale) | pending |
 | M6 | Plan store (SQLite) + REST/WS API + graph payload | pending |
 | M7 | UI: before/after canvas, step timeline scrubber, constraint inspector | pending |
@@ -32,13 +32,18 @@ The planner watches the cluster through informers and publishes an immutable
 `ClusterSnapshot` every resync period:
 
 ```
-snapshot: nodes=31 nodesOccupied=22 pods=117 pdbs=2 pdbsBlocking=1
-          cpuRequestedPct=37.0% memRequestedPct=18.8% usageData=false
+snapshot:    nodes=31 nodesOccupied=22 pods=117 pdbs=2 pdbsBlocking=1
+             cpuRequestedPct=37.0% memRequestedPct=18.8% usageData=false
+constraints: movable=118 blocked=4 stuck=25 pdbBlocked=3 antiAffinity=0
+             spreadBound=1 controllerPinned=1 nodesUndrainable=4
 ```
 
 Nothing yet *plans* against those snapshots — the bin-packer is M4 — and the UI
 is still a placeholder that only verifies backend connectivity. The plan store
 and API are M6.
+
+Two debug endpoints on the planner's health port expose the current state as
+YAML: `/debug/snapshot` and `/debug/constraints`.
 
 ---
 
@@ -64,7 +69,7 @@ cmd/               planner, ui-backend — one dir per shipped image
 internal/
   model/           domain types; NO k8s imports, so the planner is testable from a YAML snapshot
   cluster/         informer-backed collector, k8s->model conversion, MetricsSource
-  constraints/     PDB / topology / affinity / taint analysis
+  constraints/     effective per-pod constraints + explanations; placement feasibility
   planner/         Strategy interface + greedy bin-packing
   impact/          Green/Yellow/Red classifier + rationale
   store/           Store interface, sqlite/, migrations/
@@ -171,6 +176,24 @@ Two conversion details are worth knowing, since both are easy to get subtly wron
 
 - **Effective requests** follow Kubernetes' own rule — per resource, the greater of the summed app-container requests and the largest init container, plus pod overhead, with sidecars (init containers with `restartPolicy: Always`) added rather than maxed.
 - **PDB headroom comes from `status.disruptionsAllowed`, not `spec.minAvailable`.** The spec says what was asked for; the status says what the API server will actually permit right now. That difference is what separates "a PDB exists" from "this drain will be refused".
+
+## Constraints and explanations
+
+`internal/constraints` derives the effective constraint set for every pod — PDB membership and live headroom, topology spread, node and pod affinity, taints and tolerations, resource requests — and answers `NodeDrainable(node)` for the planner.
+
+**Every explanation string is produced once, here.** The UI's constraint inspector and the Kagent agent both surface these exact strings rather than deriving their own, so the two can never disagree about why a pod cannot move. Explanations name the object responsible and include live numbers, because *"a PDB blocks this"* is not an explanation:
+
+```
+PodDisruptionBudget dencer-demo/dencer-demo-payments currently allows 0
+disruptions (3 healthy, 3 required). The API server will refuse to evict this pod.
+
+PodDisruptionBudget dencer-demo/dencer-demo-catalog allows 2 more concurrent
+disruption(s) (3 healthy, 1 required).
+```
+
+The same package holds `Placement`, the feasibility evaluator — taints, node selector, node affinity, resources, pod affinity/anti-affinity across topology domains, and hard topology spread. It lives here rather than in the packer so that the analyzer's explanations and the planner's decisions come from the same code; an explanation that disagrees with the plan is worse than none.
+
+Only **hard** constraints affect feasibility. A `ScheduleAnyway` spread constraint or a preferred affinity is recorded and explained but never reported as a blocker — treating a preference as a blocker would make the planner refuse moves the scheduler allows.
 
 ## Kagent
 
