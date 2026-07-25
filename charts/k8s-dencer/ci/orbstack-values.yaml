@@ -1,0 +1,68 @@
+# Local POC overlay for the OrbStack cluster.
+#
+# This is the ONLY place in the repo allowed to encode OrbStack assumptions.
+# Nothing here may migrate into values.yaml.
+
+# No registry: OrbStack's Kubernetes reads the local Docker image store
+# directly, so `docker build` + `helm upgrade` is the whole loop. Requires a
+# non-:latest tag, which the Makefile supplies from the git SHA.
+planner:
+  image:
+    registry: ""
+    repository: k8s-dencer-planner
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+uiBackend:
+  image:
+    registry: ""
+    repository: k8s-dencer-ui-backend
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+uiFrontend:
+  replicaCount: 1
+  image:
+    registry: ""
+    repository: k8s-dencer-ui-frontend
+    pullPolicy: IfNotPresent
+  # OrbStack maps LoadBalancer services onto *.k8s.orb.local and makes them
+  # reachable from macOS, which avoids installing an ingress controller on a
+  # cluster that ships without one.
+  service:
+    type: LoadBalancer
+  config:
+    kagentUrl: http://localhost:8080
+  podDisruptionBudget:
+    enabled: false
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
+persistence:
+  enabled: true
+  # Empty inherits OrbStack's default local-path StorageClass.
+  storageClass: ""
+  size: 1Gi
+
+# Kagent 0.9.12 is already installed in this cluster.
+kagent:
+  enabled: true
+  namespace: kagent
+  modelConfig: default-model-config

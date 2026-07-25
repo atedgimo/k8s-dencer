@@ -1,0 +1,42 @@
+{{- if .Values.ingress.enabled }}
+{{/*
+All traffic goes to the frontend, which reverse-proxies /api to the backend.
+One route keeps cookies, CORS and WebSocket upgrades same-origin.
+*/}}
+{{- $fullName := include "k8s-dencer.fullname" . -}}
+{{- $svcPort := .Values.uiFrontend.service.port -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $fullName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "k8s-dencer.labels" . | nindent 4 }}
+  {{- with (merge (dict) .Values.ingress.annotations .Values.commonAnnotations) }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with .Values.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ $fullName }}-ui-frontend
+                port:
+                  number: {{ $svcPort }}
+          {{- end }}
+    {{- end }}
+{{- end }}

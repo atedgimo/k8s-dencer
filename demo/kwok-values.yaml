@@ -1,0 +1,20 @@
+# Values for the upstream kwok chart (kwok/kwok).
+#
+# kwok-controller fakes the kubelet for every Node annotated
+# kwok.x-k8s.io/node=fake: it marks them Ready and drives pod lifecycle on
+# them without running any containers. That is what lets a single-node laptop
+# cluster present the 30-node topology the planner needs.
+#
+# Installed by `make kwok-up`. The chart version is pinned in the Makefile.
+
+# The controller is the only real workload the fabric adds, so keep it small:
+# it must not distort the utilisation picture on the one real node.
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+replicas: 1

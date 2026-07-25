@@ -1,0 +1,370 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "k8s-dencer values",
+  "type": "object",
+  "properties": {
+    "nameOverride": { "type": "string" },
+    "fullnameOverride": { "type": "string" },
+    "imagePullSecrets": { "type": "array", "items": { "type": "object" } },
+    "commonLabels": { "type": "object" },
+    "commonAnnotations": { "type": "object" },
+
+    "serviceAccount": {
+      "type": "object",
+      "properties": {
+        "create": { "type": "boolean" },
+        "name": { "type": "string" },
+        "annotations": { "type": "object" }
+      }
+    },
+
+    "rbac": {
+      "type": "object",
+      "properties": { "create": { "type": "boolean" } }
+    },
+
+    "database": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "description": "Plan store backend. Only sqlite is implemented; the postgres Store lands in Phase 2, at which point this enum widens.",
+          "enum": ["sqlite"]
+        },
+        "sqlite": {
+          "type": "object",
+          "properties": {
+            "path": { "type": "string", "minLength": 1 }
+          }
+        },
+        "postgres": {
+          "type": "object",
+          "properties": {
+            "host": { "type": "string" },
+            "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+            "database": { "type": "string" },
+            "user": { "type": "string" },
+            "existingSecret": { "type": "string" },
+            "existingSecretPasswordKey": { "type": "string" },
+            "sslMode": {
+              "enum": ["disable", "allow", "prefer", "require", "verify-ca", "verify-full"]
+            }
+          }
+        }
+      }
+    },
+
+    "persistence": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "existingClaim": { "type": "string" },
+        "storageClass": {
+          "description": "Empty string inherits the cluster default StorageClass.",
+          "type": "string"
+        },
+        "accessModes": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "enum": ["ReadWriteOnce", "ReadWriteMany", "ReadWriteOncePod"] }
+        },
+        "size": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?(Ki|Mi|Gi|Ti|K|M|G|T)?$" },
+        "annotations": { "type": "object" }
+      }
+    },
+
+    "podSecurityContext": { "$ref": "#/definitions/podSecurityContext" },
+    "securityContext": { "$ref": "#/definitions/containerSecurityContext" },
+
+    "planner": {
+      "allOf": [
+        { "$ref": "#/definitions/schedulingCommon" },
+        {
+          "type": "object",
+          "properties": {
+            "replicaCount": {
+              "description": "The planner is a singleton writer against the plan store.",
+              "type": "integer",
+              "const": 1
+            },
+            "image": { "$ref": "#/definitions/image" },
+            "logLevel": { "$ref": "#/definitions/logLevel" },
+            "resyncPeriod": { "$ref": "#/definitions/duration" },
+            "healthPort": { "$ref": "#/definitions/port" },
+            "resources": { "$ref": "#/definitions/resources" },
+            "podDisruptionBudget": { "$ref": "#/definitions/pdb" }
+          }
+        }
+      ]
+    },
+
+    "uiBackend": {
+      "allOf": [
+        { "$ref": "#/definitions/schedulingCommon" },
+        {
+          "type": "object",
+          "properties": {
+            "replicaCount": { "type": "integer", "minimum": 1 },
+            "image": { "$ref": "#/definitions/image" },
+            "logLevel": { "$ref": "#/definitions/logLevel" },
+            "service": { "$ref": "#/definitions/service" },
+            "resources": { "$ref": "#/definitions/resources" },
+            "podDisruptionBudget": { "$ref": "#/definitions/pdb" }
+          }
+        }
+      ]
+    },
+
+    "uiFrontend": {
+      "allOf": [
+        { "$ref": "#/definitions/schedulingCommon" },
+        {
+          "type": "object",
+          "properties": {
+            "replicaCount": { "type": "integer", "minimum": 1 },
+            "image": { "$ref": "#/definitions/image" },
+            "service": { "$ref": "#/definitions/service" },
+            "config": {
+              "type": "object",
+              "properties": {
+                "apiBaseUrl": { "type": "string" },
+                "kagentUrl": { "type": "string" }
+              }
+            },
+            "podSecurityContext": { "$ref": "#/definitions/podSecurityContext" },
+            "securityContext": { "$ref": "#/definitions/containerSecurityContext" },
+            "resources": { "$ref": "#/definitions/resources" },
+            "podDisruptionBudget": { "$ref": "#/definitions/pdb" }
+          }
+        }
+      ]
+    },
+
+    "ingress": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "className": { "type": "string" },
+        "annotations": { "type": "object" },
+        "hosts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["host", "paths"],
+            "properties": {
+              "host": { "type": "string", "minLength": 1 },
+              "paths": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": ["path", "pathType"],
+                  "properties": {
+                    "path": { "type": "string", "minLength": 1 },
+                    "pathType": { "enum": ["Exact", "Prefix", "ImplementationSpecific"] }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tls": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+
+    "networkPolicy": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "extraIngressFrom": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+
+    "serviceMonitor": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "interval": { "$ref": "#/definitions/duration" },
+        "scrapeTimeout": { "$ref": "#/definitions/duration" },
+        "labels": { "type": "object" }
+      }
+    },
+
+    "kagent": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "namespace": { "type": "string" },
+        "modelConfig": { "type": "string", "minLength": 1 },
+        "runtime": { "enum": ["python", "declarative"] },
+        "toolNames": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  },
+
+  "allOf": [
+    {
+      "$comment": "SQLite is a single-writer store on a ReadWriteOnce claim. More than one ui-backend replica risks database corruption, so the chart refuses to render it rather than letting it be discovered in production.",
+      "if": {
+        "properties": {
+          "database": {
+            "type": "object",
+            "properties": { "type": { "const": "sqlite" } },
+            "required": ["type"]
+          }
+        },
+        "required": ["database"]
+      },
+      "then": {
+        "properties": {
+          "uiBackend": {
+            "type": "object",
+            "properties": {
+              "replicaCount": {
+                "$comment": "database.type=sqlite requires uiBackend.replicaCount=1",
+                "const": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "$comment": "An existingClaim is meaningless unless persistence is on; silently ignoring it would look like the claim was used.",
+      "if": {
+        "properties": {
+          "persistence": {
+            "type": "object",
+            "properties": { "enabled": { "const": false } },
+            "required": ["enabled"]
+          }
+        },
+        "required": ["persistence"]
+      },
+      "then": {
+        "properties": {
+          "persistence": {
+            "type": "object",
+            "properties": { "existingClaim": { "const": "" } }
+          }
+        }
+      }
+    }
+  ],
+
+  "definitions": {
+    "logLevel": { "enum": ["debug", "info", "warn", "error"] },
+
+    "duration": {
+      "type": "string",
+      "pattern": "^[0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h)$"
+    },
+
+    "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+
+    "image": {
+      "type": "object",
+      "properties": {
+        "registry": { "type": "string" },
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": {
+          "description": "Empty defaults to the chart appVersion.",
+          "type": "string",
+          "not": { "const": "latest" }
+        },
+        "pullPolicy": {
+          "description": "Always is rejected: it makes rollouts depend on registry availability and defeats digest-stable deploys.",
+          "enum": ["IfNotPresent", "Never"]
+        }
+      },
+      "required": ["repository"]
+    },
+
+    "service": {
+      "type": "object",
+      "properties": {
+        "type": { "enum": ["ClusterIP", "NodePort", "LoadBalancer"] },
+        "port": { "$ref": "#/definitions/port" },
+        "annotations": { "type": "object" }
+      }
+    },
+
+    "resources": {
+      "type": "object",
+      "description": "Both requests and limits are required: an unbounded component on a shared cluster is not shippable.",
+      "required": ["requests", "limits"],
+      "properties": {
+        "requests": { "$ref": "#/definitions/resourceQuantities" },
+        "limits": { "$ref": "#/definitions/resourceQuantities" }
+      }
+    },
+
+    "resourceQuantities": {
+      "type": "object",
+      "required": ["cpu", "memory"],
+      "properties": {
+        "cpu": { "type": ["string", "number"] },
+        "memory": { "type": "string" }
+      }
+    },
+
+    "pdb": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "maxUnavailable": {
+          "description": "maxUnavailable only. A minAvailable PDB can make its own pods undrainable, which is the failure mode this product exists to detect.",
+          "type": ["integer", "string"]
+        }
+      }
+    },
+
+    "podSecurityContext": {
+      "type": "object",
+      "properties": {
+        "runAsNonRoot": { "const": true },
+        "runAsUser": { "type": "integer", "minimum": 1 },
+        "runAsGroup": { "type": "integer", "minimum": 1 },
+        "fsGroup": { "type": "integer", "minimum": 1 },
+        "seccompProfile": { "type": "object" }
+      }
+    },
+
+    "containerSecurityContext": {
+      "type": "object",
+      "properties": {
+        "readOnlyRootFilesystem": { "const": true },
+        "allowPrivilegeEscalation": { "const": false },
+        "privileged": { "const": false },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "drop": {
+              "type": "array",
+              "contains": { "const": "ALL" }
+            }
+          }
+        }
+      }
+    },
+
+    "schedulingCommon": {
+      "type": "object",
+      "properties": {
+        "podAnnotations": { "type": "object" },
+        "podLabels": { "type": "object" },
+        "nodeSelector": { "type": "object" },
+        "tolerations": { "type": "array", "items": { "type": "object" } },
+        "affinity": { "type": "object" },
+        "topologySpreadConstraints": { "type": "array", "items": { "type": "object" } },
+        "priorityClassName": { "type": "string" },
+        "extraEnv": { "type": "array", "items": { "type": "object" } },
+        "extraVolumes": { "type": "array", "items": { "type": "object" } },
+        "extraVolumeMounts": { "type": "array", "items": { "type": "object" } }
+      }
+    }
+  }
+}

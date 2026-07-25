@@ -1,0 +1,35 @@
+{{/*
+Unconstrained filler, deployed in every scenario.
+
+This is what makes the cluster consolidatable at all: ~37% requested spread
+thinly over every node. The default scheduler's LeastAllocated scoring spreads
+these out, producing exactly the fragmentation a bin-packer should collapse.
+Each scenario then adds a constraint that should change how the planner rates
+the steps touching it.
+*/}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-filler
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dencer-demo.labels" . | nindent 4 }}
+    dencer.io/role: filler
+spec:
+  replicas: {{ .Values.base.replicas }}
+  selector:
+    matchLabels:
+      app: dencer-filler
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: dencer-filler
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        dencer.io/synthetic: "true"
+    spec:
+      affinity:
+        {{- include "dencer-demo.nodeAffinity" . | nindent 8 }}
+      {{- include "dencer-demo.tolerations" . | nindent 6 }}
+      containers:
+        {{- include "dencer-demo.container" (dict "ctx" . "cpu" .Values.base.resources.cpu "memory" .Values.base.resources.memory) | nindent 8 }}

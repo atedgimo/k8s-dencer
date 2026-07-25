@@ -1,0 +1,103 @@
+{{/*
+Fake nodes.
+
+kwok-controller adopts any Node annotated kwok.x-k8s.io/node=fake and drives
+its lifecycle without a kubelet. The NoSchedule taint is the safety barrier
+that keeps real workloads on the real node; synthetic pods tolerate it
+explicitly via the dencer-demo.tolerations helper.
+
+Node status is set on create, which the API server honours for Nodes. On
+subsequent upgrades kwok-controller owns the status instead.
+*/}}
+{{- $zones := .Values.nodes.zones -}}
+{{- $zoneCount := len $zones -}}
+{{- $cap := .Values.nodes.capacity -}}
+{{- range $i := until (int .Values.nodes.count) }}
+---
+apiVersion: v1
+kind: Node
+metadata:
+  name: kwok-node-{{ $i }}
+  annotations:
+    kwok.x-k8s.io/node: fake
+    node.alpha.kubernetes.io/ttl: "0"
+  labels:
+    {{- include "dencer-demo.labels" $ | nindent 4 }}
+    type: kwok
+    kubernetes.io/hostname: kwok-node-{{ $i }}
+    kubernetes.io/os: linux
+    kubernetes.io/arch: {{ $.Values.nodes.arch }}
+    kubernetes.io/role: agent
+    node-role.kubernetes.io/agent: ""
+    topology.kubernetes.io/zone: {{ index $zones (mod $i $zoneCount) }}
+    topology.kubernetes.io/region: synthetic
+spec:
+  taints:
+    - key: kwok.x-k8s.io/node
+      value: fake
+      effect: NoSchedule
+status:
+  phase: Running
+  capacity:
+    cpu: {{ $cap.cpu | quote }}
+    memory: {{ $cap.memory }}
+    pods: {{ $cap.pods | quote }}
+  allocatable:
+    cpu: {{ $cap.cpu | quote }}
+    memory: {{ $cap.memory }}
+    pods: {{ $cap.pods | quote }}
+  nodeInfo:
+    architecture: {{ $.Values.nodes.arch }}
+    operatingSystem: linux
+    kubeletVersion: fake
+{{- end }}
+
+{{- if eq .Values.scenario "e-tainted-pool" }}
+{{/*
+Dedicated pool. Nothing without the matching toleration may land here, so the
+planner must neither drain batch pods onto general nodes nor pack general
+workloads onto this pool.
+*/}}
+{{- $t := .Values.taintedPool.taint -}}
+{{- range $i := until (int .Values.taintedPool.count) }}
+---
+apiVersion: v1
+kind: Node
+metadata:
+  name: kwok-pool-{{ $i }}
+  annotations:
+    kwok.x-k8s.io/node: fake
+    node.alpha.kubernetes.io/ttl: "0"
+  labels:
+    {{- include "dencer-demo.labels" $ | nindent 4 }}
+    type: kwok
+    pool: {{ $t.value }}
+    kubernetes.io/hostname: kwok-pool-{{ $i }}
+    kubernetes.io/os: linux
+    kubernetes.io/arch: {{ $.Values.nodes.arch }}
+    topology.kubernetes.io/zone: {{ index $.Values.nodes.zones (mod $i (len $.Values.nodes.zones)) }}
+    topology.kubernetes.io/region: synthetic
+spec:
+  taints:
+    - key: kwok.x-k8s.io/node
+      value: fake
+      effect: NoSchedule
+    - key: {{ $t.key }}
+      value: {{ $t.value }}
+      effect: NoSchedule
+status:
+  phase: Running
+  capacity:
+    cpu: {{ $.Values.nodes.capacity.cpu | quote }}
+    memory: {{ $.Values.nodes.capacity.memory }}
+    pods: {{ $.Values.nodes.capacity.pods | quote }}
+  allocatable:
+    cpu: {{ $.Values.nodes.capacity.cpu | quote }}
+    memory: {{ $.Values.nodes.capacity.memory }}
+    pods: {{ $.Values.nodes.capacity.pods | quote }}
+  nodeInfo:
+    architecture: {{ $.Values.nodes.arch }}
+    operatingSystem: linux
+    kubeletVersion: fake
+{{- end }}
+{{- end }}

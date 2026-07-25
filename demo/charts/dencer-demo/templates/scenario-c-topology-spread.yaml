@@ -1,0 +1,42 @@
+{{- if eq .Values.scenario "c-topology-spread" }}
+{{/*
+Zone-spread workload with maxSkew 1 and DoNotSchedule.
+
+Any consolidation that moves these pods must keep the per-zone counts within 1
+of each other. A naive bin-packer that ignores topology will propose a packing
+the scheduler then refuses, which is exactly the failure the planner must not
+produce.
+*/}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-frontend
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dencer-demo.labels" . | nindent 4 }}
+    dencer.io/role: topology-spread
+spec:
+  # Divisible by the three zones, so a correct plan keeps exactly 2 per zone.
+  replicas: 6
+  selector:
+    matchLabels:
+      app: dencer-frontend
+  template:
+    metadata:
+      labels:
+        app: dencer-frontend
+        dencer.io/synthetic: "true"
+    spec:
+      affinity:
+        {{- include "dencer-demo.nodeAffinity" . | nindent 8 }}
+      {{- include "dencer-demo.tolerations" . | nindent 6 }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: dencer-frontend
+      containers:
+        {{- include "dencer-demo.container" (dict "ctx" . "cpu" "1" "memory" "2Gi") | nindent 8 }}
+{{- end }}

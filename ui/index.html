@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>k8s-dencer</title>
+    <!-- Runtime config, replaced by a ConfigMap mount in-cluster. Loaded
+         before the bundle so window.__DENCER_CONFIG__ is always defined. -->
+    <script src="/config.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

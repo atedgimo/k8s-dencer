@@ -1,0 +1,40 @@
+Synthetic topology installed: scenario "{{ .Values.scenario }}"
+
+  {{ .Values.nodes.count }} fake nodes across {{ len .Values.nodes.zones }} zones ({{ join ", " .Values.nodes.zones }})
+  {{ .Values.nodes.capacity.cpu }} CPU / {{ .Values.nodes.capacity.memory }} each
+  {{ .Values.base.replicas }} filler pods at {{ .Values.base.resources.cpu }} CPU
+{{- if eq .Values.scenario "e-tainted-pool" }}
+  + {{ .Values.taintedPool.count }} dedicated nodes tainted {{ .Values.taintedPool.taint.key }}={{ .Values.taintedPool.taint.value }}
+{{- end }}
+
+What this scenario should provoke:
+{{- if eq .Values.scenario "a-fragmented" }}
+  Pure headroom, no constraints. The planner should collapse ~{{ .Values.nodes.count }} nodes
+  toward a third of that, and every step should rate Green.
+{{- else if eq .Values.scenario "b-pdb-blocked" }}
+  payments has minAvailable equal to its replica count: zero disruption
+  headroom, so steps touching it must rate Red and name the PDB. catalog has
+  two pods of headroom and should stay Green — the classifier has to tell the
+  two apart, not just detect that a PDB exists.
+{{- else if eq .Values.scenario "c-topology-spread" }}
+  frontend must stay within maxSkew 1 across the three zones. Any proposed
+  move that breaks the spread would be refused by the scheduler.
+{{- else if eq .Values.scenario "d-anti-affinity" }}
+  cache replicas cannot share a node, so each pins a node open regardless of
+  free capacity elsewhere. Ratings should name the anti-affinity rule.
+{{- else if eq .Values.scenario "e-tainted-pool" }}
+  The batch pool is reachable only with the dedicated toleration. General
+  workloads must never be packed onto it, and batch pods must never be moved
+  off it.
+{{- end }}
+
+Inspect:
+  kubectl get nodes -l type=kwok
+  kubectl get pods -n {{ .Release.Namespace }} -o wide
+
+Switch scenario:
+  make scenario S=<a-fragmented|b-pdb-blocked|c-topology-spread|d-anti-affinity|e-tainted-pool>
+
+NOTE: these Nodes are fake. No kubelet runs on them and no container in this
+release is ever executed — kwok-controller fabricates the lifecycle. Only the
+resource requests are real, and they are the planner's entire input.

@@ -1,0 +1,255 @@
+# k8s-dencer — single entry point for build, deploy, lint and demo.
+#
+# Everything runs in-cluster: there is no out-of-cluster dev shortcut. The Helm
+# chart is the product, so the same chart is used locally and in production,
+# separated only by a values overlay under charts/k8s-dencer/ci/.
+
+SHELL := /usr/bin/env bash
+.DEFAULT_GOAL := help
+.SHELLFLAGS := -eu -o pipefail -c
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+# orbstack | k3d | kind | minikube
+# Selects both the images-load implementation and the ci/ values overlay.
+# Nothing outside this file and charts/k8s-dencer/ci/ may assume a provider.
+CLUSTER_PROVIDER ?= orbstack
+
+NAMESPACE   ?= k8s-dencer
+RELEASE     ?= k8s-dencer
+CHART       ?= charts/k8s-dencer
+
+# Local port for `make ui`. Not 8080: kagent's own UI port-forward commonly
+# holds that, and the collision is silent enough to waste real time.
+UI_PORT     ?= 8090
+
+# Demo fabric (POC only). Separate releases and namespaces from the product so
+# the topology can be torn down without touching k8s-dencer.
+KWOK_CHART_VERSION ?= 0.3.0
+KWOK_NAMESPACE     ?= kwok
+DEMO_NAMESPACE     ?= dencer-demo
+DEMO_RELEASE       ?= dencer-demo
+SCENARIO           ?= a-fragmented
+
+# A dirty suffix keeps uncommitted builds from reusing a clean tag, and the
+# changing tag is what makes `helm upgrade` roll pods without a manual restart.
+GIT_SHA     := $(shell git rev-parse --short HEAD 2>/dev/null || echo nogit)
+GIT_DIRTY   := $(shell test -n "$$(git status --porcelain 2>/dev/null)" && echo -dirty || true)
+IMAGE_TAG   ?= $(GIT_SHA)$(GIT_DIRTY)
+
+IMAGE_PREFIX ?= k8s-dencer
+PLATFORMS    ?= linux/amd64,linux/arm64
+
+# Pinned tool versions, installed into ./bin so a workstation without brew
+# still gets a reproducible lint.
+KUBECONFORM_VERSION ?= v0.7.0
+LOCALBIN := $(CURDIR)/bin
+KUBECONFORM := $(LOCALBIN)/kubeconform
+
+export PATH := $(LOCALBIN):$(PATH)
+
+# ---------------------------------------------------------------------------
+# Help
+# ---------------------------------------------------------------------------
+
+.PHONY: help
+help: ## Show available targets
+	@echo "k8s-dencer  (provider=$(CLUSTER_PROVIDER)  tag=$(IMAGE_TAG))"
+	@echo
+	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
+		| sort \
+		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
+
+# ---------------------------------------------------------------------------
+# Tools
+# ---------------------------------------------------------------------------
+
+$(LOCALBIN):
+	@mkdir -p $(LOCALBIN)
+
+$(KUBECONFORM): | $(LOCALBIN)
+	@echo "==> installing kubeconform $(KUBECONFORM_VERSION)"
+	@GOBIN=$(LOCALBIN) go install github.com/yannh/kubeconform/cmd/kubeconform@$(KUBECONFORM_VERSION)
+
+.PHONY: tools
+tools: $(KUBECONFORM) ## Install pinned tooling into ./bin
+
+# ---------------------------------------------------------------------------
+# Build
+# ---------------------------------------------------------------------------
+
+.PHONY: build
+build: ## Compile the Go binaries locally
+	go build ./...
+
+.PHONY: test
+test: ## Run Go and UI tests
+	go vet ./...
+	go test ./...
+	cd ui && npm run typecheck
+
+.PHONY: images
+images: ## Build native-arch images for the local cluster
+	@echo "==> building images tagged $(IMAGE_TAG) (native arch)"
+	docker buildx build --load \
+		-f build/Dockerfile.go \
+		--build-arg COMPONENT=planner \
+		--build-arg VERSION=$(IMAGE_TAG) \
+		-t $(IMAGE_PREFIX)-planner:$(IMAGE_TAG) .
+	docker buildx build --load \
+		-f build/Dockerfile.go \
+		--build-arg COMPONENT=ui-backend \
+		--build-arg VERSION=$(IMAGE_TAG) \
+		-t $(IMAGE_PREFIX)-ui-backend:$(IMAGE_TAG) .
+	docker buildx build --load \
+		-f build/Dockerfile.ui \
+		-t $(IMAGE_PREFIX)-ui-frontend:$(IMAGE_TAG) .
+
+.PHONY: images-release
+images-release: ## Build multi-arch images (buildx cannot --load these; use --push)
+	@echo "==> building $(PLATFORMS) images tagged $(IMAGE_TAG)"
+	@echo "    note: multi-platform builds cannot be loaded into the local"
+	@echo "    docker image store; add --push and a registry to publish."
+	docker buildx build --platform $(PLATFORMS) \
+		-f build/Dockerfile.go \
+		--build-arg COMPONENT=planner \
+		--build-arg VERSION=$(IMAGE_TAG) \
+		-t $(IMAGE_PREFIX)-planner:$(IMAGE_TAG) .
+	docker buildx build --platform $(PLATFORMS) \
+		-f build/Dockerfile.go \
+		--build-arg COMPONENT=ui-backend \
+		--build-arg VERSION=$(IMAGE_TAG) \
+		-t $(IMAGE_PREFIX)-ui-backend:$(IMAGE_TAG) .
+	docker buildx build --platform $(PLATFORMS) \
+		-f build/Dockerfile.ui \
+		-t $(IMAGE_PREFIX)-ui-frontend:$(IMAGE_TAG) .
+
+.PHONY: images-load
+images-load: ## Make locally built images visible to the cluster
+ifeq ($(CLUSTER_PROVIDER),orbstack)
+	@echo "==> orbstack shares the docker image store; nothing to load"
+else ifeq ($(CLUSTER_PROVIDER),k3d)
+	k3d image import $(IMAGE_PREFIX)-planner:$(IMAGE_TAG) $(IMAGE_PREFIX)-ui-backend:$(IMAGE_TAG) $(IMAGE_PREFIX)-ui-frontend:$(IMAGE_TAG)
+else ifeq ($(CLUSTER_PROVIDER),kind)
+	kind load docker-image $(IMAGE_PREFIX)-planner:$(IMAGE_TAG) $(IMAGE_PREFIX)-ui-backend:$(IMAGE_TAG) $(IMAGE_PREFIX)-ui-frontend:$(IMAGE_TAG)
+else ifeq ($(CLUSTER_PROVIDER),minikube)
+	minikube image load $(IMAGE_PREFIX)-planner:$(IMAGE_TAG)
+	minikube image load $(IMAGE_PREFIX)-ui-backend:$(IMAGE_TAG)
+	minikube image load $(IMAGE_PREFIX)-ui-frontend:$(IMAGE_TAG)
+else
+	$(error unknown CLUSTER_PROVIDER: $(CLUSTER_PROVIDER))
+endif
+
+# ---------------------------------------------------------------------------
+# Lint
+# ---------------------------------------------------------------------------
+
+.PHONY: lint
+lint: $(KUBECONFORM) ## Chart portability gate: lint, render and assert the contract
+	@KUBECONFORM=$(KUBECONFORM) CHART=$(CHART) ./hack/lint-chart.sh
+
+# ---------------------------------------------------------------------------
+# Deploy
+# ---------------------------------------------------------------------------
+
+.PHONY: deploy
+deploy: ## Install/upgrade the product chart with the provider overlay
+	helm upgrade --install $(RELEASE) $(CHART) \
+		--namespace $(NAMESPACE) --create-namespace \
+		-f $(CHART)/ci/$(CLUSTER_PROVIDER)-values.yaml \
+		--set planner.image.tag=$(IMAGE_TAG) \
+		--set uiBackend.image.tag=$(IMAGE_TAG) \
+		--set uiFrontend.image.tag=$(IMAGE_TAG) \
+		--wait --timeout 5m
+
+.PHONY: ui
+ui: ## Port-forward the UI and print its URL (Ctrl-C to stop)
+	@if lsof -nP -iTCP:$(UI_PORT) -sTCP:LISTEN >/dev/null 2>&1; then \
+		echo "port $(UI_PORT) is already in use by:"; \
+		lsof -nP -iTCP:$(UI_PORT) -sTCP:LISTEN | tail -n +2 | awk '{print "    " $$1 " (pid " $$2 ")"}'; \
+		echo "retry on another port:  make ui UI_PORT=8091"; \
+		exit 1; \
+	fi
+	@svc=$$(kubectl get svc -n $(NAMESPACE) -l app.kubernetes.io/component=ui-frontend \
+		-o jsonpath='{.items[0].metadata.name}' 2>/dev/null); \
+	if [ -z "$$svc" ]; then \
+		echo "no ui-frontend service in namespace $(NAMESPACE); run 'make deploy' first"; \
+		exit 1; \
+	fi; \
+	echo "==> k8s-dencer UI"; \
+	echo "    http://localhost:$(UI_PORT)"; \
+	lb=$$(kubectl get svc -n $(NAMESPACE) $$svc \
+		-o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null); \
+	if [ -n "$$lb" ]; then \
+		echo "    http://$$lb                     (LoadBalancer)"; \
+		echo "    http://$$svc.$(NAMESPACE).k8s.orb.local  (OrbStack DNS)"; \
+	fi; \
+	echo "    Ctrl-C to stop"; \
+	kubectl port-forward -n $(NAMESPACE) svc/$$svc $(UI_PORT):80
+
+.PHONY: status
+status: ## Show what is running
+	kubectl get pods,svc,pvc -n $(NAMESPACE)
+
+.PHONY: logs
+logs: ## Tail the planner log
+	kubectl logs -n $(NAMESPACE) -l app.kubernetes.io/component=planner -f --tail=50
+
+.PHONY: undeploy
+undeploy: ## Remove the product release
+	-helm uninstall $(RELEASE) --namespace $(NAMESPACE)
+
+# ---------------------------------------------------------------------------
+# Demo fabric (POC only — never part of the product chart)
+# ---------------------------------------------------------------------------
+
+.PHONY: kwok-up
+kwok-up: ## Install the KWOK fake-node fabric
+	@# Charts are served from the classic repo; the OCI path advertised in the
+	@# KWOK docs currently has no tags published.
+	helm repo add kwok https://kwok.sigs.k8s.io/charts/ >/dev/null 2>&1 || true
+	helm repo update kwok >/dev/null
+	helm upgrade --install kwok kwok/kwok --version $(KWOK_CHART_VERSION) \
+		--namespace $(KWOK_NAMESPACE) --create-namespace \
+		-f demo/kwok-values.yaml --wait --timeout 3m
+	helm upgrade --install kwok-stage-fast kwok/stage-fast --version $(KWOK_CHART_VERSION) \
+		--namespace $(KWOK_NAMESPACE) --wait --timeout 2m
+
+.PHONY: kwok-down
+kwok-down: ## Remove the KWOK fabric
+	-helm uninstall kwok-stage-fast --namespace $(KWOK_NAMESPACE)
+	-helm uninstall kwok --namespace $(KWOK_NAMESPACE)
+
+.PHONY: demo-up
+demo-up: ## Install the synthetic topology (SCENARIO=a-fragmented)
+	helm upgrade --install $(DEMO_RELEASE) demo/charts/dencer-demo \
+		--namespace $(DEMO_NAMESPACE) --create-namespace \
+		--set scenario=$(SCENARIO) --wait --timeout 3m
+
+.PHONY: demo-down
+demo-down: ## Remove the synthetic topology (deletes the fake nodes)
+	-helm uninstall $(DEMO_RELEASE) --namespace $(DEMO_NAMESPACE)
+
+.PHONY: scenario
+scenario: ## Switch scenario: make scenario S=b-pdb-blocked
+	@if [ -z "$(S)" ]; then \
+		echo "usage: make scenario S=<a-fragmented|b-pdb-blocked|c-topology-spread|d-anti-affinity|e-tainted-pool>"; \
+		exit 1; \
+	fi
+	helm upgrade --install $(DEMO_RELEASE) demo/charts/dencer-demo \
+		--namespace $(DEMO_NAMESPACE) --create-namespace \
+		--set scenario=$(S) --wait --timeout 3m
+
+.PHONY: demo
+demo: kwok-up demo-up images images-load deploy ## Full POC: fabric + topology + product
+	@echo
+	@echo "==> demo ready. 'make ui' to open it, 'make down' to tear it all down."
+
+.PHONY: down
+down: undeploy demo-down kwok-down ## Remove every release this repo installs
+
+.PHONY: clean
+clean: ## Remove build artifacts
+	rm -rf $(LOCALBIN) ui/dist

@@ -1,0 +1,41 @@
+{{- if eq .Values.scenario "d-anti-affinity" }}
+{{/*
+Required pod anti-affinity on hostname: no two replicas may share a node.
+
+These are the pods that block consolidation hardest — each one pins a node
+open, and no amount of free capacity elsewhere lets two of them merge. The
+planner must recognise that draining one of these nodes requires a node that
+holds no other replica, and the classifier should surface the anti-affinity
+rule by name rather than reporting a generic "cannot move".
+*/}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-cache
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dencer-demo.labels" . | nindent 4 }}
+    dencer.io/role: anti-affinity
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: dencer-cache
+  template:
+    metadata:
+      labels:
+        app: dencer-cache
+        dencer.io/synthetic: "true"
+    spec:
+      affinity:
+        {{- include "dencer-demo.nodeAffinity" . | nindent 8 }}
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: dencer-cache
+      {{- include "dencer-demo.tolerations" . | nindent 6 }}
+      containers:
+        {{- include "dencer-demo.container" (dict "ctx" . "cpu" "1" "memory" "2Gi") | nindent 8 }}
+{{- end }}

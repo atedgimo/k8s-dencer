@@ -1,0 +1,36 @@
+k8s-dencer {{ .Chart.AppVersion }} installed as {{ .Release.Name }} in {{ .Release.Namespace }}.
+
+This release is READ-ONLY. It plans and explains node consolidation; it never
+cordons, drains or evicts. The ServiceAccount has no eviction permission.
+
+Reach the UI:
+{{- if .Values.ingress.enabled }}
+{{- range .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- else if eq .Values.uiFrontend.service.type "LoadBalancer" }}
+  kubectl get svc -n {{ .Release.Namespace }} {{ include "k8s-dencer.fullname" . }}-ui-frontend -w
+{{- else }}
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "k8s-dencer.fullname" . }}-ui-frontend 8080:{{ .Values.uiFrontend.service.port }}
+  open http://localhost:8080
+{{- end }}
+
+Verify the read-only guarantee:
+  kubectl auth can-i create pods/eviction \
+    --as=system:serviceaccount:{{ .Release.Namespace }}:{{ include "k8s-dencer.serviceAccountName" . }}
+  # must print: no
+
+{{ if eq .Values.database.type "sqlite" -}}
+Plan store: SQLite at {{ .Values.database.sqlite.path }}{{ if .Values.persistence.enabled }} on PVC {{ include "k8s-dencer.pvcName" . }}{{ else }} on an emptyDir (NOT durable — plan history is lost on restart){{ end }}.
+SQLite is single-writer, so ui-backend is pinned to one replica and the planner
+is co-scheduled with it. Switch database.type to postgres in Phase 2 to lift both.
+{{- end }}
+
+{{ if .Values.kagent.enabled -}}
+Kagent integration is on. Check it registered:
+  kubectl get remotemcpserver -n {{ include "k8s-dencer.kagentNamespace" . }} {{ include "k8s-dencer.fullname" . }}
+  kubectl get agent -n {{ include "k8s-dencer.kagentNamespace" . }} {{ include "k8s-dencer.fullname" . }}
+{{- else -}}
+Kagent integration is off. Enable with --set kagent.enabled=true (requires the
+kagent.dev CRDs to be installed already).
+{{- end }}
