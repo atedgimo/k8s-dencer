@@ -90,6 +90,11 @@
             "logLevel": { "$ref": "#/definitions/logLevel" },
             "resyncPeriod": { "$ref": "#/definitions/duration" },
             "healthPort": { "$ref": "#/definitions/port" },
+            "watchNamespaces": {
+              "description": "Namespaces the pod/PDB/ReplicaSet informers watch. Empty watches all.",
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            },
             "resources": { "$ref": "#/definitions/resources" },
             "podDisruptionBudget": { "$ref": "#/definitions/pdb" }
           }
