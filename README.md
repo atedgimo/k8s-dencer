@@ -20,8 +20,8 @@ Phase 1 (MVP) — visibility and explainability. No execution capability.
 | **M3** | Constraint analyzer + placement feasibility evaluator | **done** |
 | **M4** | Consolidation planner (greedy first-fit-decreasing) | **done** |
 | **M5** | Impact classifier (Green/Yellow/Red + rationale) | **done** |
-| M6 | Plan store (SQLite) + REST/WS API + graph payload | next |
-| M7 | UI: before/after canvas, step timeline scrubber, constraint inspector | pending |
+| **M6** | Plan store (SQLite) + REST API + graph payload | **done** |
+| M7 | UI: before/after canvas, step timeline scrubber, constraint inspector | next |
 | M8 | Kagent agent: read-only MCP tools + `Agent` CR | pending |
 
 Deferred to later phases: Executor, Safety Guard, Scheduler Simulator, `MaintenanceWindow` CRD, Postgres store, multi-agent orchestration.
@@ -40,8 +40,8 @@ plan:        id=8bb7900e46db steps=15 nodesBefore=28 nodesAfter=13 reclaims=15
              green=6 yellow=5 red=4
 ```
 
-Plans are rated and explained, but not persisted (the plan store is M6) and not
-visualised (the UI is still a placeholder).
+Plans are rated, explained and persisted. They are not yet visualised — the UI
+is still a placeholder, and the graph payload it will consume is already served.
 
 Three debug endpoints on the planner's health port expose current state as
 YAML: `/debug/snapshot`, `/debug/constraints` and `/debug/plan`.
@@ -73,8 +73,8 @@ internal/
   constraints/     effective per-pod constraints + explanations; placement feasibility
   planner/         Strategy interface + greedy first-fit-decreasing packer
   impact/          Green/Yellow/Red classifier + rationale composition
-  store/           Store interface, sqlite/, migrations/
-  api/             rest/ ws/ graph/ agenttools/
+  store/           Store interface + SQLite implementation and migrations
+  api/             rest/ (+ SSE events), graph/ (Cytoscape payload), agenttools/ (M8)
 ui/                React + Vite + Cytoscape.js
 charts/k8s-dencer/ THE product deliverable — see Chart below
 demo/              POC only: KWOK values + the synthetic topology chart
@@ -242,6 +242,33 @@ Only **hard** constraints count. A `ScheduleAnyway` spread constraint never affe
 Thresholds are chart values (`planner.impact.*`) because doc §10 is explicit that where PDB headroom stops being acceptable differs per cluster. Defaults are deliberately cautious — an operator who finds them noisy can loosen them; one surprised by an outage they were told was Green will not trust the tool again.
 
 > Red steps only appear under scenario `f-stateful`. The planner already refuses to drain nodes holding unevictable pods, so a zero-headroom PDB never reaches a step — that scenario exists specifically so the Red path is exercised end to end.
+
+## Plan store and API
+
+Plans live in SQLite on the chart's PVC, not in a CRD. Doc §6 makes the case: a plan is refreshed continuously and read almost entirely by the UI, and pushing that write volume through etcd is a well-known way to hurt a cluster. Nothing external *desires* a specific plan, so there is nothing for Kubernetes' reconciliation model to do.
+
+**Each stored plan carries the snapshot and constraint analysis it was computed from.** The UI needs to draw a graph and explain constraints for the plan it's displaying; pairing them guarantees the three agree. Fetching live state instead would show a graph that has already drifted from the plan drawn over it, and history could never be reviewed at all.
+
+**Writes are deduplicated on the content hash.** A stable cluster re-plans to the same ID every cycle, and writing that row every 30 seconds would fill the volume and bury the moments the plan actually changed. `planner.retainPlans` prunes older versions — history is an audit trail, but the volume is a fixed size.
+
+### Endpoints
+
+```
+GET /api/v1/version
+GET /api/v1/plans                                    list, newest first
+GET /api/v1/plans/{id|latest}                        full plan
+GET /api/v1/plans/{id}/steps/{seq}                   step + the constraints of the pods it moves
+GET /api/v1/plans/{id}/graph                         Cytoscape elements + stat tiles
+GET /api/v1/plans/{id}/snapshot                      the cluster state it was planned against
+GET /api/v1/plans/{id}/constraints[/{ns}/{pod}]      constraint analysis
+GET /api/v1/events                                   live plan changes (SSE)
+```
+
+`latest` is an alias, so the UI can deep-link without knowing an ID. **There is no mutating route** — not even a disabled one, because a "not implemented" execute endpoint is an invitation. A test asserts none exists.
+
+Live updates use **Server-Sent Events rather than WebSockets**: the traffic is strictly one-way since the API is read-only, `EventSource` reconnects on its own, and it needs no dependency and no protocol upgrade. The stream sends current state on connect, so a client joining a stable cluster isn't left blank.
+
+The graph payload is shaped for Cytoscape's compound-node model — cluster nodes are parents, pods are children — and every pod carries **both** its current node and where the plan would move it, so the frontend can build the before/after view and animate the step scrubber from a single request.
 
 ## Kagent
 

@@ -120,6 +120,11 @@ planner:
     # PDB disruption headroom at or below which a covering PDB makes a step
     # Yellow. Zero headroom is always Red regardless of this value.
     tightPDBHeadroom: 1
+
+  # How many plan versions to keep. Plan history is an audit trail, but the
+  # volume is a fixed size; identical plans are deduplicated on their content
+  # hash, so this counts distinct plans rather than planning cycles.
+  retainPlans: 200
   resources:
     requests:
       cpu: 50m
@@ -146,6 +151,10 @@ planner:
 uiBackend:
   # Pinned to 1 while database.type is sqlite. Enforced by values.schema.json.
   replicaCount: 1
+  # How often to check the store for a new plan, to push over the event stream.
+  # The planner is a separate process reached only through the shared volume,
+  # so there is no event feed to subscribe to.
+  pollInterval: 5s
   image:
     registry: ghcr.io
     repository: atedgimo/k8s-dencer-ui-backend

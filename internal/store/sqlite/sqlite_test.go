@@ -1,0 +1,309 @@
+package sqlite_test
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/atedgimo/k8s-dencer/internal/constraints"
+	"github.com/atedgimo/k8s-dencer/internal/model"
+	"github.com/atedgimo/k8s-dencer/internal/store"
+	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlite"
+)
+
+func openTemp(t *testing.T) *sqlitestore.Store {
+	t.Helper()
+	s, err := sqlitestore.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	if err := s.Migrate(context.Background()); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	return s
+}
+
+func record(id string, steps ...model.PlanStep) store.Record {
+	return store.Record{
+		Plan: &model.Plan{
+			ID:              id,
+			GeneratedAt:     time.Now().UTC().Truncate(time.Millisecond),
+			SnapshotTakenAt: time.Now().UTC().Truncate(time.Millisecond),
+			Status:          model.PlanValid,
+			Steps:           steps,
+			NodesBefore:     10,
+			NodesAfter:      10 - len(steps),
+		},
+		Snapshot: &model.ClusterSnapshot{
+			Nodes: []model.Node{{Name: "a", Ready: true,
+				Allocatable: model.Resources{MilliCPU: 4000, MemoryBytes: 1 << 33, Pods: 110}}},
+			Pods: []model.Pod{{Namespace: "app", Name: "web", NodeName: "a", Phase: model.PodRunning}},
+		},
+		Analysis: &constraints.Analysis{},
+		Strategy: "greedy-first-fit-decreasing",
+	}
+}
+
+func step(seq int, node string, impact model.ImpactRating) model.PlanStep {
+	return model.PlanStep{
+		ID:             fmt.Sprintf("step-%d", seq),
+		SequenceNumber: seq,
+		TargetNode:     node,
+		Moves:          []model.Move{{Namespace: "app", Pod: "web", FromNode: node, ToNode: "b"}},
+		Impact:         impact,
+		Rationale:      "because reasons that are long enough to be useful",
+		Reasons:        []model.ImpactReason{{Kind: "BlastRadius", Subject: node, Detail: "moves 1 pod"}},
+	}
+}
+
+func TestMigrateIsIdempotent(t *testing.T) {
+	s := openTemp(t)
+	// Runs on every ui-backend start, and the planner runs it too so neither
+	// has to start first.
+	for i := 0; i < 3; i++ {
+		if err := s.Migrate(context.Background()); err != nil {
+			t.Fatalf("migrate %d: %v", i, err)
+		}
+	}
+}
+
+func TestSaveAndReadBack(t *testing.T) {
+	ctx := context.Background()
+	s := openTemp(t)
+
+	in := record("abc123", step(1, "n1", model.ImpactGreen), step(2, "n2", model.ImpactRed))
+	stored, err := s.Save(ctx, in)
+	if err != nil || !stored {
+		t.Fatalf("save: stored=%v err=%v", stored, err)
+	}
+
+	out, err := s.Latest(ctx)
+	if err != nil {
+		t.Fatalf("latest: %v", err)
+	}
+	if out.Plan.ID != "abc123" {
+		t.Errorf("id = %s", out.Plan.ID)
+	}
+	if out.Strategy != in.Strategy {
+		t.Errorf("strategy = %q", out.Strategy)
+	}
+	if len(out.Plan.Steps) != 2 {
+		t.Fatalf("steps = %d, want 2", len(out.Plan.Steps))
+	}
+	if out.Plan.Steps[0].SequenceNumber != 1 || out.Plan.Steps[1].SequenceNumber != 2 {
+		t.Error("steps came back out of order")
+	}
+	if out.Plan.Steps[1].Impact != model.ImpactRed {
+		t.Errorf("impact = %s", out.Plan.Steps[1].Impact)
+	}
+	if out.Plan.Steps[0].Rationale == "" {
+		t.Error("rationale lost in round-trip")
+	}
+	if len(out.Plan.Steps[0].Reasons) != 1 {
+		t.Error("machine-readable reasons lost in round-trip")
+	}
+	if len(out.Plan.Steps[0].Moves) != 1 || out.Plan.Steps[0].Moves[0].ToNode != "b" {
+		t.Error("moves lost in round-trip")
+	}
+	// Snapshot and analysis travel with the plan so the UI can draw a graph
+	// that matches the plan drawn over it.
+	if out.Snapshot == nil || len(out.Snapshot.Nodes) != 1 {
+		t.Error("snapshot did not survive")
+	}
+	if out.Analysis == nil {
+		t.Error("analysis did not survive")
+	}
+}
+
+// A stable cluster re-plans to the same content hash every cycle. Writing that
+// row every 30 seconds would fill the volume and bury the moments the plan
+// actually changed.
+func TestSaveDeduplicatesIdenticalPlans(t *testing.T) {
+	ctx := context.Background()
+	s := openTemp(t)
+
+	rec := record("same-hash", step(1, "n1", model.ImpactGreen))
+	if stored, _ := s.Save(ctx, rec); !stored {
+		t.Fatal("first save should store")
+	}
+	if stored, err := s.Save(ctx, rec); err != nil || stored {
+		t.Errorf("identical plan should not be stored again: stored=%v err=%v", stored, err)
+	}
+
+	plans, err := s.List(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plans) != 1 {
+		t.Errorf("expected 1 stored plan, got %d", len(plans))
+	}
+}
+
+// A plan that changes, then changes back, must be recorded again — otherwise
+// the history would claim nothing happened in between.
+func TestPlanReturningToAPreviousShapeIsRecorded(t *testing.T) {
+	ctx := context.Background()
+	s := openTemp(t)
+
+	a := record("hash-a", step(1, "n1", model.ImpactGreen))
+	b := record("hash-b", step(1, "n2", model.ImpactYellow))
+
+	mustSave(t, s, a, true)
+	mustSave(t, s, b, true)
+	mustSave(t, s, a, true)
+
+	latest, err := s.Latest(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if latest.Plan.ID != "hash-a" {
+		t.Errorf("latest = %s, want hash-a", latest.Plan.ID)
+	}
+}
+
+func TestListSummarisesRatings(t *testing.T) {
+	ctx := context.Background()
+	s := openTemp(t)
+
+	mustSave(t, s, record("p1",
+		step(1, "n1", model.ImpactGreen),
+		step(2, "n2", model.ImpactGreen),
+		step(3, "n3", model.ImpactYellow),
+		step(4, "n4", model.ImpactRed),
+	), true)
+
+	plans, err := s.List(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plans) != 1 {
+		t.Fatalf("plans = %d", len(plans))
+	}
+	got := plans[0]
+	if got.Steps != 4 {
+		t.Errorf("steps = %d", got.Steps)
+	}
+	if got.Ratings["Green"] != 2 || got.Ratings["Yellow"] != 1 || got.Ratings["Red"] != 1 {
+		t.Errorf("ratings = %+v", got.Ratings)
+	}
+	if got.Strategy == "" {
+		t.Error("strategy missing from summary")
+	}
+}
+
+func TestPruneKeepsNewest(t *testing.T) {
+	ctx := context.Background()
+	s := openTemp(t)
+
+	for i := 0; i < 10; i++ {
+		rec := record(fmt.Sprintf("plan-%02d", i), step(1, "n1", model.ImpactGreen))
+		rec.StoredAt = time.Now().UTC().Add(time.Duration(i) * time.Second)
+		mustSave(t, s, rec, true)
+	}
+
+	removed, err := s.Prune(ctx, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if removed != 7 {
+		t.Errorf("pruned %d, want 7", removed)
+	}
+
+	plans, err := s.List(ctx, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plans) != 3 {
+		t.Fatalf("remaining = %d, want 3", len(plans))
+	}
+	if plans[0].ID != "plan-09" {
+		t.Errorf("newest retained = %s, want plan-09", plans[0].ID)
+	}
+
+	// Cascade must take the steps with the plan, or the table grows forever.
+	if _, err := s.ByID(ctx, "plan-00"); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("pruned plan still readable: %v", err)
+	}
+}
+
+func TestPruneWithZeroKeepsEverything(t *testing.T) {
+	ctx := context.Background()
+	s := openTemp(t)
+	mustSave(t, s, record("p1", step(1, "n1", model.ImpactGreen)), true)
+
+	if removed, err := s.Prune(ctx, 0); err != nil || removed != 0 {
+		t.Errorf("Prune(0) removed=%d err=%v; retention must be opt-in", removed, err)
+	}
+}
+
+func TestMissingPlanIsNotFound(t *testing.T) {
+	ctx := context.Background()
+	s := openTemp(t)
+
+	if _, err := s.Latest(ctx); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("empty store Latest = %v, want ErrNotFound", err)
+	}
+	if _, err := s.ByID(ctx, "nope"); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("ByID = %v, want ErrNotFound", err)
+	}
+}
+
+// Plan history is the audit trail. A restart must not lose it.
+func TestDataSurvivesReopen(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "persist.db")
+
+	first, err := sqlitestore.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := first.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	mustSave(t, first, record("durable", step(1, "n1", model.ImpactRed)), true)
+	if err := first.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	second, err := sqlitestore.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = second.Close() }()
+	if err := second.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := second.Latest(ctx)
+	if err != nil {
+		t.Fatalf("plan did not survive reopen: %v", err)
+	}
+	if got.Plan.ID != "durable" || len(got.Plan.Steps) != 1 {
+		t.Errorf("recovered plan = %+v", got.Plan)
+	}
+	if got.Plan.Steps[0].Impact != model.ImpactRed {
+		t.Error("step rating did not survive")
+	}
+}
+
+func TestSaveRejectsNilPlan(t *testing.T) {
+	if _, err := openTemp(t).Save(context.Background(), store.Record{}); err == nil {
+		t.Error("expected an error for a nil plan")
+	}
+}
+
+func mustSave(t *testing.T, s *sqlitestore.Store, rec store.Record, wantStored bool) {
+	t.Helper()
+	stored, err := s.Save(context.Background(), rec)
+	if err != nil {
+		t.Fatalf("save %s: %v", rec.Plan.ID, err)
+	}
+	if stored != wantStored {
+		t.Fatalf("save %s: stored=%v, want %v", rec.Plan.ID, stored, wantStored)
+	}
+}

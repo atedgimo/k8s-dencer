@@ -1,0 +1,295 @@
+package rest_test
+
+import (
+	"context"
+	"encoding/json"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/atedgimo/k8s-dencer/internal/api/rest"
+	"github.com/atedgimo/k8s-dencer/internal/constraints"
+	"github.com/atedgimo/k8s-dencer/internal/model"
+	"github.com/atedgimo/k8s-dencer/internal/store"
+	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlite"
+)
+
+func testServer(t *testing.T, records ...store.Record) *httptest.Server {
+	t.Helper()
+	db, err := sqlitestore.Open(filepath.Join(t.TempDir(), "api.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if err := db.Migrate(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	for _, rec := range records {
+		if _, err := db.Save(context.Background(), rec); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	api := rest.New(db, slog.New(slog.DiscardHandler), "test")
+	mux := http.NewServeMux()
+	api.Routes(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func sampleRecord(id string) store.Record {
+	snap := &model.ClusterSnapshot{
+		TakenAt: time.Now().UTC(),
+		Nodes: []model.Node{
+			{Name: "n1", Ready: true, Labels: map[string]string{model.LabelZone: "z1"},
+				Allocatable: model.Resources{MilliCPU: 4000, MemoryBytes: 1 << 33, Pods: 110}},
+			{Name: "n2", Ready: true, Labels: map[string]string{model.LabelZone: "z2"},
+				Allocatable: model.Resources{MilliCPU: 4000, MemoryBytes: 1 << 33, Pods: 110}},
+		},
+		Pods: []model.Pod{{
+			Namespace: "app", Name: "web", NodeName: "n1", Phase: model.PodRunning,
+			Labels:   map[string]string{"app": "web"},
+			Requests: model.Resources{MilliCPU: 500, MemoryBytes: 1 << 28},
+			Owner:    &model.OwnerRef{Kind: "Deployment", Name: "web"},
+		}},
+	}
+	return store.Record{
+		Plan: &model.Plan{
+			ID: id, Status: model.PlanValid,
+			GeneratedAt: time.Now().UTC(), SnapshotTakenAt: snap.TakenAt,
+			NodesBefore: 2, NodesAfter: 1,
+			Steps: []model.PlanStep{{
+				ID: "s1", SequenceNumber: 1, TargetNode: "n1",
+				Moves:     []model.Move{{Namespace: "app", Pod: "web", FromNode: "n1", ToNode: "n2"}},
+				Impact:    model.ImpactGreen,
+				Rationale: "Draining n1 moves 1 pod(s). No constraints apply.",
+			}},
+		},
+		Snapshot: snap,
+		Analysis: constraints.Analyze(snap),
+		Strategy: "greedy-first-fit-decreasing",
+	}
+}
+
+func get(t *testing.T, srv *httptest.Server, path string) (int, map[string]any) {
+	t.Helper()
+	resp, err := srv.Client().Get(srv.URL + path)
+	if err != nil {
+		t.Fatalf("GET %s: %v", path, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, _ := io.ReadAll(resp.Body)
+	var out map[string]any
+	_ = json.Unmarshal(body, &out)
+	return resp.StatusCode, out
+}
+
+func TestEmptyStoreReturns404NotError(t *testing.T) {
+	srv := testServer(t)
+	// A fresh install has no plan yet. That is a normal state, not a fault,
+	// and the UI needs to tell the two apart.
+	for _, path := range []string{"/api/v1/plans/latest", "/api/v1/plans/latest/graph"} {
+		if code, _ := get(t, srv, path); code != http.StatusNotFound {
+			t.Errorf("GET %s = %d, want 404", path, code)
+		}
+	}
+	code, body := get(t, srv, "/api/v1/plans")
+	if code != http.StatusOK {
+		t.Errorf("plan list = %d, want 200 with an empty array", code)
+	}
+	if plans, ok := body["plans"].([]any); !ok || len(plans) != 0 {
+		t.Errorf("expected an empty array, got %#v", body["plans"])
+	}
+}
+
+func TestLatestPlanAndAlias(t *testing.T) {
+	srv := testServer(t, sampleRecord("plan-1"))
+
+	code, body := get(t, srv, "/api/v1/plans/latest")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d", code)
+	}
+	plan, _ := body["plan"].(map[string]any)
+	if plan["id"] != "plan-1" {
+		t.Errorf("id = %v", plan["id"])
+	}
+	if body["readOnly"] != true {
+		t.Error("responses must advertise that the API is read-only")
+	}
+
+	// "latest" and the explicit ID must resolve to the same plan, so the UI
+	// can deep-link without knowing an ID.
+	codeByID, byID := get(t, srv, "/api/v1/plans/plan-1")
+	if codeByID != http.StatusOK {
+		t.Fatalf("by id status = %d", codeByID)
+	}
+	if byID["plan"].(map[string]any)["id"] != plan["id"] {
+		t.Error("latest and by-id disagree")
+	}
+}
+
+func TestStepEndpointCarriesItsConstraints(t *testing.T) {
+	srv := testServer(t, sampleRecord("plan-1"))
+
+	code, body := get(t, srv, "/api/v1/plans/latest/steps/1")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d", code)
+	}
+	step, _ := body["step"].(map[string]any)
+	if step["sequenceNumber"] != float64(1) {
+		t.Errorf("sequenceNumber = %v", step["sequenceNumber"])
+	}
+	if step["rationale"] == "" {
+		t.Error("step must carry its rationale")
+	}
+	// "Why is step N rated this way?" should be one request, not three.
+	if _, ok := body["constraints"].([]any); !ok {
+		t.Errorf("step response must include the constraints of the pods it moves, got %#v", body["constraints"])
+	}
+}
+
+func TestUnknownStepAndPlanAre404(t *testing.T) {
+	srv := testServer(t, sampleRecord("plan-1"))
+
+	if code, _ := get(t, srv, "/api/v1/plans/latest/steps/99"); code != http.StatusNotFound {
+		t.Errorf("unknown step = %d, want 404", code)
+	}
+	if code, _ := get(t, srv, "/api/v1/plans/nope"); code != http.StatusNotFound {
+		t.Errorf("unknown plan = %d, want 404", code)
+	}
+	if code, _ := get(t, srv, "/api/v1/plans/latest/steps/abc"); code != http.StatusBadRequest {
+		t.Errorf("non-numeric step = %d, want 400", code)
+	}
+}
+
+func TestGraphPayloadShape(t *testing.T) {
+	srv := testServer(t, sampleRecord("plan-1"))
+
+	code, body := get(t, srv, "/api/v1/plans/latest/graph")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d", code)
+	}
+	elements, _ := body["elements"].([]any)
+	if len(elements) == 0 {
+		t.Fatal("graph has no elements")
+	}
+
+	var nodes, pods, moveEdges int
+	for _, raw := range elements {
+		el := raw.(map[string]any)
+		data := el["data"].(map[string]any)
+		switch data["kind"] {
+		case "node":
+			nodes++
+		case "pod":
+			pods++
+			// Compound nesting is how Cytoscape draws "this node holds these
+			// pods" — without a parent the pod floats free.
+			if data["parent"] == nil || data["parent"] == "" {
+				t.Errorf("pod %v has no parent node", data["id"])
+			}
+		case "edge":
+			if data["relation"] == "move" {
+				moveEdges++
+			}
+		}
+	}
+	if nodes != 2 {
+		t.Errorf("node elements = %d, want 2", nodes)
+	}
+	if pods != 1 {
+		t.Errorf("pod elements = %d, want 1", pods)
+	}
+	if moveEdges != 1 {
+		t.Errorf("move edges = %d, want 1", moveEdges)
+	}
+
+	stats, _ := body["stats"].(map[string]any)
+	if stats["reclaimed"] != float64(1) {
+		t.Errorf("stats.reclaimed = %v, want 1", stats["reclaimed"])
+	}
+}
+
+func TestPodConstraintsEndpoint(t *testing.T) {
+	srv := testServer(t, sampleRecord("plan-1"))
+
+	code, body := get(t, srv, "/api/v1/plans/latest/constraints/app/web")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d", code)
+	}
+	if body["name"] != "web" || body["namespace"] != "app" {
+		t.Errorf("unexpected pod: %v/%v", body["namespace"], body["name"])
+	}
+
+	if code, _ := get(t, srv, "/api/v1/plans/latest/constraints/app/missing"); code != http.StatusNotFound {
+		t.Errorf("unknown pod = %d, want 404", code)
+	}
+}
+
+// Phase 1 is read-only by construction. There is no mutating route at all —
+// not even a disabled one, because a "not implemented" execute endpoint is an
+// invitation.
+func TestNoMutatingRoutesExist(t *testing.T) {
+	srv := testServer(t, sampleRecord("plan-1"))
+
+	for _, tc := range []struct{ method, path string }{
+		{http.MethodPost, "/api/v1/plans/latest/execute"},
+		{http.MethodPost, "/api/v1/plans/latest/steps/1/execute"},
+		{http.MethodDelete, "/api/v1/plans/plan-1"},
+		{http.MethodPut, "/api/v1/plans/plan-1"},
+		{http.MethodPost, "/api/v1/plans"},
+	} {
+		req, _ := http.NewRequest(tc.method, srv.URL+tc.path, nil)
+		resp, err := srv.Client().Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode < 400 {
+			t.Errorf("%s %s returned %d; no mutating route may exist in Phase 1",
+				tc.method, tc.path, resp.StatusCode)
+		}
+	}
+}
+
+func TestPlanResponsesAreNotCached(t *testing.T) {
+	srv := testServer(t, sampleRecord("plan-1"))
+	resp, err := srv.Client().Get(srv.URL + "/api/v1/plans/latest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	// A cached plan would show an operator state their cluster has left.
+	if cc := resp.Header.Get("Cache-Control"); !strings.Contains(cc, "no-store") {
+		t.Errorf("Cache-Control = %q, want no-store", cc)
+	}
+}
+
+func TestEventStreamSendsCurrentStateOnConnect(t *testing.T) {
+	srv := testServer(t, sampleRecord("plan-1"))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/api/v1/events", nil)
+	resp, err := srv.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if ct := resp.Header.Get("Content-Type"); ct != "text/event-stream" {
+		t.Errorf("Content-Type = %q", ct)
+	}
+	// nginx buffers proxied responses by default, which would hold a
+	// low-volume event stream back indefinitely.
+	if resp.Header.Get("X-Accel-Buffering") != "no" {
+		t.Error("SSE responses must disable proxy buffering")
+	}
+}
