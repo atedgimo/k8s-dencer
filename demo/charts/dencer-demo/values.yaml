@@ -9,6 +9,8 @@
 #   c-topology-spread maxSkew 1 across three zones
 #   d-anti-affinity   required pod anti-affinity singletons
 #   e-tainted-pool    dedicated tainted node pool
+#   f-stateful        StatefulSet + an unmanaged pod; the only scenario that
+#                     produces Red-rated steps
 #
 # The base workload is always deployed so every scenario has something to
 # consolidate; the scenario adds the constraint that should change the ratings.

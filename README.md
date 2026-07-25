@@ -19,8 +19,8 @@ Phase 1 (MVP) — visibility and explainability. No execution capability.
 | **M2** | Domain model + informer-backed cluster state collector | **done** |
 | **M3** | Constraint analyzer + placement feasibility evaluator | **done** |
 | **M4** | Consolidation planner (greedy first-fit-decreasing) | **done** |
-| M5 | Impact classifier (Green/Yellow/Red + rationale) | next |
-| M6 | Plan store (SQLite) + REST/WS API + graph payload | pending |
+| **M5** | Impact classifier (Green/Yellow/Red + rationale) | **done** |
+| M6 | Plan store (SQLite) + REST/WS API + graph payload | next |
 | M7 | UI: before/after canvas, step timeline scrubber, constraint inspector | pending |
 | M8 | Kagent agent: read-only MCP tools + `Agent` CR | pending |
 
@@ -36,12 +36,12 @@ snapshot:    nodes=31 nodesOccupied=24 pods=117 pdbs=0 pdbsBlocking=0
              cpuRequestedPct=37.0% memRequestedPct=18.8% usageData=false
 constraints: movable=116 blocked=1 stuck=26 antiAffinity=0 spreadBound=1
              controllerPinned=1 nodesUndrainable=1
-plan:        id=c64d1364c6c0 strategy=greedy-first-fit-decreasing steps=11
-             nodesBefore=24 nodesAfter=13 reclaims=11
+plan:        id=8bb7900e46db steps=15 nodesBefore=28 nodesAfter=13 reclaims=15
+             green=6 yellow=5 red=4
 ```
 
-Plans are produced but not yet *rated* — Green/Yellow/Red is M5 — not persisted
-(the plan store is M6), and not visualised (the UI is still a placeholder).
+Plans are rated and explained, but not persisted (the plan store is M6) and not
+visualised (the UI is still a placeholder).
 
 Three debug endpoints on the planner's health port expose current state as
 YAML: `/debug/snapshot`, `/debug/constraints` and `/debug/plan`.
@@ -72,7 +72,7 @@ internal/
   cluster/         informer-backed collector, k8s->model conversion, MetricsSource
   constraints/     effective per-pod constraints + explanations; placement feasibility
   planner/         Strategy interface + greedy first-fit-decreasing packer
-  impact/          Green/Yellow/Red classifier + rationale
+  impact/          Green/Yellow/Red classifier + rationale composition
   store/           Store interface, sqlite/, migrations/
   api/             rest/ ws/ graph/ agenttools/
 ui/                React + Vite + Cytoscape.js
@@ -156,6 +156,7 @@ The base filler workload deploys in **every** scenario, so there is always somet
 | `c-topology-spread` | 6 replicas, `maxSkew: 1` over 3 zones | moves preserve 2-per-zone |
 | `d-anti-affinity` | 5 replicas, required anti-affinity on hostname | each pins a node open; rationale names the rule |
 | `e-tainted-pool` | 3 nodes tainted `dedicated=batch` | pool neither packed into nor drained out of |
+| `f-stateful` | StatefulSet + a bare unmanaged pod | the only scenario producing **Red** steps |
 
 Verified against the live cluster: evicting a `payments` pod is refused with `TooManyRequests`, while `catalog` succeeds — real PDB enforcement on fake nodes.
 
@@ -217,6 +218,30 @@ The planner is deterministic by construction — the plan ID is a content hash o
 Policy inputs are chart values today and become the `ConsolidationPolicy` CRD later: `planner.minNodeAge` (skip fresh nodes so consolidation doesn't fight the autoscaler), `planner.maxSteps`, `planner.excludeNamespaces`. Control-plane nodes are excluded by default.
 
 Ten tests cover it, including the ones that matter most: every proposed move must still be feasible when the plan is *applied in order*, every step must fully empty its target, and no step may drain a node holding a pod the analyzer says cannot be evicted.
+
+## Impact ratings
+
+`internal/impact` rates every step and explains the rating. The rating is **policy, not advice**: doc §5 confines Red steps to an approved maintenance window, and Phase 2's safety guard will enforce that in code rather than trusting UI input validation. So a rating has to be defensible, which is why each one names the specific object and number behind it:
+
+```
+Draining kwok-node-19 moves 1 pod(s). Rated Red because: dencer-demo/dencer-demo-orphan
+has no controller. Evicting it deletes it permanently; nothing will recreate it.
+Red steps may only execute inside an approved maintenance window.
+```
+
+| Rating | Driven by |
+|---|---|
+| **Red** | unmanaged pod (eviction deletes it permanently), StatefulSet pod, PDB at zero headroom, blast radius ≥ `redPodsMoved` |
+| **Yellow** | PDB headroom ≤ `tightPDBHeadroom`, PersistentVolumeClaim, required anti-affinity, hard topology spread, blast radius ≥ `yellowPodsMoved` |
+| **Green** | none of the above |
+
+The worst factor decides, and the rationale **leads with it** — that's the question an operator is actually asking — then lists supporting factors. Anti-affinity and spread rationales quote the analyzer's explanation verbatim rather than re-deriving it, so the two can't drift.
+
+Only **hard** constraints count. A `ScheduleAnyway` spread constraint never affects a rating: flagging a preference the scheduler would happily violate is a false alarm, and false alarms are how a tool gets ignored.
+
+Thresholds are chart values (`planner.impact.*`) because doc §10 is explicit that where PDB headroom stops being acceptable differs per cluster. Defaults are deliberately cautious — an operator who finds them noisy can loosen them; one surprised by an outage they were told was Green will not trust the tool again.
+
+> Red steps only appear under scenario `f-stateful`. The planner already refuses to drain nodes holding unevictable pods, so a zero-headroom PDB never reaches a step — that scenario exists specifically so the Red path is exercised end to end.
 
 ## Kagent
 

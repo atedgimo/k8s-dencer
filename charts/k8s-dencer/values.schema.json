@@ -101,6 +101,14 @@
               "type": "array",
               "items": { "type": "string", "minLength": 1 }
             },
+            "impact": {
+              "type": "object",
+              "properties": {
+                "yellowPodsMoved": { "type": "integer", "minimum": 1 },
+                "redPodsMoved": { "type": "integer", "minimum": 1 },
+                "tightPDBHeadroom": { "type": "integer", "minimum": 0 }
+              }
+            },
             "resources": { "$ref": "#/definitions/resources" },
             "podDisruptionBudget": { "$ref": "#/definitions/pdb" }
           }

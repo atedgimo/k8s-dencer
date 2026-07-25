@@ -22,6 +22,11 @@ What this scenario should provoke:
 {{- else if eq .Values.scenario "d-anti-affinity" }}
   cache replicas cannot share a node, so each pins a node open regardless of
   free capacity elsewhere. Ratings should name the anti-affinity rule.
+{{- else if eq .Values.scenario "f-stateful" }}
+  A StatefulSet and a bare unmanaged pod. Both make their steps Red: the
+  StatefulSet replacement cannot start until the old pod fully terminates, and
+  the unmanaged pod is simply deleted by eviction with nothing to recreate it.
+  This is the only scenario that exercises the Red rating end to end.
 {{- else if eq .Values.scenario "e-tainted-pool" }}
   The batch pool is reachable only with the dedicated toleration. General
   workloads must never be packed onto it, and batch pods must never be moved
@@ -33,7 +38,7 @@ Inspect:
   kubectl get pods -n {{ .Release.Namespace }} -o wide
 
 Switch scenario:
-  make scenario S=<a-fragmented|b-pdb-blocked|c-topology-spread|d-anti-affinity|e-tainted-pool>
+  make scenario S=<a-fragmented|b-pdb-blocked|c-topology-spread|d-anti-affinity|e-tainted-pool|f-stateful>
 
 NOTE: these Nodes are fake. No kubelet runs on them and no container in this
 release is ever executed — kwok-controller fabricates the lifecycle. Only the

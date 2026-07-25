@@ -24,6 +24,7 @@ import (
 	"github.com/atedgimo/k8s-dencer/internal/cluster"
 	"github.com/atedgimo/k8s-dencer/internal/constraints"
 	"github.com/atedgimo/k8s-dencer/internal/httpserver"
+	"github.com/atedgimo/k8s-dencer/internal/impact"
 	"github.com/atedgimo/k8s-dencer/internal/model"
 	"github.com/atedgimo/k8s-dencer/internal/planner"
 	"github.com/atedgimo/k8s-dencer/internal/telemetry"
@@ -73,6 +74,12 @@ func run(ctx context.Context, log *slog.Logger) error {
 	planOpts.MaxSteps = intEnv(log, "MAX_STEPS", 0)
 	planOpts.ExcludeNamespaces = splitList(os.Getenv("EXCLUDE_NAMESPACES"))
 
+	classifier := impact.New(impact.Thresholds{
+		YellowPodsMoved:  intEnv(log, "YELLOW_PODS_MOVED", 0),
+		RedPodsMoved:     intEnv(log, "RED_PODS_MOVED", 0),
+		TightPDBHeadroom: int32(intEnv(log, "TIGHT_PDB_HEADROOM", 0)),
+	})
+
 	health := &httpserver.Health{}
 	mux := http.NewServeMux()
 	health.Register(mux)
@@ -117,7 +124,7 @@ func run(ctx context.Context, log *slog.Logger) error {
 	ticker := time.NewTicker(resync)
 	defer ticker.Stop()
 
-	collect(ctx, log, collector, &latest, &latestAnalysis, &latestPlan, strategy, planOpts)
+	collect(ctx, log, collector, &latest, &latestAnalysis, &latestPlan, strategy, planOpts, classifier)
 
 	for {
 		select {
@@ -128,7 +135,7 @@ func run(ctx context.Context, log *slog.Logger) error {
 		case err := <-serveErr:
 			return err
 		case <-ticker.C:
-			collect(ctx, log, collector, &latest, &latestAnalysis, &latestPlan, strategy, planOpts)
+			collect(ctx, log, collector, &latest, &latestAnalysis, &latestPlan, strategy, planOpts, classifier)
 		}
 	}
 }
@@ -142,6 +149,7 @@ func collect(
 	latestPlan *atomic.Pointer[model.Plan],
 	strategy planner.Strategy,
 	planOpts planner.Options,
+	classifier impact.Classifier,
 ) {
 	snap, err := c.Snapshot(ctx)
 	if err != nil {
@@ -206,8 +214,12 @@ func collect(
 		log.Error("planning failed", "error", err)
 		return
 	}
+	// Rating happens after planning, never during it: the plan is the ideal
+	// end state, and risk is a separate judgement laid over it.
+	classifier.ClassifyPlan(plan, snap, analysis)
 	latestPlan.Store(plan)
 
+	byRating := plan.CountByRating()
 	log.Info("plan",
 		"id", plan.ID,
 		"strategy", strategy.Name(),
@@ -215,6 +227,9 @@ func collect(
 		"nodesBefore", plan.NodesBefore,
 		"nodesAfter", plan.NodesAfter,
 		"reclaims", plan.ReclaimedNodes(),
+		"green", byRating[model.ImpactGreen],
+		"yellow", byRating[model.ImpactYellow],
+		"red", byRating[model.ImpactRed],
 	)
 }
 
