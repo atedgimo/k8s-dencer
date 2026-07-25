@@ -21,6 +21,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/atedgimo/k8s-dencer/internal/cluster"
+	"github.com/atedgimo/k8s-dencer/internal/constraints"
 	"github.com/atedgimo/k8s-dencer/internal/httpserver"
 	"github.com/atedgimo/k8s-dencer/internal/model"
 	"github.com/atedgimo/k8s-dencer/internal/telemetry"
@@ -61,11 +62,23 @@ func run(ctx context.Context, log *slog.Logger) error {
 	}
 
 	var latest atomic.Pointer[model.ClusterSnapshot]
+	var latestAnalysis atomic.Pointer[constraints.Analysis]
 
 	health := &httpserver.Health{}
 	mux := http.NewServeMux()
 	health.Register(mux)
-	mux.HandleFunc("GET /debug/snapshot", snapshotHandler(&latest))
+	mux.HandleFunc("GET /debug/snapshot", yamlHandler(func() any {
+		if v := latest.Load(); v != nil {
+			return v
+		}
+		return nil
+	}))
+	mux.HandleFunc("GET /debug/constraints", yamlHandler(func() any {
+		if v := latestAnalysis.Load(); v != nil {
+			return v
+		}
+		return nil
+	}))
 
 	// Informers run for the process lifetime; a cache failure is fatal because
 	// planning against a dead cache would silently use stale state.
@@ -89,7 +102,7 @@ func run(ctx context.Context, log *slog.Logger) error {
 	ticker := time.NewTicker(resync)
 	defer ticker.Stop()
 
-	collect(ctx, log, collector, &latest)
+	collect(ctx, log, collector, &latest, &latestAnalysis)
 
 	for {
 		select {
@@ -100,12 +113,18 @@ func run(ctx context.Context, log *slog.Logger) error {
 		case err := <-serveErr:
 			return err
 		case <-ticker.C:
-			collect(ctx, log, collector, &latest)
+			collect(ctx, log, collector, &latest, &latestAnalysis)
 		}
 	}
 }
 
-func collect(ctx context.Context, log *slog.Logger, c *cluster.Collector, latest *atomic.Pointer[model.ClusterSnapshot]) {
+func collect(
+	ctx context.Context,
+	log *slog.Logger,
+	c *cluster.Collector,
+	latest *atomic.Pointer[model.ClusterSnapshot],
+	latestAnalysis *atomic.Pointer[constraints.Analysis],
+) {
 	snap, err := c.Snapshot(ctx)
 	if err != nil {
 		log.Error("snapshot failed", "error", err)
@@ -141,21 +160,43 @@ func collect(ctx context.Context, log *slog.Logger, c *cluster.Collector, latest
 		"podSlotsUsedPct", pct(pods),
 		"usageData", snap.HasUsageData,
 	)
+
+	analysis := constraints.Analyze(snap)
+	latestAnalysis.Store(analysis)
+
+	cs := analysis.Summarize()
+	undrainable := 0
+	for _, n := range snap.Nodes {
+		if drainable, _ := analysis.NodeDrainable(n.Name); !drainable {
+			undrainable++
+		}
+	}
+
+	log.Info("constraints",
+		"movable", cs.Movable,
+		"blocked", cs.Blocked,
+		"stuck", cs.Stuck,
+		"pdbBlocked", cs.PDBBlocked,
+		"antiAffinity", cs.AntiAffinity,
+		"spreadBound", cs.SpreadBound,
+		"controllerPinned", cs.ControllerPin,
+		"nodesUndrainable", undrainable,
+	)
 }
 
-// snapshotHandler serves the latest snapshot as YAML.
+// yamlHandler serves whatever load returns, as YAML.
 //
 // This is how test/fixtures are captured: the golden planner tests replay real
 // cluster state, so the fixtures must come from a real cluster rather than
 // being written by hand.
-func snapshotHandler(latest *atomic.Pointer[model.ClusterSnapshot]) http.HandlerFunc {
+func yamlHandler(load func() any) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
-		snap := latest.Load()
-		if snap == nil {
-			http.Error(w, "no snapshot taken yet", http.StatusServiceUnavailable)
+		v := load()
+		if v == nil {
+			http.Error(w, "nothing collected yet", http.StatusServiceUnavailable)
 			return
 		}
-		out, err := yaml.Marshal(snap)
+		out, err := yaml.Marshal(v)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
