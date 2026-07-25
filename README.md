@@ -18,8 +18,8 @@ Phase 1 (MVP) — visibility and explainability. No execution capability.
 | **M1** | KWOK fake-node fabric + five constraint scenarios as Helm releases | **done** |
 | **M2** | Domain model + informer-backed cluster state collector | **done** |
 | **M3** | Constraint analyzer + placement feasibility evaluator | **done** |
-| M4 | Consolidation planner (greedy first-fit-decreasing) | next |
-| M5 | Impact classifier (Green/Yellow/Red + rationale) | pending |
+| **M4** | Consolidation planner (greedy first-fit-decreasing) | **done** |
+| M5 | Impact classifier (Green/Yellow/Red + rationale) | next |
 | M6 | Plan store (SQLite) + REST/WS API + graph payload | pending |
 | M7 | UI: before/after canvas, step timeline scrubber, constraint inspector | pending |
 | M8 | Kagent agent: read-only MCP tools + `Agent` CR | pending |
@@ -32,18 +32,19 @@ The planner watches the cluster through informers and publishes an immutable
 `ClusterSnapshot` every resync period:
 
 ```
-snapshot:    nodes=31 nodesOccupied=22 pods=117 pdbs=2 pdbsBlocking=1
+snapshot:    nodes=31 nodesOccupied=24 pods=117 pdbs=0 pdbsBlocking=0
              cpuRequestedPct=37.0% memRequestedPct=18.8% usageData=false
-constraints: movable=118 blocked=4 stuck=25 pdbBlocked=3 antiAffinity=0
-             spreadBound=1 controllerPinned=1 nodesUndrainable=4
+constraints: movable=116 blocked=1 stuck=26 antiAffinity=0 spreadBound=1
+             controllerPinned=1 nodesUndrainable=1
+plan:        id=c64d1364c6c0 strategy=greedy-first-fit-decreasing steps=11
+             nodesBefore=24 nodesAfter=13 reclaims=11
 ```
 
-Nothing yet *plans* against those snapshots — the bin-packer is M4 — and the UI
-is still a placeholder that only verifies backend connectivity. The plan store
-and API are M6.
+Plans are produced but not yet *rated* — Green/Yellow/Red is M5 — not persisted
+(the plan store is M6), and not visualised (the UI is still a placeholder).
 
-Two debug endpoints on the planner's health port expose the current state as
-YAML: `/debug/snapshot` and `/debug/constraints`.
+Three debug endpoints on the planner's health port expose current state as
+YAML: `/debug/snapshot`, `/debug/constraints` and `/debug/plan`.
 
 ---
 
@@ -70,7 +71,7 @@ internal/
   model/           domain types; NO k8s imports, so the planner is testable from a YAML snapshot
   cluster/         informer-backed collector, k8s->model conversion, MetricsSource
   constraints/     effective per-pod constraints + explanations; placement feasibility
-  planner/         Strategy interface + greedy bin-packing
+  planner/         Strategy interface + greedy first-fit-decreasing packer
   impact/          Green/Yellow/Red classifier + rationale
   store/           Store interface, sqlite/, migrations/
   api/             rest/ ws/ graph/ agenttools/
@@ -194,6 +195,28 @@ disruption(s) (3 healthy, 1 required).
 The same package holds `Placement`, the feasibility evaluator — taints, node selector, node affinity, resources, pod affinity/anti-affinity across topology domains, and hard topology spread. It lives here rather than in the packer so that the analyzer's explanations and the planner's decisions come from the same code; an explanation that disagrees with the plan is worse than none.
 
 Only **hard** constraints affect feasibility. A `ScheduleAnyway` spread constraint or a preferred affinity is recorded and explained but never reported as a blocker — treating a preference as a blocker would make the planner refuse moves the scheduler allows.
+
+## Planning
+
+`internal/planner` turns a snapshot plus its constraint analysis into an ordered sequence of atomic steps, each one draining a single node. On the demo fabric:
+
+```
+plan: id=c64d1364c6c0 steps=11 nodesBefore=24 nodesAfter=13 reclaims=11
+```
+
+**Greedy first-fit-decreasing**, behind a `Strategy` interface so the OR-Tools comparison in doc §10 stays open. Three choices drive the result:
+
+- **Drain candidates emptiest-first.** The least-loaded node is both cheapest to evacuate and most likely to succeed, so this frees the most nodes for a given amount of disruption.
+- **Place the largest pods first.** Big pods are hardest to fit; placing them last strands them in space the easy pods have already fragmented.
+- **Prefer the *fullest* destination that still fits.** This is what makes it consolidation. A plain first-fit over an arbitrary node order spreads load evenly and frees nothing.
+
+A node is accepted only if **every** movable pod on it finds a home. A partial evacuation frees no node, so a step that cannot complete is never proposed.
+
+The planner is deterministic by construction — the plan ID is a content hash of the steps, so re-planning an unchanged cluster yields the same ID and "has the plan changed?" is a string comparison. It also plans the *ideal* end state regardless of whether a step is safe to run right now; risk is scored separately (M5) and enforced separately (Phase 2), so the plan's shape never depends on the time of day.
+
+Policy inputs are chart values today and become the `ConsolidationPolicy` CRD later: `planner.minNodeAge` (skip fresh nodes so consolidation doesn't fight the autoscaler), `planner.maxSteps`, `planner.excludeNamespaces`. Control-plane nodes are excluded by default.
+
+Ten tests cover it, including the ones that matter most: every proposed move must still be feasible when the plan is *applied in order*, every step must fully empty its target, and no step may drain a node holding a pod the analyzer says cannot be evicted.
 
 ## Kagent
 

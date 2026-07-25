@@ -7,6 +7,10 @@
 # directly, so `docker build` + `helm upgrade` is the whole loop. Requires a
 # non-:latest tag, which the Makefile supplies from the git SHA.
 planner:
+  # The KWOK fabric is torn down and recreated constantly, so the production
+  # 10m minimum would leave every node ineligible and the demo would show an
+  # empty plan.
+  minNodeAge: 30s
   image:
     registry: ""
     repository: k8s-dencer-planner

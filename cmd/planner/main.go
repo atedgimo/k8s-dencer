@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -24,6 +25,7 @@ import (
 	"github.com/atedgimo/k8s-dencer/internal/constraints"
 	"github.com/atedgimo/k8s-dencer/internal/httpserver"
 	"github.com/atedgimo/k8s-dencer/internal/model"
+	"github.com/atedgimo/k8s-dencer/internal/planner"
 	"github.com/atedgimo/k8s-dencer/internal/telemetry"
 )
 
@@ -63,6 +65,13 @@ func run(ctx context.Context, log *slog.Logger) error {
 
 	var latest atomic.Pointer[model.ClusterSnapshot]
 	var latestAnalysis atomic.Pointer[constraints.Analysis]
+	var latestPlan atomic.Pointer[model.Plan]
+
+	strategy := planner.Greedy{}
+	planOpts := planner.DefaultOptions()
+	planOpts.MinNodeAge = duration(log, "MIN_NODE_AGE", planOpts.MinNodeAge)
+	planOpts.MaxSteps = intEnv(log, "MAX_STEPS", 0)
+	planOpts.ExcludeNamespaces = splitList(os.Getenv("EXCLUDE_NAMESPACES"))
 
 	health := &httpserver.Health{}
 	mux := http.NewServeMux()
@@ -75,6 +84,12 @@ func run(ctx context.Context, log *slog.Logger) error {
 	}))
 	mux.HandleFunc("GET /debug/constraints", yamlHandler(func() any {
 		if v := latestAnalysis.Load(); v != nil {
+			return v
+		}
+		return nil
+	}))
+	mux.HandleFunc("GET /debug/plan", yamlHandler(func() any {
+		if v := latestPlan.Load(); v != nil {
 			return v
 		}
 		return nil
@@ -102,7 +117,7 @@ func run(ctx context.Context, log *slog.Logger) error {
 	ticker := time.NewTicker(resync)
 	defer ticker.Stop()
 
-	collect(ctx, log, collector, &latest, &latestAnalysis)
+	collect(ctx, log, collector, &latest, &latestAnalysis, &latestPlan, strategy, planOpts)
 
 	for {
 		select {
@@ -113,7 +128,7 @@ func run(ctx context.Context, log *slog.Logger) error {
 		case err := <-serveErr:
 			return err
 		case <-ticker.C:
-			collect(ctx, log, collector, &latest, &latestAnalysis)
+			collect(ctx, log, collector, &latest, &latestAnalysis, &latestPlan, strategy, planOpts)
 		}
 	}
 }
@@ -124,6 +139,9 @@ func collect(
 	c *cluster.Collector,
 	latest *atomic.Pointer[model.ClusterSnapshot],
 	latestAnalysis *atomic.Pointer[constraints.Analysis],
+	latestPlan *atomic.Pointer[model.Plan],
+	strategy planner.Strategy,
+	planOpts planner.Options,
 ) {
 	snap, err := c.Snapshot(ctx)
 	if err != nil {
@@ -182,6 +200,35 @@ func collect(
 		"controllerPinned", cs.ControllerPin,
 		"nodesUndrainable", undrainable,
 	)
+
+	plan, err := strategy.Plan(snap, analysis, planOpts)
+	if err != nil {
+		log.Error("planning failed", "error", err)
+		return
+	}
+	latestPlan.Store(plan)
+
+	log.Info("plan",
+		"id", plan.ID,
+		"strategy", strategy.Name(),
+		"steps", len(plan.Steps),
+		"nodesBefore", plan.NodesBefore,
+		"nodesAfter", plan.NodesAfter,
+		"reclaims", plan.ReclaimedNodes(),
+	)
+}
+
+func intEnv(log *slog.Logger, key string, fallback int) int {
+	raw, ok := os.LookupEnv(key)
+	if !ok || raw == "" {
+		return fallback
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil {
+		log.Warn("invalid integer, using default", "key", key, "value", raw, "default", fallback)
+		return fallback
+	}
+	return v
 }
 
 // yamlHandler serves whatever load returns, as YAML.

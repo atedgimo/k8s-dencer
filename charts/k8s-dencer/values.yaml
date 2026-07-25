@@ -93,6 +93,19 @@ planner:
   # cluster-scoped regardless: restricting them would leave the planner with
   # workloads and nowhere to place them.
   watchNamespaces: []
+
+  # Consolidation policy inputs. These become the ConsolidationPolicy CRD in a
+  # later milestone; they are values for now so the planner is tunable today.
+  #
+  # minNodeAge skips recently created nodes: a node that appeared moments ago
+  # is probably a deliberate scale-up, and draining it immediately would fight
+  # the autoscaler.
+  minNodeAge: 10m
+  # Cap on plan length. 0 means unlimited.
+  maxSteps: 0
+  # Pods in these namespaces are treated as immovable, which makes their nodes
+  # undrainable.
+  excludeNamespaces: []
   resources:
     requests:
       cpu: 50m
