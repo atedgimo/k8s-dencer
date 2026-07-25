@@ -53,6 +53,10 @@ spec:
               value: {{ .Values.planner.resyncPeriod | quote }}
             - name: HEALTH_ADDR
               value: ":{{ .Values.planner.healthPort }}"
+            {{- with .Values.planner.watchNamespaces }}
+            - name: WATCH_NAMESPACES
+              value: {{ join "," . | quote }}
+            {{- end }}
             - name: DATABASE_TYPE
               value: {{ .Values.database.type | quote }}
             {{- if eq .Values.database.type "sqlite" }}

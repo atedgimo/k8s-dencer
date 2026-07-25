@@ -1,21 +1,32 @@
 // Command planner runs the k8s-dencer consolidation planning loop.
 //
-// M0 scaffold: serves health probes and logs a heartbeat. The cluster state
-// collector, constraint analyzer, planner and impact classifier land in M2-M5.
+// M2: collects cluster state through informers and publishes an immutable
+// snapshot on every tick. The constraint analyzer, bin-packer and impact
+// classifier consume these snapshots from M3 onward.
 package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/yaml"
+
+	"github.com/atedgimo/k8s-dencer/internal/cluster"
 	"github.com/atedgimo/k8s-dencer/internal/httpserver"
+	"github.com/atedgimo/k8s-dencer/internal/model"
 	"github.com/atedgimo/k8s-dencer/internal/telemetry"
 )
+
+var version = "dev"
 
 func main() {
 	log := telemetry.NewLogger("planner", env("LOG_LEVEL", "info"))
@@ -23,36 +34,153 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	health := &httpserver.Health{}
-	mux := http.NewServeMux()
-	health.Register(mux)
-
-	// Nothing to warm up yet, so the planner is ready as soon as it is serving.
-	// From M2 this flips only once the informer cache has synced.
-	health.SetReady(true)
-
-	go heartbeat(ctx, log, duration(log, "RESYNC_PERIOD", 30*time.Second))
-
-	if err := httpserver.Run(ctx, log, env("HEALTH_ADDR", ":8081"), mux); err != nil {
-		log.Error("http server failed", "error", err)
+	if err := run(ctx, log); err != nil {
+		log.Error("fatal", "error", err)
 		os.Exit(1)
 	}
 	log.Info("planner stopped")
 }
 
-// heartbeat stands in for the planning loop until M4, so that a deployed
-// planner visibly does something on the interval the chart configures.
-func heartbeat(ctx context.Context, log *slog.Logger, every time.Duration) {
-	ticker := time.NewTicker(every)
+func run(ctx context.Context, log *slog.Logger) error {
+	resync := duration(log, "RESYNC_PERIOD", 30*time.Second)
+
+	// Resolves in-cluster config, falling back to KUBECONFIG, so the same
+	// binary runs in a pod and against a kubeconfig for debugging.
+	cfg, err := ctrl.GetConfig()
+	if err != nil {
+		return err
+	}
+
+	collector, err := cluster.New(cfg, cluster.Options{
+		ResyncPeriod: resync,
+		Namespaces:   splitList(os.Getenv("WATCH_NAMESPACES")),
+		Logger:       log,
+	})
+	if err != nil {
+		return err
+	}
+
+	var latest atomic.Pointer[model.ClusterSnapshot]
+
+	health := &httpserver.Health{}
+	mux := http.NewServeMux()
+	health.Register(mux)
+	mux.HandleFunc("GET /debug/snapshot", snapshotHandler(&latest))
+
+	// Informers run for the process lifetime; a cache failure is fatal because
+	// planning against a dead cache would silently use stale state.
+	cacheErr := make(chan error, 1)
+	go func() { cacheErr <- collector.Start(ctx) }()
+
+	serveErr := make(chan error, 1)
+	go func() { serveErr <- httpserver.Run(ctx, log, env("HEALTH_ADDR", ":8081"), mux) }()
+
+	log.Info("waiting for informer cache sync")
+	if !collector.WaitForSync(ctx) {
+		return context.Cause(ctx)
+	}
+	log.Info("cache synced")
+
+	// Only now is the planner safe to call ready: a snapshot taken from a
+	// half-populated cache would show nodes as empty and invite a plan to
+	// drain them.
+	health.SetReady(true)
+
+	ticker := time.NewTicker(resync)
 	defer ticker.Stop()
+
+	collect(ctx, log, collector, &latest)
+
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return nil
+		case err := <-cacheErr:
+			return err
+		case err := <-serveErr:
+			return err
 		case <-ticker.C:
-			log.Info("planner loop tick (no-op: planner lands in M4)")
+			collect(ctx, log, collector, &latest)
 		}
 	}
+}
+
+func collect(ctx context.Context, log *slog.Logger, c *cluster.Collector, latest *atomic.Pointer[model.ClusterSnapshot]) {
+	snap, err := c.Snapshot(ctx)
+	if err != nil {
+		log.Error("snapshot failed", "error", err)
+		return
+	}
+	latest.Store(snap)
+
+	allocatable, requested := snap.Totals()
+	cpu, mem, pods := requested.Ratio(allocatable)
+
+	occupied := 0
+	for _, n := range snap.Nodes {
+		if !snap.RequestedOnNode(n.Name).IsZero() {
+			occupied++
+		}
+	}
+
+	blocking := 0
+	for _, p := range snap.PDBs {
+		if p.Blocks() {
+			blocking++
+		}
+	}
+
+	log.Info("snapshot",
+		"nodes", len(snap.Nodes),
+		"nodesOccupied", occupied,
+		"pods", len(snap.Pods),
+		"pdbs", len(snap.PDBs),
+		"pdbsBlocking", blocking,
+		"cpuRequestedPct", pct(cpu),
+		"memRequestedPct", pct(mem),
+		"podSlotsUsedPct", pct(pods),
+		"usageData", snap.HasUsageData,
+	)
+}
+
+// snapshotHandler serves the latest snapshot as YAML.
+//
+// This is how test/fixtures are captured: the golden planner tests replay real
+// cluster state, so the fixtures must come from a real cluster rather than
+// being written by hand.
+func snapshotHandler(latest *atomic.Pointer[model.ClusterSnapshot]) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		snap := latest.Load()
+		if snap == nil {
+			http.Error(w, "no snapshot taken yet", http.StatusServiceUnavailable)
+			return
+		}
+		out, err := yaml.Marshal(snap)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/yaml")
+		_, _ = w.Write(out)
+	}
+}
+
+func pct(f float64) string {
+	return fmt.Sprintf("%.1f%%", f*100)
+}
+
+func splitList(s string) []string {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func env(key, fallback string) string {

@@ -24,6 +24,8 @@ CHART       ?= charts/k8s-dencer
 # Local port for `make ui`. Not 8080: kagent's own UI port-forward commonly
 # holds that, and the collision is silent enough to waste real time.
 UI_PORT     ?= 8090
+# Separate port so capturing a fixture never collides with `make ui`.
+FIXTURE_PORT ?= 8091
 
 # Demo fabric (POC only). Separate releases and namespaces from the product so
 # the topology can be torn down without touching k8s-dencer.
@@ -94,17 +96,17 @@ test: ## Run Go and UI tests
 images: ## Build native-arch images for the local cluster
 	@echo "==> building images tagged $(IMAGE_TAG) (native arch)"
 	docker buildx build --load \
-		-f build/Dockerfile.go \
+		-f build/go.Dockerfile \
 		--build-arg COMPONENT=planner \
 		--build-arg VERSION=$(IMAGE_TAG) \
 		-t $(IMAGE_PREFIX)-planner:$(IMAGE_TAG) .
 	docker buildx build --load \
-		-f build/Dockerfile.go \
+		-f build/go.Dockerfile \
 		--build-arg COMPONENT=ui-backend \
 		--build-arg VERSION=$(IMAGE_TAG) \
 		-t $(IMAGE_PREFIX)-ui-backend:$(IMAGE_TAG) .
 	docker buildx build --load \
-		-f build/Dockerfile.ui \
+		-f build/ui.Dockerfile \
 		-t $(IMAGE_PREFIX)-ui-frontend:$(IMAGE_TAG) .
 
 .PHONY: images-release
@@ -113,17 +115,17 @@ images-release: ## Build multi-arch images (buildx cannot --load these; use --pu
 	@echo "    note: multi-platform builds cannot be loaded into the local"
 	@echo "    docker image store; add --push and a registry to publish."
 	docker buildx build --platform $(PLATFORMS) \
-		-f build/Dockerfile.go \
+		-f build/go.Dockerfile \
 		--build-arg COMPONENT=planner \
 		--build-arg VERSION=$(IMAGE_TAG) \
 		-t $(IMAGE_PREFIX)-planner:$(IMAGE_TAG) .
 	docker buildx build --platform $(PLATFORMS) \
-		-f build/Dockerfile.go \
+		-f build/go.Dockerfile \
 		--build-arg COMPONENT=ui-backend \
 		--build-arg VERSION=$(IMAGE_TAG) \
 		-t $(IMAGE_PREFIX)-ui-backend:$(IMAGE_TAG) .
 	docker buildx build --platform $(PLATFORMS) \
-		-f build/Dockerfile.ui \
+		-f build/ui.Dockerfile \
 		-t $(IMAGE_PREFIX)-ui-frontend:$(IMAGE_TAG) .
 
 .PHONY: images-load
@@ -188,6 +190,18 @@ ui: ## Port-forward the UI and print its URL (Ctrl-C to stop)
 	fi; \
 	echo "    Ctrl-C to stop"; \
 	kubectl port-forward -n $(NAMESPACE) svc/$$svc $(UI_PORT):80
+
+.PHONY: capture-fixture
+capture-fixture: ## Capture the live snapshot into test/fixtures/$(S).yaml
+	@if [ -z "$(S)" ]; then echo "usage: make capture-fixture S=<scenario>"; exit 1; fi
+	@mkdir -p test/fixtures
+	@kubectl port-forward -n $(NAMESPACE) deploy/$(RELEASE)-planner $(FIXTURE_PORT):8081 >/dev/null 2>&1 & \
+	pf=$$!; \
+	trap "kill $$pf 2>/dev/null" EXIT; \
+	sleep 4; \
+	curl -sf -m 15 http://localhost:$(FIXTURE_PORT)/debug/snapshot -o test/fixtures/$(S).yaml \
+		&& echo "captured test/fixtures/$(S).yaml ($$(wc -c < test/fixtures/$(S).yaml | tr -d ' ') bytes)" \
+		|| { echo "capture failed; is the planner running and its cache synced?"; exit 1; }
 
 .PHONY: status
 status: ## Show what is running

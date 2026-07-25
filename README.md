@@ -16,8 +16,8 @@ Phase 1 (MVP) — visibility and explainability. No execution capability.
 |---|---|---|
 | **M0** | Helm chart to full production contract, three images, delivery skeleton | **done** |
 | **M1** | KWOK fake-node fabric + five constraint scenarios as Helm releases | **done** |
-| M2 | Domain model + cluster state collector (informers over nodes/pods/PDBs) | next |
-| M3 | Constraint analyzer (PDB headroom, topology, affinity, taints) | pending |
+| **M2** | Domain model + informer-backed cluster state collector | **done** |
+| M3 | Constraint analyzer (PDB headroom, topology, affinity, taints) | next |
 | M4 | Consolidation planner (greedy first-fit-decreasing) | pending |
 | M5 | Impact classifier (Green/Yellow/Red + rationale) | pending |
 | M6 | Plan store (SQLite) + REST/WS API + graph payload | pending |
@@ -28,7 +28,17 @@ Deferred to later phases: Executor, Safety Guard, Scheduler Simulator, `Maintena
 
 ### What actually runs today
 
-The three components deploy and serve, but the planner is a heartbeat and the UI is a placeholder that verifies backend connectivity — the real planning and visualisation land in M4 and M7.
+The planner watches the cluster through informers and publishes an immutable
+`ClusterSnapshot` every resync period:
+
+```
+snapshot: nodes=31 nodesOccupied=22 pods=117 pdbs=2 pdbsBlocking=1
+          cpuRequestedPct=37.0% memRequestedPct=18.8% usageData=false
+```
+
+Nothing yet *plans* against those snapshots — the bin-packer is M4 — and the UI
+is still a placeholder that only verifies backend connectivity. The plan store
+and API are M6.
 
 ---
 
@@ -53,7 +63,7 @@ api/v1alpha1/      CRD types (ConsolidationPolicy) — importable, not internal/
 cmd/               planner, ui-backend — one dir per shipped image
 internal/
   model/           domain types; NO k8s imports, so the planner is testable from a YAML snapshot
-  cluster/         informer-backed collector + MetricsSource interface
+  cluster/         informer-backed collector, k8s->model conversion, MetricsSource
   constraints/     PDB / topology / affinity / taint analysis
   planner/         Strategy interface + greedy bin-packing
   impact/          Green/Yellow/Red classifier + rationale
@@ -64,6 +74,7 @@ charts/k8s-dencer/ THE product deliverable — see Chart below
 demo/              POC only: KWOK values + the synthetic topology chart
 build/             Dockerfile.go (parameterised by COMPONENT) + Dockerfile.ui
 hack/              lint-chart.sh — the portability gate
+test/fixtures/     ClusterSnapshots captured from a live cluster for golden tests
 ```
 
 Structural rules worth preserving:
@@ -71,6 +82,7 @@ Structural rules worth preserving:
 - `internal/model` has **zero** Kubernetes imports. That is what lets the planner be tested against a fixture snapshot with no cluster.
 - `api/` stays out of `internal/` so CRD types remain importable by other tools.
 - `demo/` is never referenced by the product chart. It installs as a separate release and can be torn down independently.
+- The no-Kubernetes-imports rule on `internal/model` is enforced by a test, not a convention. If it breaks, snapshots stop being plain data and the planner can no longer be tested without a cluster.
 - CRD YAML is generated into `config/crd/bases` and copied into the chart by make — never hand-maintained in two places.
 
 ---
@@ -142,6 +154,23 @@ The base filler workload deploys in **every** scenario, so there is always somet
 Verified against the live cluster: evicting a `payments` pod is refused with `TooManyRequests`, while `catalog` succeeds — real PDB enforcement on fake nodes.
 
 ---
+
+## Snapshots and fixtures
+
+The planner exposes the latest `ClusterSnapshot` as YAML on its health port, which is how golden-test fixtures are captured:
+
+```bash
+make scenario S=b-pdb-blocked
+# wait one resync period for the planner to observe the change
+make capture-fixture S=b-pdb-blocked   # -> test/fixtures/b-pdb-blocked.yaml
+```
+
+Fixtures come from a real cluster rather than being hand-written: hand-built inputs drift toward whatever the planner already does and stop catching the cases that matter. They include the real node and real workloads (kagent, kube-system, k8s-dencer itself) alongside the synthetic ones, because a planner that only ever sees tidy input will not cope with a real cluster.
+
+Two conversion details are worth knowing, since both are easy to get subtly wrong and both are covered by tests:
+
+- **Effective requests** follow Kubernetes' own rule — per resource, the greater of the summed app-container requests and the largest init container, plus pod overhead, with sidecars (init containers with `restartPolicy: Always`) added rather than maxed.
+- **PDB headroom comes from `status.disruptionsAllowed`, not `spec.minAvailable`.** The spec says what was asked for; the status says what the API server will actually permit right now. That difference is what separates "a PDB exists" from "this drain will be refused".
 
 ## Kagent
 

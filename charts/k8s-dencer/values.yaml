@@ -83,11 +83,16 @@ planner:
     tag: ""
     pullPolicy: IfNotPresent
   logLevel: info
-  # How often the planner recomputes. A cluster-wide pod informer is the
-  # planner's dominant memory cost on a large cluster; raise this and the
-  # resource limits together when scaling up.
+  # How often the planner recomputes and informers relist.
   resyncPeriod: 30s
   healthPort: 8081
+  # Namespaces the pod, PDB and ReplicaSet informers watch. Empty watches all.
+  #
+  # The cluster-wide pod informer is the planner's dominant memory cost, so on
+  # a large cluster this is the first knob to reach for. Nodes stay
+  # cluster-scoped regardless: restricting them would leave the planner with
+  # workloads and nowhere to place them.
+  watchNamespaces: []
   resources:
     requests:
       cpu: 50m
