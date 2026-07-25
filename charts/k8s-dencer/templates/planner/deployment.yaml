@@ -57,6 +57,14 @@ spec:
             - name: WATCH_NAMESPACES
               value: {{ join "," . | quote }}
             {{- end }}
+            - name: MIN_NODE_AGE
+              value: {{ .Values.planner.minNodeAge | quote }}
+            - name: MAX_STEPS
+              value: {{ .Values.planner.maxSteps | quote }}
+            {{- with .Values.planner.excludeNamespaces }}
+            - name: EXCLUDE_NAMESPACES
+              value: {{ join "," . | quote }}
+            {{- end }}
             - name: DATABASE_TYPE
               value: {{ .Values.database.type | quote }}
             {{- if eq .Values.database.type "sqlite" }}
