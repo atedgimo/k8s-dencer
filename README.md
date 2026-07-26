@@ -21,8 +21,8 @@ Phase 1 (MVP) — visibility and explainability. No execution capability.
 | **M4** | Consolidation planner (greedy first-fit-decreasing) | **done** |
 | **M5** | Impact classifier (Green/Yellow/Red + rationale) | **done** |
 | **M6** | Plan store (SQLite) + REST API + graph payload | **done** |
-| M7 | UI: before/after canvas, step timeline scrubber, constraint inspector | next |
-| M8 | Kagent agent: read-only MCP tools + `Agent` CR | pending |
+| **M7** | UI: capacity ribbon, packing canvas, scrubber, constraint inspector | **done** |
+| M8 | Kagent agent: read-only MCP tools + `Agent` CR | next |
 
 Deferred to later phases: Executor, Safety Guard, Scheduler Simulator, `MaintenanceWindow` CRD, Postgres store, multi-agent orchestration.
 
@@ -40,8 +40,8 @@ plan:        id=8bb7900e46db steps=15 nodesBefore=28 nodesAfter=13 reclaims=15
              green=6 yellow=5 red=4
 ```
 
-Plans are rated, explained and persisted. They are not yet visualised — the UI
-is still a placeholder, and the graph payload it will consume is already served.
+Plans are rated, explained, persisted and visualised. What remains is the
+Kagent agent, so the same explanations can be asked for in natural language.
 
 Three debug endpoints on the planner's health port expose current state as
 YAML: `/debug/snapshot`, `/debug/constraints` and `/debug/plan`.
@@ -75,7 +75,7 @@ internal/
   impact/          Green/Yellow/Red classifier + rationale composition
   store/           Store interface + SQLite implementation and migrations
   api/             rest/ (+ SSE events), graph/ (Cytoscape payload), agenttools/ (M8)
-ui/                React + Vite + Cytoscape.js
+ui/                React + Vite + Cytoscape.js; bundled typefaces
 charts/k8s-dencer/ THE product deliverable — see Chart below
 demo/              POC only: KWOK values + the synthetic topology chart
 build/             Dockerfile.go (parameterised by COMPONENT) + Dockerfile.ui
@@ -269,6 +269,30 @@ GET /api/v1/events                                   live plan changes (SSE)
 Live updates use **Server-Sent Events rather than WebSockets**: the traffic is strictly one-way since the API is read-only, `EventSource` reconnects on its own, and it needs no dependency and no protocol upgrade. The stream sends current state on connect, so a client joining a stable cluster isn't left blank.
 
 The graph payload is shaped for Cytoscape's compound-node model — cluster nodes are parents, pods are children — and every pod carries **both** its current node and where the plan would move it, so the frontend can build the before/after view and animate the step scrubber from a single request.
+
+## The UI
+
+```bash
+make ui     # port-forwards and prints the URLs
+```
+
+**The capacity ribbon is the page's argument.** One bar per node, ordered fullest-first, filled to requested CPU — the long tail of barely-used bars *is* the case for consolidating. Dragging the scrubber drains them in place. A big number over a small label was the first draft; it states a conclusion where the evidence should be, so the only display-size figure now sits inside a sentence that gives it meaning.
+
+**One morphing canvas, not two before/after panes.** Scrubbing shows the same comparison plus every intermediate state, and makes the causality visible — this pod leaves, so this node empties. Two half-width panes of 30 nodes would be unreadable, and the ribbon already does the at-a-glance job.
+
+**Cytoscape's own layouts are not used.** Positions are computed: node boxes on a grid, pods in a sub-grid inside them. A force layout says nothing about packing and jitters on every relayout; deterministic positions are also what make the animation possible. Node boxes are plain nodes rather than compound parents, because a compound parent collapses to nothing when emptied — exactly the node an operator most wants to see.
+
+### Accessibility is load-bearing here, not a checkbox
+
+The data-viz palette validator reports **`#d03b3b` ↔ `#0ca30c` at CVD ΔE 4.1 for deuteranopia**, against a floor of 8. Red and Green are the same colour to a large minority of readers — for a Green/Yellow/Red product that is the central design constraint, not a footnote.
+
+So nothing encodes a rating by colour alone: every chip carries a distinct glyph (●▲■ — different silhouettes, not just fills) **and** the word; scrubber ticks use the glyphs; blocked pods are diamonds. Node utilisation uses the sequential blue ramp — one hue, light→dark — validated against this page plane.
+
+### Typefaces are bundled, not fetched
+
+Archivo for structure and every figure, IBM Plex Sans for prose, IBM Plex Mono for machine identifiers (a node name is an identifier and shouldn't read as a word). Latin subsets only — the full packages ship Cyrillic, Greek and Vietnamese, 3.3MB of assets for a UI with no text in any of them.
+
+They are bundled rather than CDN-fetched because **a cluster may have no route to the internet**, and type that silently falls back to `system-ui` in an air-gapped install is not designed type. It also means no third-party request from an operator's browser.
 
 ## Kagent
 

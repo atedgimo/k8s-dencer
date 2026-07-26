@@ -35,10 +35,18 @@ DEMO_NAMESPACE     ?= dencer-demo
 DEMO_RELEASE       ?= dencer-demo
 SCENARIO           ?= a-fragmented
 
-# A dirty suffix keeps uncommitted builds from reusing a clean tag, and the
-# changing tag is what makes `helm upgrade` roll pods without a manual restart.
+# The tag must change whenever the *content* changes, not just the commit.
+# A plain "-dirty" suffix is the same string for every uncommitted state, so
+# two different builds at one SHA share a tag: the podspec does not change,
+# helm upgrade reports success, and the pod quietly keeps the old image. The
+# suffix therefore hashes the working tree — tracked diffs and untracked file
+# contents both — so each distinct state gets its own tag and pods actually roll.
 GIT_SHA     := $(shell git rev-parse --short HEAD 2>/dev/null || echo nogit)
-GIT_DIRTY   := $(shell test -n "$$(git status --porcelain 2>/dev/null)" && echo -dirty || true)
+DIRTY_HASH  := $(shell { git diff HEAD 2>/dev/null; \
+                         git ls-files --others --exclude-standard -z 2>/dev/null \
+                           | xargs -0 shasum 2>/dev/null; } | shasum | cut -c1-8)
+GIT_DIRTY   := $(shell test -n "$$(git status --porcelain 2>/dev/null)" \
+                 && echo "-dirty.$(DIRTY_HASH)" || true)
 IMAGE_TAG   ?= $(GIT_SHA)$(GIT_DIRTY)
 
 IMAGE_PREFIX ?= k8s-dencer

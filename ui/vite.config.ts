@@ -5,7 +5,10 @@ export default defineConfig({
   plugins: [react()],
   build: {
     outDir: "dist",
-    sourcemap: true,
+    // Off for the shipped bundle: 2.3MB of maps go into the container image
+    // and nothing there consumes them. Build locally with `--sourcemap` when
+    // debugging a deployed bundle.
+    sourcemap: false,
   },
   server: {
     port: 5173,

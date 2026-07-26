@@ -1,0 +1,141 @@
+/*
+ * Design tokens.
+ *
+ * Direction: a capacity instrument, not a control panel. The product's job is
+ * to argue that the cluster is running more machines than it needs — and to
+ * never touch anything. Everything here serves reading a load plan: industrial
+ * grotesque numerals, machine identifiers in mono, and a quiet slate plane so
+ * the capacity ribbon and the packing canvas are the only things that shout.
+ *
+ * Typefaces are bundled, not fetched. A Kubernetes cluster may have no route
+ * to the internet, and a UI whose type silently falls back to system-ui in an
+ * air-gapped environment is not a designed UI.
+ *
+ * Colour is the one place boldness is NOT spent. The status trio and the
+ * sequential ramp come from the validated data-viz palette and are re-run
+ * against this page plane (#0f1319: sequential ordinal ramp passes all checks;
+ * status trio clears 3:1). An invented accent would collide with the status
+ * hues, so structure and type carry the identity instead.
+ *
+ * The validator puts critical <-> good at CVD deltaE 4.1 for deuteranopia:
+ * Red and Green are the same colour to a large minority of readers. Nothing in
+ * this UI encodes a rating by colour alone.
+ */
+
+@import "./fonts.css";
+
+:root {
+  color-scheme: dark;
+
+  /* Plane and surfaces. The plane is cooler than the chart surfaces on
+     purpose — instrument housing against instrument face. */
+  --page: #0f1319;
+  --surface: #161b23;
+  --surface-raised: #1d232c;
+  --surface-sunken: #0b0e13;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: #2b333f;
+
+  --text-primary: #f2f4f7;
+  --text-secondary: #b6bdc9;
+  --text-muted: #7c8698;
+
+  /* Status palette — fixed, never themed, never colour-alone. */
+  --impact-green: #0ca30c;
+  --impact-yellow: #fab219;
+  --impact-red: #d03b3b;
+
+  /* Sequential ramp (blue), one hue light→dark, for utilisation magnitude. */
+  --seq-100: #cde2fb;
+  --seq-250: #86b6ef;
+  --seq-400: #3987e5;
+  --seq-550: #1c5cab;
+  --seq-700: #0d366b;
+
+  --accent: #3987e5;
+
+  /* Type. Archivo carries structure and every figure; Plex Sans carries prose;
+     Plex Mono carries machine identifiers, which should look like machine
+     identifiers. */
+  --font-display: "Archivo Variable", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans Variable", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --radius: 4px;
+  --radius-sm: 3px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --page: #eceef1;
+    --surface: #fcfcfb;
+    --surface-raised: #ffffff;
+    --surface-sunken: #e3e6ea;
+    --border: rgba(11, 11, 11, 0.1);
+    --border-strong: #c3c2b7;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #767c88;
+    --seq-400: #2a78d6;
+    --accent: #2a78d6;
+  }
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --page: #eceef1;
+  --surface: #fcfcfb;
+  --surface-raised: #ffffff;
+  --surface-sunken: #e3e6ea;
+  --border: rgba(11, 11, 11, 0.1);
+  --border-strong: #c3c2b7;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #767c88;
+  --seq-400: #2a78d6;
+  --accent: #2a78d6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* Keyboard focus must stay visible everywhere; the ring is deliberately loud. */
+:where(a, button, input, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* The scrubber animation explains a causal sequence, but it is not worth
+   making anyone unwell. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
