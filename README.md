@@ -22,9 +22,9 @@ Phase 1 (MVP) — visibility and explainability. No execution capability.
 | **M5** | Impact classifier (Green/Yellow/Red + rationale) | **done** |
 | **M6** | Plan store (SQLite) + REST API + graph payload | **done** |
 | **M7** | UI: capacity ribbon, packing canvas, scrubber, constraint inspector | **done** |
-| M8 | Kagent agent: read-only MCP tools + `Agent` CR | next |
+| **M8** | Kagent agent: read-only MCP tools + `Agent` CR | **done** |
 
-Deferred to later phases: Executor, Safety Guard, Scheduler Simulator, `MaintenanceWindow` CRD, Postgres store, multi-agent orchestration.
+**Phase 1 is complete.** Deferred to later phases: Executor, Safety Guard, Scheduler Simulator, `MaintenanceWindow` CRD, Postgres store, multi-agent orchestration.
 
 ### What actually runs today
 
@@ -40,8 +40,9 @@ plan:        id=8bb7900e46db steps=15 nodesBefore=28 nodesAfter=13 reclaims=15
              green=6 yellow=5 red=4
 ```
 
-Plans are rated, explained, persisted and visualised. What remains is the
-Kagent agent, so the same explanations can be asked for in natural language.
+Plans are rated, explained, persisted, visualised, and answerable in natural
+language through a Kagent agent. Nothing in the release can drain, cordon or
+evict.
 
 Three debug endpoints on the planner's health port expose current state as
 YAML: `/debug/snapshot`, `/debug/constraints` and `/debug/plan`.
@@ -74,7 +75,7 @@ internal/
   planner/         Strategy interface + greedy first-fit-decreasing packer
   impact/          Green/Yellow/Red classifier + rationale composition
   store/           Store interface + SQLite implementation and migrations
-  api/             rest/ (+ SSE events), graph/ (Cytoscape payload), agenttools/ (M8)
+  api/             rest/ (+ SSE events), graph/ (Cytoscape payload), agenttools/ (MCP)
 ui/                React + Vite + Cytoscape.js; bundled typefaces
 charts/k8s-dencer/ THE product deliverable — see Chart below
 demo/              POC only: KWOK values + the synthetic topology chart
@@ -298,7 +299,26 @@ They are bundled rather than CDN-fetched because **a cluster may have no route t
 
 Kagent is a **prerequisite**, not installed by this repo. Chart resources are gated behind `kagent.enabled` (default `false`) so the product installs cleanly on clusters without the `kagent.dev` CRDs.
 
-When enabled, the chart creates a `RemoteMCPServer` pointing at the ui-backend's `/mcp` endpoint and an `Agent` CR scoped to explanation only. The MCP tools themselves land in M8, so until then the `RemoteMCPServer` will show `ACCEPTED: False` — expected, and a useful signal for when M8 is actually complete.
+When enabled, the chart creates a `RemoteMCPServer` pointing at the ui-backend's `/mcp` endpoint and an `Agent` CR scoped to explanation only.
+
+### The agent quotes; it never re-derives
+
+Four read-only tools, served over MCP by the ui-backend — no separate image, because the agent itself runs inside Kagent:
+
+| Tool | Answers |
+|---|---|
+| `list_plan_steps` | the plan as a whole — how many nodes it reclaims, how many steps are Red |
+| `explain_step` | why step N is rated as it is, which pods move where |
+| `get_node_constraints` | a node's occupancy, utilisation, and the constraints on its pods |
+| `why_not_drained` | why a node is *not* being drained, naming the responsible constraint |
+
+Every answer is composed from strings the constraint analyzer and impact classifier already produced. A test asserts `explain_step` returns the stored rationale **byte-for-byte** — if the tool paraphrased, the agent and the UI's inspector could describe the same step differently and an operator would have no way to know which to trust.
+
+The surface is read-only by construction, and a test asserts that exactly these four tools exist — no fifth tool can appear without someone deliberately changing that assertion. Asked to drain a node, the agent declines:
+
+> This release of k8s-dencer is read-only by design and does not have the capability to execute actions such as draining nodes.
+
+Verified end to end: the agent calls the tool, receives the classifier's exact words, and answers with them.
 
 ---
 
