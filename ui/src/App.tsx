@@ -1,94 +1,155 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import CapacityRibbon from "./components/CapacityRibbon";
+import Inspector, { Selection } from "./components/Inspector";
+import PlanCanvas from "./components/PlanCanvas";
+import Scrubber from "./components/Scrubber";
+import StatTiles from "./components/StatTiles";
+import StepList from "./components/StepList";
 import { runtimeConfig } from "./runtime-config";
+import { usePlan } from "./usePlan";
 
-interface VersionInfo {
-  version: string;
-  database: string;
-}
-
-type Status =
-  | { state: "loading" }
-  | { state: "ok"; info: VersionInfo }
-  | { state: "error"; message: string };
-
-/**
- * M0 placeholder. It deliberately calls the backend rather than rendering a
- * static page: that makes deploying the chart a real end-to-end check of
- * frontend -> nginx proxy -> ui-backend Service wiring.
- *
- * The graph canvas, step timeline and constraint inspector land in M7.
- */
 export default function App() {
-  const { apiBaseUrl, kagentUrl } = runtimeConfig();
-  const [status, setStatus] = useState<Status>({ state: "loading" });
+  const state = usePlan();
+  const { kagentUrl } = runtimeConfig();
 
+  const [step, setStep] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [selectedStep, setSelectedStep] = useState<number | null>(null);
+  const [selection, setSelection] = useState<Selection>(null);
+
+  const planId = state.status === "ready" ? state.plan.plan.id : null;
+
+  // A new plan invalidates the scrubber position: step 7 of the old plan is
+  // not step 7 of the new one.
   useEffect(() => {
-    const controller = new AbortController();
+    setStep(0);
+    setPlaying(false);
+    setSelectedStep(null);
+    setSelection(null);
+  }, [planId]);
 
-    fetch(`${apiBaseUrl}/api/v1/version`, { signal: controller.signal })
-      .then(async (res) => {
-        if (!res.ok) {
-          throw new Error(`backend returned ${res.status}`);
-        }
-        return (await res.json()) as VersionInfo;
-      })
-      .then((info) => setStatus({ state: "ok", info }))
-      .catch((err: unknown) => {
-        if (controller.signal.aborted) return;
-        setStatus({
-          state: "error",
-          message: err instanceof Error ? err.message : String(err),
-        });
-      });
+  const handleSelectPod = useCallback((key: string | null) => {
+    setSelection(key ? { kind: "pod", key } : null);
+  }, []);
 
-    return () => controller.abort();
-  }, [apiBaseUrl]);
+  const handleSelectNode = useCallback((name: string | null) => {
+    setSelection(name ? { kind: "node", name } : null);
+  }, []);
+
+  const handleSelectStep = useCallback((seq: number | null) => {
+    setSelectedStep(seq);
+    // Selecting a step moves the canvas to the moment just before it runs, so
+    // the highlighted pods are still on the node being drained.
+    if (seq != null) {
+      setPlaying(false);
+      setStep(seq - 1);
+    }
+  }, []);
 
   return (
-    <main className="shell">
-      <header className="header">
-        <div>
+    <div className="shell">
+      <header className="topbar">
+        <div className="brand">
           <h1>k8s-dencer</h1>
-          <p className="tagline">Node consolidation planning, explained.</p>
+          <span className="tagline">Capacity plan</span>
         </div>
-        {kagentUrl && (
-          <a className="link" href={kagentUrl} target="_blank" rel="noreferrer">
-            Ask the agent →
-          </a>
-        )}
+        <div className="topbar-right">
+          <span className="badge" title="This release plans and explains. It never drains, cordons or evicts.">
+            Plans only
+          </span>
+          {kagentUrl && (
+            <a className="link" href={kagentUrl} target="_blank" rel="noreferrer">
+              Ask the agent →
+            </a>
+          )}
+        </div>
       </header>
 
-      <section className="panel">
-        <h2>Backend</h2>
-        {status.state === "loading" && <p className="muted">Connecting…</p>}
-        {status.state === "ok" && (
-          <dl className="facts">
-            <dt>Status</dt>
-            <dd>
-              <span className="dot dot-ok" aria-hidden="true" />
-              Connected
-            </dd>
-            <dt>Version</dt>
-            <dd>{status.info.version}</dd>
-            <dt>Plan store</dt>
-            <dd>{status.info.database}</dd>
-          </dl>
-        )}
-        {status.state === "error" && (
-          <p className="error">
-            <span className="dot dot-err" aria-hidden="true" />
-            Cannot reach ui-backend: {status.message}
-          </p>
-        )}
-      </section>
+      {state.status === "loading" && <Placeholder title="Reading the cluster…" />}
 
-      <section className="panel">
-        <h2>Milestone</h2>
-        <p className="muted">
-          M0 — delivery skeleton. The relationship graph, step timeline and
-          constraint inspector arrive in M7.
-        </p>
-      </section>
-    </main>
+      {state.status === "empty" && (
+        <Placeholder
+          title="No plan yet"
+          detail="The planner publishes one once it has read the cluster. This takes a few seconds after install."
+        />
+      )}
+
+      {state.status === "error" && (
+        <Placeholder title="Cannot reach the planner" detail={state.message} tone="error" />
+      )}
+
+      {state.status === "ready" && (
+        <>
+          <CapacityRibbon
+            graph={state.graph}
+            steps={state.plan.plan.steps}
+            step={step}
+            onSelectNode={handleSelectNode}
+          />
+          <StatTiles stats={state.graph.stats} />
+
+          <main className="workspace">
+            <PlanCanvas
+              graph={state.graph}
+              steps={state.plan.plan.steps}
+              step={step}
+              selectedStep={selectedStep}
+              onSelectStep={handleSelectStep}
+              onSelectPod={handleSelectPod}
+              onSelectNode={handleSelectNode}
+            />
+            <div className="sidebar">
+              <StepList
+                steps={state.plan.plan.steps}
+                appliedThrough={step}
+                selected={selectedStep}
+                onSelect={handleSelectStep}
+              />
+              <Inspector
+                planId={state.plan.plan.id}
+                graph={state.graph}
+                steps={state.plan.plan.steps}
+                selection={selection}
+                onClose={() => setSelection(null)}
+                onSelectStep={handleSelectStep}
+              />
+            </div>
+          </main>
+
+          <Scrubber
+            steps={state.plan.plan.steps}
+            step={step}
+            onStep={setStep}
+            playing={playing}
+            onPlayingChange={setPlaying}
+          />
+
+          <footer className="statusbar">
+            <span>
+              plan <code>{state.plan.plan.id}</code>
+            </span>
+            <span>{state.plan.strategy}</span>
+            <span>{new Date(state.plan.plan.generatedAt).toLocaleTimeString()}</span>
+          </footer>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Placeholder({
+  title,
+  detail,
+  tone = "muted",
+}: {
+  title: string;
+  detail?: string;
+  tone?: "muted" | "error";
+}) {
+  return (
+    <div className={`placeholder placeholder-${tone}`}>
+      <h2>{title}</h2>
+      {detail && <p>{detail}</p>}
+    </div>
   );
 }
