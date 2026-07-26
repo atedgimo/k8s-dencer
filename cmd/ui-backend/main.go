@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/atedgimo/k8s-dencer/internal/api/agenttools"
 	"github.com/atedgimo/k8s-dencer/internal/api/rest"
 	"github.com/atedgimo/k8s-dencer/internal/httpserver"
 	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlite"
@@ -64,6 +65,13 @@ func run(ctx context.Context, log *slog.Logger) error {
 	mux := http.NewServeMux()
 	health.Register(mux)
 	api.Routes(mux)
+
+	// The Kagent agent reaches the same plan store over MCP. It is mounted on
+	// the ui-backend rather than shipped as its own image because the agent
+	// itself runs inside Kagent — architecture doc §5 — so all we owe it is a
+	// tool endpoint.
+	mux.Handle("/mcp", agenttools.New(db, log, version).Handler())
+	mux.Handle("/mcp/", agenttools.New(db, log, version).Handler())
 
 	// Change detection is a poll of the latest plan ID rather than an event
 	// feed: the planner is a separate process reached only through the shared
