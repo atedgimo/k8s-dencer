@@ -79,6 +79,8 @@ spec:
               value: {{ .Values.safety.maxNodesPerRun | quote }}
             - name: SAFETY_MIN_READY_NODES
               value: {{ .Values.safety.minReadyNodes | quote }}
+            - name: EXECUTOR_READINESS
+              value: {{ .Values.executor.readiness | quote }}
             - name: STEP_TIMEOUT
               value: {{ .Values.executor.stepTimeout | quote }}
             - name: SETTLE_TIMEOUT

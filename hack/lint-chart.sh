@@ -139,6 +139,28 @@ if grep -q "name: dencer-k8s-dencer-executor$" <<<"$(awk '/^kind: Service$/,/^--
 fi
 green "  executor has no Service"
 
+bold "==> contract: only the local POC weakens readiness verification"
+# Running means "the kubelet started it", not "it is serving". On a real
+# cluster that lets the executor move to the next node while the previous
+# workload is still failing its probes. Only the KWOK overlay may set it,
+# because its fake pods can never become Ready.
+# Rendered with the executor forced on: these profiles leave it off by
+# default, so grepping them as-is would find no env var at all and the check
+# would pass without ever looking at anything.
+for profile in defaults minimal production; do
+  args=(--set executor.enabled=true --set persistence.enabled=true)
+  [[ "$profile" == "defaults" ]] || args+=(-f "$CHART/ci/${profile}-values.yaml")
+  if helm template dencer "$CHART" --namespace k8s-dencer "${args[@]}" \
+       | grep -A1 "name: EXECUTOR_READINESS" | grep -q '"Running"'; then
+    fail "$profile weakens readiness to Running; that is a KWOK-only concession"
+  fi
+done
+# And the concession itself must still be present where it is needed, or the
+# KWOK demo silently hangs on every drain.
+render orbstack | grep -A1 "name: EXECUTOR_READINESS" | grep -q '"Running"' \
+  || fail "the orbstack overlay no longer sets readiness=Running; KWOK drains will hang"
+green "  production profiles verify Ready; only orbstack relaxes it"
+
 bold "==> contract: nothing can widen a maintenance window"
 # A window is the only thing that unlocks a Red step. The executor reads them
 # and writes their status, but must never be able to edit a spec — otherwise

@@ -333,6 +333,13 @@
             "error"
           ]
         },
+        "readiness": {
+          "type": "string",
+          "enum": [
+            "Ready",
+            "Running"
+          ]
+        },
         "probePort": {
           "type": "integer",
           "minimum": 1,

@@ -52,6 +52,10 @@ type Options struct {
 	// Windows unlock Red steps. Nil means none are configured, which keeps the
 	// Phase 2 behaviour of refusing Red outright.
 	Windows safety.Windows
+
+	// Readiness is how a replacement pod is judged recovered. Defaults to
+	// Ready; only the KWOK overlay sets Running.
+	Readiness Readiness
 }
 
 // withDefaults fills unset values with conservative ones.
@@ -67,6 +71,11 @@ func (o Options) withDefaults() Options {
 	}
 	if o.PollInterval <= 0 {
 		o.PollInterval = 2 * time.Second
+	}
+	if o.Readiness == "" {
+		// Defaults to the strict criterion. An unset value must never mean
+		// the weaker one.
+		o.Readiness = ReadinessReady
 	}
 	return o
 }
@@ -270,7 +279,7 @@ func (e *Executor) drain(ctx context.Context, run store.Run, step model.PlanStep
 
 	// Recorded before anything is evicted, so recovery is measured against the
 	// workloads as they were, not as they became mid-drain.
-	before := healthyByOwner(live)
+	before := healthyByOwner(live, e.opts.Readiness)
 	pods := movablePodsOn(live, step.TargetNode)
 	affected := map[string]bool{}
 
@@ -359,7 +368,7 @@ func (e *Executor) verifyRecovered(ctx context.Context, run store.Run, step mode
 		if err != nil {
 			return fmt.Errorf("read cluster state: %w", err)
 		}
-		now := healthyByOwner(live)
+		now := healthyByOwner(live, e.opts.Readiness)
 
 		lagging := ""
 		for owner := range affected {
@@ -376,7 +385,8 @@ func (e *Executor) verifyRecovered(ctx context.Context, run store.Run, step mode
 			return nil
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("workloads did not recover within %s: %s", e.opts.SettleTimeout, lagging)
+			return fmt.Errorf("workloads did not recover within %s (%s): %s",
+				e.opts.SettleTimeout, e.opts.Readiness, lagging)
 		}
 		if err := sleep(ctx, e.opts.PollInterval); err != nil {
 			return err
@@ -475,10 +485,10 @@ func movablePodsOn(snap *model.ClusterSnapshot, node string) []model.Pod {
 	return out
 }
 
-func healthyByOwner(snap *model.ClusterSnapshot) map[string]int {
+func healthyByOwner(snap *model.ClusterSnapshot, criterion Readiness) map[string]int {
 	out := map[string]int{}
 	for _, p := range snap.Pods {
-		if k := ownerKey(p); k != "" && healthy(p) {
+		if k := ownerKey(p); k != "" && healthy(p, criterion) {
 			out[k]++
 		}
 	}

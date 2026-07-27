@@ -283,6 +283,20 @@ executor:
   # plan store, so it has no inbound network surface.
   probePort: 8081
 
+  # How a replacement pod is judged recovered before the run moves on.
+  #
+  #   Ready    the pod's Ready condition — it is actually serving
+  #   Running  the phase only
+  #
+  # Ready is correct on a real cluster: a pod can be Running and failing its
+  # probes, and calling that recovered drains the next node while the service
+  # is still down.
+  #
+  # Running exists for KWOK, whose fake pods reach Running and never become
+  # Ready, so a strict wait would hang forever. Only the local POC overlay
+  # sets it; do not set it on a real cluster.
+  readiness: Ready
+
   # How long one step may take end to end before it aborts and uncordons.
   stepTimeout: 10m
   # How long to wait for evicted pods to be replaced elsewhere before giving up

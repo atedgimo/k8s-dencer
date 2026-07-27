@@ -43,7 +43,8 @@ Phase 3 — maintenance windows.
 | Milestone | Scope | State |
 |---|---|---|
 | **M14** | `MaintenanceWindow` CRD; Red steps unlocked by an open window | **done** |
-| **M15** | Scheduled execution inside a window, within policy limits | planned |
+| **M15** | Readiness verification — the executor waits for Ready, not Running | **done** |
+| **M16–M21** | Scale to 1000 nodes / 50k pods; metrics; published images; local hardening | planned |
 
 Deferred: scheduled automatic execution,
 Postgres store, multi-agent orchestration, and **closing the reclamation loop**
@@ -346,7 +347,7 @@ for each pod:
     guard.CheckEviction   live PDB headroom, re-read before EVERY eviction
     evict                 policy/v1 eviction API, so the API server enforces PDBs
     wait                  until the pod is actually gone
-verify               affected workloads regained their replicas elsewhere
+verify               affected workloads regained READY replicas elsewhere
 ```
 
 Eviction goes through the **eviction subresource**, never a pod delete. A delete
@@ -433,6 +434,20 @@ The guard predicts; the executor then **verifies reality**. This is the
 deliberate alternative to importing kube-scheduler's framework (doc §7): after
 each step, affected workloads must have regained their replicas elsewhere or the
 run stops. A prediction that turns out wrong aborts rather than compounding.
+
+### Recovery is judged on readiness, not phase
+
+`executor.readiness` defaults to `Ready`, meaning the pod's Ready condition.
+Running only says the kubelet started the containers — a pod can be Running and
+failing its probes, and treating that as recovered drains the next node while
+the service is still down.
+
+The KWOK fabric is the exception: stage-fast's `pod-ready` Stage selector
+matches only `phase In [Pending]`, so a fake pod that reaches Running never
+becomes Ready and a strict wait would hang forever. The local POC overlay is the
+only profile allowed to set `Running`, and `make lint` fails if any other one
+does — or if the overlay stops setting it, which would silently hang every demo
+drain.
 
 ### Draining is not removing
 
