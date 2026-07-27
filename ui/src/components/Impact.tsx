@@ -10,7 +10,7 @@ import { Impact } from "../api";
  * triangle, square), not just fill, so they survive greyscale and low
  * resolution too.
  */
-const GLYPH: Record<Impact, string> = {
+export const GLYPH: Record<Impact, string> = {
   Green: "●",
   Yellow: "▲",
   Red: "■",

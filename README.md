@@ -34,7 +34,7 @@ state on its own.
 |---|---|---|
 | **M9** | AuthN/AuthZ via TokenReview + SubjectAccessReview; OIDC SSO; NetworkPolicy on by default | **done** |
 | **M10** | Executor + Safety Guard, own ServiceAccount, `pods/eviction`, audited runs | **done** |
-| **M11** | UI rebuild: packing view, motion, action-first header | planned |
+| **M11** | UI rebuild: packing view, motion, action-first header | **done** |
 | **M12** | Execution controls, live run, OIDC sign-in flow, plan pinning | planned |
 | **M13** | End-to-end on KWOK incl. real SSO against Dex | planned |
 
@@ -101,12 +101,13 @@ internal/
   store/           Store interface + SQLite implementation and migrations
   auth/            TokenReview authn + SubjectAccessReview authz; no credential store of our own
   api/             rest/ (+ SSE events), graph/ (Cytoscape payload), agenttools/ (MCP)
-ui/                React + Vite + Cytoscape.js; bundled typefaces
+ui/                React + Vite; packing field in plain DOM, bundled typefaces
 charts/k8s-dencer/ THE product deliverable — see Chart below
 demo/              POC only: KWOK values + the synthetic topology chart
 build/             Dockerfile.go (parameterised by COMPONENT) + Dockerfile.ui
 hack/              lint-chart.sh — the portability gate
 test/fixtures/     ClusterSnapshots captured from a live cluster for golden tests
+test/palette/      guards the CVD mitigation: glyph+word per rating, chroma only for risk
 ```
 
 Structural rules worth preserving:

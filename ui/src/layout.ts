@@ -56,6 +56,14 @@ export interface Positioned {
   nodeHeight: number;
   /** Requested milliCPU per node at this step, for the utilisation fill. */
   nodeLoad: Map<string, number>;
+  /**
+   * Requested / allocatable per node, 0..1.
+   *
+   * Drives the brightness ramp, which is how fullness is encoded now that
+   * colour is reserved for risk. A node at 0.94 is nearly white; one at 0.12
+   * barely lifts off the ground.
+   */
+  nodeFill: Map<string, number>;
   /** Nodes that are empty of movable pods at this step. */
   emptied: Set<string>;
 }
@@ -147,6 +155,7 @@ export function computeLayout(
   const nodes = new Map<string, { x: number; y: number }>();
   const pods = new Map<string, { x: number; y: number }>();
   const nodeLoad = new Map<string, number>();
+  const nodeFill = new Map<string, number>();
   const emptied = new Set<string>();
 
   const occupants = new Map<string, PodInfo[]>();
@@ -172,18 +181,20 @@ export function computeLayout(
       if (pod.movable) movable++;
       const pc = j % POD_COLS;
       const pr = Math.floor(j / POD_COLS);
+      // Top-left origin. Positions were centres while this fed Cytoscape;
+      // the packing field places absolutely-positioned elements instead, and
+      // half-box offsets everywhere were pure friction.
       pods.set(pod.id, {
-        // Positions are centres in Cytoscape, so offset by half the box and
-        // half the cell to land on the grid.
-        x: cx - nodeWidth / 2 + NODE_PAD + POD_SIZE / 2 + pc * (POD_SIZE + POD_GAP),
-        y: cy - nodeHeight / 2 + NODE_HEADER + POD_SIZE / 2 + pr * (POD_SIZE + POD_GAP),
+        x: cx + NODE_PAD + pc * (POD_SIZE + POD_GAP),
+        y: cy + NODE_HEADER + pr * (POD_SIZE + POD_GAP),
       });
     });
     nodeLoad.set(node.name, load);
+    nodeFill.set(node.name, node.cpuAllocatable > 0 ? load / node.cpuAllocatable : 0);
     if (movable === 0) emptied.add(node.name);
   });
 
-  return { nodes, pods, nodeWidth, nodeHeight, nodeLoad, emptied };
+  return { nodes, pods, nodeWidth, nodeHeight, nodeLoad, nodeFill, emptied };
 }
 
 /** The busiest a node ever gets across every step, so boxes never resize. */
