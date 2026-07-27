@@ -242,6 +242,11 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 
 export const api = {
   latestPlan: (signal?: AbortSignal) => get<PlanResponse>("/api/v1/plans/latest", signal),
+
+  /** A specific plan by id. Used to keep a pinned view on the plan an operator
+   *  is actually working against, rather than whatever is newest. */
+  plan: (planId: string, signal?: AbortSignal) =>
+    get<PlanResponse>(`/api/v1/plans/${encodeURIComponent(planId)}`, signal),
   graph: (planId: string, signal?: AbortSignal) =>
     get<GraphPayload>(`/api/v1/plans/${planId}/graph`, signal),
   step: (planId: string, seq: number, signal?: AbortSignal) =>

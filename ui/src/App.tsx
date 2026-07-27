@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Impact, PlanStep } from "./api";
 import Inspector, { Selection } from "./components/Inspector";
 import PackingField from "./components/PackingField";
@@ -7,12 +7,19 @@ import Scrubber from "./components/Scrubber";
 import { SignIn } from "./components/SignIn";
 import StepLedger from "./components/StepLedger";
 import Verdict from "./components/Verdict";
+import { authInfo, token as tokenStore } from "./auth";
+import { onRenewed } from "./oidc";
 import { runtimeConfig } from "./runtime-config";
 import { usePlan } from "./usePlan";
 import { useRun } from "./useRun";
 
 export default function App() {
-  const state = usePlan();
+  // Pinned while there is a selection to protect or a run to watch. Step
+  // numbers are positional, so a plan swapped underneath a ticked selection
+  // would leave it meaning different nodes.
+  const [checked, setChecked] = useState<Set<number>>(new Set());
+  const [runActive, setRunActive] = useState(false);
+  const state = usePlan(checked.size > 0 || runActive);
   const { kagentUrl } = runtimeConfig();
 
   const [step, setStep] = useState(0);
@@ -21,7 +28,6 @@ export default function App() {
   const [selection, setSelection] = useState<Selection>(null);
   const [focusedRating, setFocusedRating] = useState<Impact | null>(null);
   const [pending, setPending] = useState<{ steps: PlanStep[]; dryRun: boolean } | null>(null);
-  const [checked, setChecked] = useState<Set<number>>(new Set());
   const lastToggled = useRef<number | null>(null);
 
   const planId = state.status === "ready" ? state.plan.plan.id : null;
@@ -91,6 +97,19 @@ export default function App() {
 
   const busy = run.state.status === "starting" || run.state.status === "active";
 
+  // Keep the pin in step with the run's lifetime.
+  useEffect(() => setRunActive(busy), [busy]);
+
+  // A silently renewed ID token has to replace the one requests are carrying,
+  // or the session expires mid-consolidation despite having been refreshed.
+  useEffect(() => {
+    let stop = () => {};
+    void authInfo().then(async (i) => {
+      stop = await onRenewed(i, (idToken) => tokenStore.set(idToken));
+    });
+    return () => stop();
+  }, []);
+
   const handleSelectStep = useCallback((seq: number | null) => {
     setSelectedStep(seq);
     // Selecting a step moves the field to the moment just before it runs, so
@@ -147,6 +166,18 @@ export default function App() {
             picked={pickedSteps}
             onClearPicked={() => setChecked(new Set())}
           />
+
+          {state.superseded && (
+            <div className="supersede" role="status">
+              <span>
+                The planner has published a newer plan. This one is pinned while you have a
+                selection or a run in progress.
+              </span>
+              <button className="btn" onClick={state.showLatest}>
+                Show the new plan
+              </button>
+            </div>
+          )}
 
           <RunTrail state={run.state} onDismiss={run.dismiss} />
 

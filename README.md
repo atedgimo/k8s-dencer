@@ -35,7 +35,7 @@ state on its own.
 | **M9** | AuthN/AuthZ via TokenReview + SubjectAccessReview; OIDC SSO; NetworkPolicy on by default | **done** |
 | **M10** | Executor + Safety Guard, own ServiceAccount, `pods/eviction`, audited runs | **done** |
 | **M11** | UI rebuild: packing view, motion, action-first header | **done** |
-| **M12** | Execution controls, live run, OIDC sign-in flow, plan pinning | planned |
+| **M12** | Execution controls, live run, OIDC sign-in flow, plan pinning | **done** |
 | **M13** | End-to-end on KWOK incl. real SSO against Dex | planned |
 
 Deferred beyond Phase 2: `MaintenanceWindow` CRD and scheduled execution,
@@ -233,6 +233,14 @@ unused** — a request carrying `X-Forwarded-User` is anonymous, not an
 administrator. Turning it on means anything that can reach ui-backend can claim
 to be anyone, so `networkPolicy.enabled` is what makes the proxy unbypassable.
 
+**Signing in.** Where an issuer is configured the UI runs the redirect flow
+itself; `oidc-client-ts` is loaded on demand, so an install using a pasted
+token never downloads it. The credential taken from the flow is the **ID
+token** — an access token means nothing to the Kubernetes API server, and
+confusing the two is the classic way to make this fail with an opaque 401. The
+redirect lands on `/oidc/callback`, which the SPA fallback serves; register that
+URI with your issuer.
+
 **3. Bearer token** — for the POC and CI.
 
 ```bash
@@ -285,8 +293,12 @@ make token     # mints one and prints it; paste into the UI
 
   The value must be the whole header — Kagent substitutes it verbatim. The
   surface is read-only either way, and a test fails if a fifth tool appears.
-- **The UI signs in by pasting a token.** The OIDC redirect flow lands in M12,
-  because M11 rebuilds the header and building the login twice would be waste.
+- **The plan is pinned while you have work in progress.** The planner
+  republishes every resync and again after any drain. Step numbers are
+  positional, so a plan swapped underneath a ticked selection would leave it
+  meaning different nodes — the one path here that could drain something you did
+  not choose. While a selection or run is outstanding the view holds, and a
+  newer plan waits behind a banner.
 
 ---
 
