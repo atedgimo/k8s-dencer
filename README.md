@@ -34,12 +34,14 @@ state on its own.
 |---|---|---|
 | **M9** | AuthN/AuthZ via TokenReview + SubjectAccessReview; OIDC SSO; NetworkPolicy on by default | **done** |
 | **M10** | Executor + Safety Guard, own ServiceAccount, `pods/eviction`, audited runs | **done** |
-| **M11** | UI rebuild: packing view, motion, action-first header | planned |
+| **M11** | UI rebuild: packing view, motion, action-first header | **done** |
 | **M12** | Execution controls, live run, OIDC sign-in flow, plan pinning | planned |
 | **M13** | End-to-end on KWOK incl. real SSO against Dex | planned |
 
 Deferred beyond Phase 2: `MaintenanceWindow` CRD and scheduled execution,
-Postgres store, multi-agent orchestration.
+Postgres store, multi-agent orchestration, and **closing the reclamation loop**
+— today a drained node looks the same whether an autoscaler is about to remove
+it or nothing ever will (see [Draining is not removing](#draining-is-not-removing)).
 
 ### What actually runs today
 
@@ -101,12 +103,14 @@ internal/
   store/           Store interface + SQLite implementation and migrations
   auth/            TokenReview authn + SubjectAccessReview authz; no credential store of our own
   api/             rest/ (+ SSE events), graph/ (Cytoscape payload), agenttools/ (MCP)
-ui/                React + Vite + Cytoscape.js; bundled typefaces
+ui/                React + Vite; packing field in plain DOM, bundled typefaces
 charts/k8s-dencer/ THE product deliverable — see Chart below
 demo/              POC only: KWOK values + the synthetic topology chart
 build/             Dockerfile.go (parameterised by COMPONENT) + Dockerfile.ui
 hack/              lint-chart.sh — the portability gate
 test/fixtures/     ClusterSnapshots captured from a live cluster for golden tests
+test/palette/      guards the CVD mitigation: glyph+word per rating, chroma only for risk
+test/ui/           guards that every request carries the token, and the token never leaves the tab
 ```
 
 Structural rules worth preserving:
@@ -150,16 +154,17 @@ Runs `helm lint` and `kubeconform --strict` across every profile, then asserts t
 4. **no profile grants `pods/eviction`**
 5. `database.type=sqlite` with `uiBackend.replicaCount=2` is rejected by `values.schema.json`
 6. the packaged chart excludes the `ci/` fixtures
-7. **`pods/eviction` appears only on the executor's ClusterRole**, and only in a profile that enabled it
-8. planner and ui-backend hold **no write verb on nodes or pods**, ever
-9. the executor renders **no Service** — the component that can evict is unreachable
-10. `executor.enabled=true` is rejected without `auth.enabled` and without `persistence.enabled`
-11. no container declares a **duplicate env key** (valid YAML, rejected by server-side apply)
-12. **no profile disables authentication**
-13. `system:auth-delegator` is bound to ui-backend and to nothing else
-14. the consolidation-operator ClusterRole ships **unbound**
-15. a NetworkPolicy is present by default, and restricts ingress only
-16. `auth.oidc.enabled=true` without an issuer and client ID is rejected
+7. an empty plan serialises `steps` as `[]`, never `null`
+8. **`pods/eviction` appears only on the executor's ClusterRole**, and only in a profile that enabled it
+9. planner and ui-backend hold **no write verb on nodes or pods**, ever
+10. the executor renders **no Service** — the component that can evict is unreachable
+11. `executor.enabled=true` is rejected without `auth.enabled` and without `persistence.enabled`
+12. no container declares a **duplicate env key** (valid YAML, rejected by server-side apply)
+13. **no profile disables authentication**
+14. `system:auth-delegator` is bound to ui-backend and to nothing else
+15. the consolidation-operator ClusterRole ships **unbound**
+16. a NetworkPolicy is present by default, and restricts ingress only
+17. `auth.oidc.enabled=true` without an issuer and client ID is rejected
 
 ### Known constraints
 
@@ -352,6 +357,27 @@ The guard predicts; the executor then **verifies reality**. This is the
 deliberate alternative to importing kube-scheduler's framework (doc §7): after
 each step, affected workloads must have regained their replicas elsewhere or the
 run stops. A prediction that turns out wrong aborts rather than compounding.
+
+### Draining is not removing
+
+k8s-dencer cordons a node and empties it. It never deletes one, and its
+ServiceAccount holds no `delete` verb on nodes, so it could not if it tried.
+
+That is not an omission. Deleting a `Node` object does not terminate anything —
+the kubelet re-registers seconds later. Actually removing the machine means
+calling AWS, GCP or Azure, which is provider-specific and exactly the kind of
+assumption this chart refuses to bake into its defaults.
+
+So the handoff point is **empty and cordoned**. On a real cluster, Karpenter or
+cluster-autoscaler sees an empty cordoned node and reclaims it; on a managed
+node pool your own tooling does. On the KWOK fabric nothing does, which is why
+drained fake nodes sit there indefinitely — that is correct, not a stall.
+
+To put a drained node back into service:
+
+```bash
+kubectl uncordon <node>      # or: make fabric-reset, for the whole KWOK fabric
+```
 
 ### Abort means uncordon, not rollback
 

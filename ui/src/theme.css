@@ -1,100 +1,114 @@
-/*
- * Design tokens.
- *
- * Direction: a capacity instrument, not a control panel. The product's job is
- * to argue that the cluster is running more machines than it needs — and to
- * never touch anything. Everything here serves reading a load plan: industrial
- * grotesque numerals, machine identifiers in mono, and a quiet slate plane so
- * the capacity ribbon and the packing canvas are the only things that shout.
- *
- * Typefaces are bundled, not fetched. A Kubernetes cluster may have no route
- * to the internet, and a UI whose type silently falls back to system-ui in an
- * air-gapped environment is not a designed UI.
- *
- * Colour is the one place boldness is NOT spent. The status trio and the
- * sequential ramp come from the validated data-viz palette and are re-run
- * against this page plane (#0f1319: sequential ordinal ramp passes all checks;
- * status trio clears 3:1). An invented accent would collide with the status
- * hues, so structure and type carry the identity instead.
- *
- * The validator puts critical <-> good at CVD deltaE 4.1 for deuteranopia:
- * Red and Green are the same colour to a large minority of readers. Nothing in
- * this UI encodes a rating by colour alone.
- */
-
 @import "./fonts.css";
+
+/*
+ * k8s-dencer — instrument surface.
+ *
+ * One rule governs this palette: COLOUR MEANS RISK, AND NOTHING ELSE.
+ *
+ * Every other dashboard sprays hue around for decoration, which is precisely
+ * why a Green/Yellow/Red rating fails to land on one. Here the whole surface is
+ * monochrome and the only saturated pixels on screen are safety ratings. An
+ * operator learns in one glance that colour is always telling them about risk.
+ *
+ * Fullness is carried by BRIGHTNESS on a neutral ramp instead. That is not a
+ * consolation prize: it means the picture literally gets brighter and smaller
+ * as a plan executes, which is the story this product exists to tell.
+ */
 
 :root {
   color-scheme: dark;
 
-  /* Plane and surfaces. The plane is cooler than the chart surfaces on
-     purpose — instrument housing against instrument face. */
-  --page: #0f1319;
-  --surface: #161b23;
-  --surface-raised: #1d232c;
-  --surface-sunken: #0b0e13;
-  --border: rgba(255, 255, 255, 0.08);
-  --border-strong: #2b333f;
+  /* Ground and material. Neutral rather than blue-black, so the fixed green
+     and red below sit on it without a cast. */
+  --ink: #0b0d10;
+  --panel: #14171b;
+  --panel-raised: #1b1f25;
+  --panel-sunken: #08090b;
+  --edge: #262b33;
+  --edge-soft: rgba(233, 236, 239, 0.08);
 
-  --text-primary: #f2f4f7;
-  --text-secondary: #b6bdc9;
-  --text-muted: #7c8698;
+  --chalk: #e9ecef;
+  --graphite: #7a828e;
+  --graphite-dim: #4d545e;
 
-  /* Status palette — fixed, never themed, never colour-alone. */
-  --impact-green: #0ca30c;
-  --impact-yellow: #fab219;
-  --impact-red: #d03b3b;
+  /* Occupancy ramp — neutral, low to high. The only "scale" on the page that
+     is not about risk, and it is deliberately achromatic so it cannot be
+     mistaken for one. */
+  --fill-05: #1e232a;
+  --fill-25: #333a44;
+  --fill-50: #525b68;
+  --fill-75: #838d9c;
+  --fill-95: #ccd2da;
 
-  /* Sequential ramp (blue), one hue light→dark, for utilisation magnitude. */
-  --seq-100: #cde2fb;
-  --seq-250: #86b6ef;
-  --seq-400: #3987e5;
-  --seq-550: #1c5cab;
-  --seq-700: #0d366b;
+  /* Safety scale — FIXED. Validated for colour-vision deficiency; Red and
+     Green are only ΔE 4.1 apart under deuteranopia, which is why every rating
+     also carries a distinct glyph (● ▲ ■) and the word itself. Never re-tune
+     these, and never encode a rating by colour alone. */
+  --risk-green: #0ca30c;
+  --risk-yellow: #fab219;
+  --risk-red: #d03b3b;
 
-  --accent: #3987e5;
+  /* No chromatic accent, on purpose. Emphasis is carried by weight, chalk and
+     hairlines so that nothing competes with a rating. */
+  --focus: #e9ecef;
 
-  /* Type. Archivo carries structure and every figure; Plex Sans carries prose;
-     Plex Mono carries machine identifiers, which should look like machine
-     identifiers. */
   --font-display: "Archivo Variable", system-ui, sans-serif;
   --font-body: "IBM Plex Sans Variable", system-ui, sans-serif;
+  /* Carries every number, node name and label. Tabular figures are functional
+     here: operators compare utilisation down a column. */
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 
-  --radius: 4px;
-  --radius-sm: 3px;
+  --radius: 3px;
+  --radius-sm: 2px;
+
+  --step-fast: 120ms;
+  --step-base: 260ms;
+  --step-slow: 460ms;
+  /* Slight overshoot on arrival — a pod block settling into a slot should feel
+     like it has mass. */
+  --ease-settle: cubic-bezier(0.34, 1.24, 0.64, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     color-scheme: light;
-    --page: #eceef1;
-    --surface: #fcfcfb;
-    --surface-raised: #ffffff;
-    --surface-sunken: #e3e6ea;
-    --border: rgba(11, 11, 11, 0.1);
-    --border-strong: #c3c2b7;
-    --text-primary: #0b0b0b;
-    --text-secondary: #52514e;
-    --text-muted: #767c88;
-    --seq-400: #2a78d6;
-    --accent: #2a78d6;
+    --ink: #dfe3e8;
+    --panel: #f4f6f8;
+    --panel-raised: #ffffff;
+    --panel-sunken: #cfd5dd;
+    --edge: #c2c9d2;
+    --edge-soft: rgba(11, 13, 16, 0.1);
+    --chalk: #10141a;
+    --graphite: #5b636e;
+    --graphite-dim: #8d949e;
+    /* Ramp inverts: on a light face, fuller means darker. */
+    --fill-05: #e7eaee;
+    --fill-25: #c3cad3;
+    --fill-50: #909aa7;
+    --fill-75: #5c6673;
+    --fill-95: #232a33;
+    --focus: #10141a;
   }
 }
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --page: #eceef1;
-  --surface: #fcfcfb;
-  --surface-raised: #ffffff;
-  --surface-sunken: #e3e6ea;
-  --border: rgba(11, 11, 11, 0.1);
-  --border-strong: #c3c2b7;
-  --text-primary: #0b0b0b;
-  --text-secondary: #52514e;
-  --text-muted: #767c88;
-  --seq-400: #2a78d6;
-  --accent: #2a78d6;
+  --ink: #dfe3e8;
+  --panel: #f4f6f8;
+  --panel-raised: #ffffff;
+  --panel-sunken: #cfd5dd;
+  --edge: #c2c9d2;
+  --edge-soft: rgba(11, 13, 16, 0.1);
+  --chalk: #10141a;
+  --graphite: #5b636e;
+  --graphite-dim: #8d949e;
+  --fill-05: #e7eaee;
+  --fill-25: #c3cad3;
+  --fill-50: #909aa7;
+  --fill-75: #5c6673;
+  --fill-95: #232a33;
+  --focus: #10141a;
 }
 
 * {
@@ -109,12 +123,20 @@ body,
 
 body {
   margin: 0;
-  background: var(--page);
-  color: var(--text-primary);
+  background: var(--ink);
+  color: var(--chalk);
   font-family: var(--font-body);
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Every figure on the page is tabular. Comparing 38.6% against 94.1% down a
+   column only works when the digits line up. */
+:where(.num, .mono) {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
 button {
@@ -123,19 +145,25 @@ button {
   cursor: pointer;
 }
 
-/* Keyboard focus must stay visible everywhere; the ring is deliberately loud. */
 :where(a, button, input, [tabindex]):focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 
-/* The scrubber animation explains a causal sequence, but it is not worth
-   making anyone unwell. */
+/*
+ * Reduced motion.
+ *
+ * Every animation here explains a state change rather than decorating one, so
+ * none of them are removed — they are collapsed to instant. The pod still ends
+ * up in the new slot; it simply gets there without travelling.
+ */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

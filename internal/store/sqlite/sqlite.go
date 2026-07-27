@@ -329,6 +329,12 @@ func (s *Store) ByID(ctx context.Context, id string) (store.Record, error) {
 }
 
 func (s *Store) stepsFor(ctx context.Context, planID string) ([]model.PlanStep, error) {
+	// Non-nil from the outset. A nil slice marshals to JSON `null`, and a
+	// client that reasonably does steps.filter(...) then crashes on a plan
+	// with nothing to do — which is a perfectly ordinary state for an already
+	// consolidated cluster.
+	steps := []model.PlanStep{}
+
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT step_id, sequence_number, target_node, moves, impact, rationale, reasons,
 		       executed_at, executed_by, result
@@ -338,7 +344,6 @@ func (s *Store) stepsFor(ctx context.Context, planID string) ([]model.PlanStep, 
 	}
 	defer func() { _ = rows.Close() }()
 
-	var steps []model.PlanStep
 	for rows.Next() {
 		var (
 			step                   model.PlanStep
