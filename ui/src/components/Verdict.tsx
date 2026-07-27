@@ -9,9 +9,9 @@ import { GLYPH } from "./Impact";
  * the recommendation in a sentence, breaks it down by how much confidence each
  * part needs, and puts the run control immediately beneath.
  *
- * The run controls are inert in this release; M12 wires them to the executor.
- * They are built now because the page's whole composition depends on this
- * being the lead, and leaving a hole here would mean laying it out twice.
+ * The run controls do what they say. They queue the Green steps only —
+ * Yellow needs a deliberate per-step choice, which is why the tally for it
+ * filters the ledger rather than offering a button.
  */
 
 interface Props {
@@ -19,9 +19,18 @@ interface Props {
   steps: PlanStep[];
   onFocusRating: (impact: Impact | null) => void;
   focusedRating: Impact | null;
+  onRun: (dryRun: boolean) => void;
+  busy: boolean;
 }
 
-export default function Verdict({ stats, steps, onFocusRating, focusedRating }: Props) {
+export default function Verdict({
+  stats,
+  steps,
+  onFocusRating,
+  focusedRating,
+  onRun,
+  busy,
+}: Props) {
   const green = stats.ratings.Green ?? 0;
   const yellow = stats.ratings.Yellow ?? 0;
   const red = stats.ratings.Red ?? 0;
@@ -64,19 +73,23 @@ export default function Verdict({ stats, steps, onFocusRating, focusedRating }: 
       </div>
 
       <div className="verdict-actions">
-        {/* Disabled until M12. The tooltip says what is missing rather than
-            leaving a dead button to be guessed at. */}
         <button
           className="btn btn-primary"
-          disabled
-          title="Running steps from the UI arrives in the next release. Until then use the execute API."
+          onClick={() => onRun(false)}
+          disabled={green === 0 || busy}
+          title={
+            green === 0
+              ? "No step in this plan is safe to run unattended."
+              : "Cordon and drain the Green steps, in order."
+          }
         >
           Run the {green} safe {green === 1 ? "step" : "steps"}
         </button>
         <button
           className="btn"
-          disabled
-          title="Running steps from the UI arrives in the next release."
+          onClick={() => onRun(true)}
+          disabled={green === 0 || busy}
+          title="Run the full Safety Guard and show the same trail, without touching anything."
         >
           Dry run
         </button>

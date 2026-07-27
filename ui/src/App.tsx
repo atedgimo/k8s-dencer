@@ -1,13 +1,15 @@
-import { useCallback, useState } from "react";
-import { Impact } from "./api";
+import { useCallback, useMemo, useState } from "react";
+import { Impact, PlanStep } from "./api";
 import Inspector, { Selection } from "./components/Inspector";
 import PackingField from "./components/PackingField";
+import { ConfirmRun, RunTrail } from "./components/RunPanel";
 import Scrubber from "./components/Scrubber";
 import { SignIn } from "./components/SignIn";
 import StepLedger from "./components/StepLedger";
 import Verdict from "./components/Verdict";
 import { runtimeConfig } from "./runtime-config";
 import { usePlan } from "./usePlan";
+import { useRun } from "./useRun";
 
 export default function App() {
   const state = usePlan();
@@ -18,8 +20,37 @@ export default function App() {
   const [selectedStep, setSelectedStep] = useState<number | null>(null);
   const [selection, setSelection] = useState<Selection>(null);
   const [focusedRating, setFocusedRating] = useState<Impact | null>(null);
+  const [pending, setPending] = useState<{ steps: PlanStep[]; dryRun: boolean } | null>(null);
 
   const planId = state.status === "ready" ? state.plan.plan.id : null;
+  const steps = useMemo(
+    () => (state.status === "ready" ? state.plan.plan.steps : []),
+    [state],
+  );
+
+  // A finished run has changed the cluster, so the plan on screen is stale.
+  // Reloading is the honest response — anything else leaves an operator acting
+  // on a picture that no longer matches their cluster.
+  const run = useRun(state.status === "ready" ? state.reload : undefined);
+
+  const greenSteps = useMemo(() => steps.filter((s) => s.impact === "Green"), [steps]);
+
+  const requestRun = useCallback(
+    (dryRun: boolean) => setPending({ steps: greenSteps, dryRun }),
+    [greenSteps],
+  );
+
+  const confirmRun = useCallback(() => {
+    if (!pending || !planId) return;
+    void run.start(
+      planId,
+      pending.steps.map((s) => s.sequenceNumber),
+      pending.dryRun,
+    );
+    setPending(null);
+  }, [pending, planId, run]);
+
+  const busy = run.state.status === "starting" || run.state.status === "active";
 
   const handleSelectStep = useCallback((seq: number | null) => {
     setSelectedStep(seq);
@@ -72,7 +103,11 @@ export default function App() {
             steps={state.plan.plan.steps}
             focusedRating={focusedRating}
             onFocusRating={setFocusedRating}
+            onRun={requestRun}
+            busy={busy}
           />
+
+          <RunTrail state={run.state} onDismiss={run.dismiss} />
 
           <main className="workspace">
             <PackingField
@@ -125,6 +160,15 @@ export default function App() {
             )}
           </footer>
         </>
+      )}
+
+      {pending && (
+        <ConfirmRun
+          steps={pending.steps}
+          dryRun={pending.dryRun}
+          onConfirm={confirmRun}
+          onCancel={() => setPending(null)}
+        />
       )}
     </div>
   );

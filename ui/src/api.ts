@@ -186,12 +186,80 @@ async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
   return (await res.json()) as T;
 }
 
+export type RunStatus = "Pending" | "Running" | "Succeeded" | "Blocked" | "Failed";
+
+/** Terminal states. Blocked is deliberately not Failed: the rails working is
+ *  a different outcome from something breaking, and the UI says so. */
+export function isTerminal(status: RunStatus): boolean {
+  return status === "Succeeded" || status === "Blocked" || status === "Failed";
+}
+
+export interface Run {
+  id: string;
+  planId: string;
+  steps: number[];
+  dryRun: boolean;
+  status: RunStatus;
+  actor: string;
+  actorGroups?: string[];
+  requestedAt: string;
+  startedAt?: string;
+  finishedAt?: string;
+  worker?: string;
+  summary?: string;
+}
+
+export interface RunEvent {
+  runId: string;
+  sequence: number;
+  at: string;
+  level: "Info" | "Blocked" | "Error";
+  step?: number;
+  node?: string;
+  pod?: string;
+  action: string;
+  /** The Safety Guard rail that refused, on Blocked events. */
+  rule?: string;
+  message: string;
+}
+
+export interface RunDetail {
+  run: Run;
+  events: RunEvent[];
+}
+
+async function post<T>(path: string, body: unknown): Promise<T> {
+  const headers = authHeaders({ "Content-Type": "application/json" });
+  let res: Response;
+  try {
+    res = await fetch(`${base()}${path}`, { method: "POST", headers, body: JSON.stringify(body) });
+  } catch (err) {
+    throw toNetworkError(err);
+  }
+  if (!res.ok) throw await toApiError(res);
+  return (await res.json()) as T;
+}
+
 export const api = {
   latestPlan: (signal?: AbortSignal) => get<PlanResponse>("/api/v1/plans/latest", signal),
   graph: (planId: string, signal?: AbortSignal) =>
     get<GraphPayload>(`/api/v1/plans/${planId}/graph`, signal),
   step: (planId: string, seq: number, signal?: AbortSignal) =>
     get<StepDetail>(`/api/v1/plans/${planId}/steps/${seq}`, signal),
+
+  /** Queues steps for execution. Returns immediately with a run id — the
+   *  executor claims the work separately, so this never blocks on a drain. */
+  execute: (planId: string, steps: number[], dryRun: boolean) =>
+    post<{ runId: string; status: RunStatus }>(`/api/v1/plans/${planId}/execute`, {
+      steps,
+      dryRun,
+    }),
+
+  run: (runId: string, signal?: AbortSignal) => get<RunDetail>(`/api/v1/runs/${runId}`, signal),
+
+  /** The in-flight run, if any. Lets a page reload rejoin a consolidation
+   *  already in progress rather than losing sight of it. */
+  activeRun: (signal?: AbortSignal) => get<{ active: Run | null }>("/api/v1/runs", signal),
 };
 
 /** Subscribes to plan changes. Returns an unsubscribe function.

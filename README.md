@@ -39,7 +39,9 @@ state on its own.
 | **M13** | End-to-end on KWOK incl. real SSO against Dex | planned |
 
 Deferred beyond Phase 2: `MaintenanceWindow` CRD and scheduled execution,
-Postgres store, multi-agent orchestration.
+Postgres store, multi-agent orchestration, and **closing the reclamation loop**
+— today a drained node looks the same whether an autoscaler is about to remove
+it or nothing ever will (see [Draining is not removing](#draining-is-not-removing)).
 
 ### What actually runs today
 
@@ -353,6 +355,27 @@ The guard predicts; the executor then **verifies reality**. This is the
 deliberate alternative to importing kube-scheduler's framework (doc §7): after
 each step, affected workloads must have regained their replicas elsewhere or the
 run stops. A prediction that turns out wrong aborts rather than compounding.
+
+### Draining is not removing
+
+k8s-dencer cordons a node and empties it. It never deletes one, and its
+ServiceAccount holds no `delete` verb on nodes, so it could not if it tried.
+
+That is not an omission. Deleting a `Node` object does not terminate anything —
+the kubelet re-registers seconds later. Actually removing the machine means
+calling AWS, GCP or Azure, which is provider-specific and exactly the kind of
+assumption this chart refuses to bake into its defaults.
+
+So the handoff point is **empty and cordoned**. On a real cluster, Karpenter or
+cluster-autoscaler sees an empty cordoned node and reclaims it; on a managed
+node pool your own tooling does. On the KWOK fabric nothing does, which is why
+drained fake nodes sit there indefinitely — that is correct, not a stall.
+
+To put a drained node back into service:
+
+```bash
+kubectl uncordon <node>      # or: make fabric-reset, for the whole KWOK fabric
+```
 
 ### Abort means uncordon, not rollback
 

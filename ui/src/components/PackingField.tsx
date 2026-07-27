@@ -221,17 +221,22 @@ export default function PackingField({
 }
 
 /**
- * The running tally of what the plan has freed.
+ * The running tally of what the plan has emptied.
  *
- * The payoff line of the whole view: as the scrubber advances, boxes dim out of
- * the field above and this number climbs.
+ * Says "drained", not "reclaimed". k8s-dencer cordons and empties a node; it
+ * never deletes one. Removing the machine means calling a cloud provider, and
+ * deleting the Node object alone achieves nothing — the kubelet re-registers
+ * seconds later. So the honest end state is "empty and cordoned, ready for
+ * your autoscaler or your node-pool tooling to take away", and the label has
+ * to say that rather than implying the capacity is already gone.
  */
 function ReclaimedTray({ count, total }: { count: number; total: number }) {
   return (
     <div className="tray" aria-live="polite">
-      <span className="tray-label mono">reclaimed</span>
+      <span className="tray-label mono">drained</span>
       <span className="tray-count num">{count}</span>
       <span className="tray-of mono">of {total}</span>
+      {count > 0 && <span className="tray-hint">empty and cordoned — ready to remove</span>}
       <div className="tray-marks" aria-hidden="true">
         {Array.from({ length: total }, (_, i) => (
           <span key={i} className={i < count ? "tray-mark tray-mark-on" : "tray-mark"} />
