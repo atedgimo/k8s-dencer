@@ -16,9 +16,54 @@ Reach the UI:
 {{- end }}
 
 Verify the read-only guarantee:
+{{- range $component := list "planner" "ui-backend" }}
   kubectl auth can-i create pods/eviction \
-    --as=system:serviceaccount:{{ .Release.Namespace }}:{{ include "k8s-dencer.serviceAccountName" . }}
-  # must print: no
+    --as=system:serviceaccount:{{ $.Release.Namespace }}:{{ include "k8s-dencer.componentServiceAccountName" (dict "component" $component "ctx" $) }}
+{{- end }}
+  # both must print: no
+
+{{ if .Values.auth.enabled -}}
+Authentication is ON. Nobody can read a plan until you grant them the
+permission — the chart deliberately does not decide that for you:
+
+  kubectl create rolebinding dencer-viewer -n {{ .Release.Namespace }} \
+    --clusterrole={{ include "k8s-dencer.fullname" . }}-viewer \
+{{- if .Values.auth.oidc.enabled }}
+    --group=oidc:YOUR-GROUP
+{{- else }}
+    --user=YOUR-USERNAME
+{{- end }}
+
+{{ if .Values.auth.oidc.enabled -}}
+Single sign-on is configured against:
+  {{ .Values.auth.oidc.issuerUrl }}
+
+This must be the SAME issuer your API server trusts (--oidc-issuer-url), or
+tokens will be issued in the browser and then rejected here. Confirm with:
+  kubectl get --raw /.well-known/openid-configuration
+{{- else -}}
+No OIDC issuer configured, so callers present a token directly:
+  kubectl create token {{ include "k8s-dencer.componentServiceAccountName" (dict "component" "ui-backend" "ctx" .) }} -n {{ .Release.Namespace }}
+
+Set auth.oidc.* to use single sign-on instead. If your API server already
+trusts an OIDC issuer, that is all it takes — an ID token from it is already a
+Kubernetes credential.
+{{- end }}
+{{- if .Values.auth.trustedProxy.enabled }}
+
+WARNING: auth.trustedProxy is ON. ui-backend now believes the
+{{ .Values.auth.trustedProxy.userHeader }} header on any request it receives.
+Make sure it is reachable ONLY through your auth proxy — otherwise anyone who
+can reach the pod can claim to be anyone.
+{{- if not .Values.networkPolicy.enabled }}
+networkPolicy.enabled is FALSE, so nothing is currently enforcing that.
+{{- end }}
+{{- end }}
+{{- else -}}
+WARNING: authentication is DISABLED. Every caller can read every plan and see
+your cluster's full capacity layout. Set auth.enabled=true before exposing this
+beyond a private cluster.
+{{- end }}
 
 {{ if eq .Values.database.type "sqlite" -}}
 Plan store: SQLite at {{ .Values.database.sqlite.path }}{{ if .Values.persistence.enabled }} on PVC {{ include "k8s-dencer.pvcName" . }}{{ else }} on an emptyDir (NOT durable — plan history is lost on restart){{ end }}.

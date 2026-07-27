@@ -77,6 +77,17 @@ ingress:
 networkPolicy:
   enabled: true
 
+# The recommended deployment: SSO through the issuer the API server already
+# trusts, so an ID token from it is a Kubernetes credential and permission is
+# an ordinary RoleBinding against an IdP group.
+auth:
+  enabled: true
+  anonymousRead: false
+  oidc:
+    enabled: true
+    issuerUrl: https://login.example.com/realms/platform
+    clientId: k8s-dencer
+
 serviceMonitor:
   enabled: true
   labels:

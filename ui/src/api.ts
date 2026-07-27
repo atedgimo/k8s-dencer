@@ -1,3 +1,4 @@
+import { authHeaders } from "./auth";
 import { runtimeConfig } from "./runtime-config";
 
 export type Impact = "Green" | "Yellow" | "Red";
@@ -129,26 +130,59 @@ export class ApiError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    /** How to obtain the missing permission, when the server supplied it. */
+    readonly grantWith?: string,
   ) {
     super(message);
   }
   get isEmpty() {
     return this.status === 404;
   }
+  /** No credentials, or they expired. The caller should offer a sign-in. */
+  get needsAuth() {
+    return this.status === 401;
+  }
+  /** Authenticated, but lacking the permission. Signing in again will not help. */
+  get isForbidden() {
+    return this.status === 403;
+  }
+}
+
+/** Turns a failed response into an ApiError carrying the server's own words. */
+async function toApiError(res: Response): Promise<ApiError> {
+  let detail = res.statusText || `request failed (${res.status})`;
+  let grantWith: string | undefined;
+  try {
+    const body = (await res.json()) as { error?: string; grantWith?: string };
+    if (body.error) detail = body.error;
+    grantWith = body.grantWith;
+  } catch {
+    /* non-JSON error body */
+  }
+  return new ApiError(res.status, detail, grantWith);
+}
+
+/** Reports a transport failure in terms an operator can act on.
+ *
+ *  A bare "Failed to fetch" is what the browser gives us when the backend is
+ *  unreachable, and it tells nobody anything. */
+function toNetworkError(err: unknown): Error {
+  if (err instanceof ApiError) return err;
+  const target = base() || "the ui-backend";
+  return new Error(
+    `Cannot reach ${target}. The backend may be restarting, or a port-forward may have dropped.`,
+  );
 }
 
 async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(`${base()}${path}`, { signal });
-  if (!res.ok) {
-    let detail = res.statusText;
-    try {
-      const body = (await res.json()) as { error?: string };
-      if (body.error) detail = body.error;
-    } catch {
-      /* non-JSON error body */
-    }
-    throw new ApiError(res.status, detail);
+  let res: Response;
+  try {
+    res = await fetch(`${base()}${path}`, { signal, headers: authHeaders() });
+  } catch (err) {
+    if (signal?.aborted) throw err;
+    throw toNetworkError(err);
   }
+  if (!res.ok) throw await toApiError(res);
   return (await res.json()) as T;
 }
 
@@ -162,22 +196,94 @@ export const api = {
 
 /** Subscribes to plan changes. Returns an unsubscribe function.
  *
- *  EventSource reconnects on its own, so there is no retry logic here. */
+ *  Built on fetch rather than EventSource because the stream is authenticated
+ *  and EventSource cannot send an Authorization header. The alternative —
+ *  putting the token in the query string — would write a working credential
+ *  into every access log between here and the backend.
+ *
+ *  Reconnection is therefore ours to handle, where EventSource gave it to us. */
 export function subscribePlans(onChange: (planId: string) => void): () => void {
-  const source = new EventSource(`${base()}/api/v1/events`);
-  const handler = (e: MessageEvent) => {
-    try {
-      const data = JSON.parse(e.data) as { planId?: string };
-      if (data.planId) onChange(data.planId);
-    } catch {
-      /* ignore malformed frames */
+  const controller = new AbortController();
+  let attempt = 0;
+
+  const run = async () => {
+    while (!controller.signal.aborted) {
+      try {
+        const res = await fetch(`${base()}/api/v1/events`, {
+          signal: controller.signal,
+          headers: authHeaders({ Accept: "text/event-stream" }),
+        });
+        if (!res.ok || !res.body) throw await toApiError(res);
+
+        attempt = 0; // a successful connection resets the backoff
+        await readEventStream(res.body, (event, data) => {
+          if (event !== "plan") return;
+          try {
+            const parsed = JSON.parse(data) as { planId?: string };
+            if (parsed.planId) onChange(parsed.planId);
+          } catch {
+            /* ignore malformed frames */
+          }
+        });
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        // A 401/403 will not fix itself by retrying harder; back off to the
+        // ceiling immediately rather than hammering the API server with
+        // TokenReviews for a token that is not going to start working.
+        if (err instanceof ApiError && (err.needsAuth || err.isForbidden)) attempt = 5;
+      }
+      if (controller.signal.aborted) return;
+      const delay = Math.min(1000 * 2 ** attempt++, 30_000);
+      await new Promise((r) => setTimeout(r, delay));
     }
   };
-  source.addEventListener("plan", handler as EventListener);
-  return () => {
-    source.removeEventListener("plan", handler as EventListener);
-    source.close();
-  };
+
+  void run();
+  return () => controller.abort();
+}
+
+/** Parses an SSE byte stream, invoking onEvent for each complete frame. */
+async function readEventStream(
+  body: ReadableStream<Uint8Array>,
+  onEvent: (event: string, data: string) => void,
+): Promise<void> {
+  const reader = body.getReader();
+  // Decoding incrementally rather than via TextDecoderStream: a multi-byte
+  // character can straddle two chunks, and { stream: true } is what holds the
+  // partial sequence until the rest arrives.
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) return;
+    buffer += decoder.decode(value, { stream: true });
+
+    // Frames are separated by a blank line. A chunk can split a frame
+    // anywhere, so only complete frames are consumed and the tail is kept.
+    let boundary = buffer.indexOf("\n\n");
+    while (boundary !== -1) {
+      const frame = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+      dispatchFrame(frame, onEvent);
+      boundary = buffer.indexOf("\n\n");
+    }
+  }
+}
+
+function dispatchFrame(frame: string, onEvent: (event: string, data: string) => void) {
+  let event = "message";
+  const data: string[] = [];
+  for (const line of frame.split("\n")) {
+    if (line.startsWith(":")) continue; // comment / keep-alive
+    const colon = line.indexOf(":");
+    const field = colon === -1 ? line : line.slice(0, colon);
+    // A single leading space after the colon is part of the framing, not data.
+    const value = colon === -1 ? "" : line.slice(colon + 1).replace(/^ /, "");
+    if (field === "event") event = value;
+    else if (field === "data") data.push(value);
+  }
+  if (data.length > 0) onEvent(event, data.join("\n"));
 }
 
 export function formatCPU(milli: number): string {

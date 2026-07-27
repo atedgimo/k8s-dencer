@@ -256,9 +256,96 @@ ingress:
 
 networkPolicy:
   # Restricts ui-backend ingress to the frontend and (when enabled) Kagent.
-  enabled: false
+  #
+  # On by default. The policy is ingress-only: egress to the API server cannot
+  # be expressed portably (it needs an ipBlock for the endpoint, or a
+  # cluster-wide CIDR), and restricting inbound traffic is where the value is.
+  #
+  # Harmless on clusters whose CNI does not enforce NetworkPolicy — the object
+  # is simply inert. Worth knowing, though, because it means this being on is
+  # not proof that anything is being enforced.
+  enabled: true
   # Extra selectors allowed to reach ui-backend, e.g. a Prometheus namespace.
   extraIngressFrom: []
+
+# Authentication and authorization for the API.
+#
+# k8s-dencer owns no credential store. A caller presents a token, ui-backend
+# validates it with a TokenReview, and permission is decided by a
+# SubjectAccessReview — so "who may see the plan" and "who may drain a node"
+# are ordinary RoleBindings that compose with whatever your cluster already
+# uses.
+#
+# The chart ships two unbound ClusterRoles to bind:
+#   <release>-viewer                  — may read plans
+#   <release>-consolidation-operator  — may read plans and execute steps
+auth:
+  # On by default. This service reports where a cluster's spare capacity is,
+  # and from the next release it accepts execution requests.
+  enabled: true
+
+  # Permit unauthenticated GETs. Never covers execution, whatever this is set
+  # to. Reasonable behind a trusted network boundary; not a good default.
+  anonymousRead: false
+
+  # Restricts acceptable token audiences. Empty means the API server's own,
+  # which is usually right: for an OIDC ID token the audience is the client ID
+  # the API server was configured with, so the check is already being made by
+  # the party best placed to make it.
+  audiences: []
+
+  # Single sign-on.
+  #
+  # When your API server runs with --oidc-issuer-url, an ID token from that
+  # issuer is ALREADY a Kubernetes credential — the TokenReview above will
+  # validate it and return the user's IdP groups. So SSO costs a redirect flow
+  # in the browser and nothing on the server: no session store, no user
+  # database, no client secret.
+  #
+  # Set issuerUrl to the SAME issuer the API server trusts. A different one
+  # will authenticate the user in the browser and then be rejected here, which
+  # is a confusing way to fail.
+  #
+  # Unavailable on clusters whose API server cannot validate a third-party
+  # token (EKS with IAM auth, GKE with Google auth) — use trustedProxy there.
+  oidc:
+    enabled: false
+    issuerUrl: ""
+    # A public client using Authorization Code + PKCE. There is no secret,
+    # because a secret shipped to a browser is not a secret.
+    clientId: ""
+    scopes:
+      - openid
+      - profile
+      - email
+      - groups
+
+  # Accept an identity asserted by an upstream auth proxy (oauth2-proxy,
+  # Ingress auth, a service mesh) instead of validating a token.
+  #
+  # OFF, and while it is off these headers are IGNORED — a request carrying
+  # them is anonymous, not trusted. Turning it on means anything that can reach
+  # ui-backend can claim to be anyone, so it is only as strong as the network
+  # path: keep networkPolicy.enabled on and make sure the proxy cannot be
+  # bypassed.
+  trustedProxy:
+    enabled: false
+    userHeader: X-Forwarded-User
+    groupsHeader: X-Forwarded-Groups
+
+  # Require a token on the MCP endpoint the Kagent agent calls.
+  #
+  # Verified working against Kagent 0.9.12: set kagent.authSecret and the agent
+  # presents a bearer token via RemoteMCPServer's headersFrom.
+  #
+  # Off only because turning it on needs a secret you create and rotate — see
+  # kagent.authSecret. Turn it on if you can: many CNIs (k3s's default among
+  # them) accept NetworkPolicy objects without enforcing them, and where that
+  # is true this token is the ONLY control on the endpoint.
+  #
+  # The surface is read-only either way — four read tools, and a test fails if
+  # a fifth ever appears.
+  mcpRequireToken: false
 
 serviceMonitor:
   # Requires the Prometheus Operator CRDs.
@@ -282,3 +369,21 @@ kagent:
     - explain_step
     - get_node_constraints
     - why_not_drained
+
+  # Bearer token for the MCP endpoint, when auth.mcpRequireToken is on.
+  #
+  # Kagent's RemoteMCPServer supports headersFrom, so the agent can present a
+  # credential — but the secret is yours to create and rotate. The chart will
+  # not mint it, because the only way to do that declaratively is a
+  # non-expiring ServiceAccount token Secret, and a permanent credential is a
+  # poor default. The README has a TokenRequest recipe.
+  #
+  # The value must be the ENTIRE header, "Bearer eyJ...", not just the token:
+  # Kagent substitutes it verbatim.
+  #
+  # Worth reading if you rely on networkPolicy instead: many CNIs (k3s's
+  # default among them) accept NetworkPolicy objects without enforcing them,
+  # in which case this token is the only real control on the endpoint.
+  authSecret: {}
+  #  name: dencer-mcp-token
+  #  key: authorization

@@ -3,6 +3,10 @@
 // Read-only by construction. Phase 1 has no executor, so there is no endpoint
 // that mutates anything — not even a disabled one. The absence is the
 // guarantee; a "not implemented" execute route would be an invitation.
+//
+// Every route except /api/v1/authinfo sits behind a Guard. authinfo is
+// deliberately open: a client cannot sign in without first learning where to
+// sign in, and the answer contains only public values.
 package rest
 
 import (
@@ -16,22 +20,42 @@ import (
 	"time"
 
 	"github.com/atedgimo/k8s-dencer/internal/api/graph"
+	"github.com/atedgimo/k8s-dencer/internal/auth"
 	"github.com/atedgimo/k8s-dencer/internal/constraints"
 	"github.com/atedgimo/k8s-dencer/internal/model"
 	"github.com/atedgimo/k8s-dencer/internal/store"
 )
 
-// Server serves the API over a plan store.
-type Server struct {
-	store   store.Store
-	log     *slog.Logger
-	version string
-	events  *Broker
+// Guard authorizes a request before it reaches a handler.
+//
+// An interface rather than *auth.Middleware so that a disabled configuration
+// and an enabled one take the same code path — there is no nil case to forget
+// to handle, and no route can accidentally be registered unguarded.
+type Guard interface {
+	Require(res auth.Resource, next http.Handler) http.Handler
 }
 
-// New builds a server.
-func New(s store.Store, log *slog.Logger, version string) *Server {
-	return &Server{store: s, log: log, version: version, events: NewBroker(log)}
+// Server serves the API over a plan store.
+type Server struct {
+	store    store.Store
+	log      *slog.Logger
+	version  string
+	events   *Broker
+	guard    Guard
+	authInfo auth.Info
+}
+
+// New builds a server. guard authorizes every route; authInfo is published
+// unauthenticated so a client knows how to sign in.
+func New(s store.Store, log *slog.Logger, version string, guard Guard, authInfo auth.Info) *Server {
+	return &Server{
+		store:    s,
+		log:      log,
+		version:  version,
+		events:   NewBroker(log),
+		guard:    guard,
+		authInfo: authInfo,
+	}
 }
 
 // Events exposes the broker so the poller can publish plan changes.
@@ -39,16 +63,33 @@ func (s *Server) Events() *Broker { return s.events }
 
 // Routes registers every endpoint on mux.
 func (s *Server) Routes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /api/v1/version", s.handleVersion)
-	mux.HandleFunc("GET /api/v1/plans", s.handleListPlans)
-	mux.HandleFunc("GET /api/v1/plans/latest", s.handleLatestPlan)
-	mux.HandleFunc("GET /api/v1/plans/{id}", s.handlePlan)
-	mux.HandleFunc("GET /api/v1/plans/{id}/steps/{seq}", s.handleStep)
-	mux.HandleFunc("GET /api/v1/plans/{id}/graph", s.handleGraph)
-	mux.HandleFunc("GET /api/v1/plans/{id}/snapshot", s.handleSnapshot)
-	mux.HandleFunc("GET /api/v1/plans/{id}/constraints", s.handleConstraints)
-	mux.HandleFunc("GET /api/v1/plans/{id}/constraints/{namespace}/{pod}", s.handlePodConstraints)
-	mux.HandleFunc("GET /api/v1/events", s.events.ServeHTTP)
+	read := func(pattern string, h http.HandlerFunc) {
+		mux.Handle("GET "+pattern, s.guard.Require(auth.ReadPlans, h))
+	}
+
+	// The one open route. It reveals the issuer URL and public client ID a
+	// caller needs in order to authenticate, and nothing else.
+	mux.HandleFunc("GET /api/v1/authinfo", s.handleAuthInfo)
+
+	read("/api/v1/version", s.handleVersion)
+	read("/api/v1/plans", s.handleListPlans)
+	read("/api/v1/plans/latest", s.handleLatestPlan)
+	read("/api/v1/plans/{id}", s.handlePlan)
+	read("/api/v1/plans/{id}/steps/{seq}", s.handleStep)
+	read("/api/v1/plans/{id}/graph", s.handleGraph)
+	read("/api/v1/plans/{id}/snapshot", s.handleSnapshot)
+	read("/api/v1/plans/{id}/constraints", s.handleConstraints)
+	read("/api/v1/plans/{id}/constraints/{namespace}/{pod}", s.handlePodConstraints)
+
+	// The event stream carries plan data, so it is guarded like any other
+	// read. EventSource cannot send an Authorization header, which is why the
+	// frontend consumes this with fetch streaming instead — putting the token
+	// in a query string would write it to every access log in the path.
+	read("/api/v1/events", s.events.ServeHTTP)
+}
+
+func (s *Server) handleAuthInfo(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.authInfo)
 }
 
 func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {

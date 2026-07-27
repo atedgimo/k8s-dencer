@@ -34,7 +34,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
-      serviceAccountName: {{ include "k8s-dencer.serviceAccountName" . }}
+      serviceAccountName: {{ include "k8s-dencer.componentServiceAccountName" (dict "component" "ui-backend" "ctx" .) }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -81,6 +81,43 @@ spec:
             {{- end }}
             - name: POLL_INTERVAL
               value: {{ .Values.uiBackend.pollInterval | quote }}
+            # POD_NAMESPACE is already declared below; it also scopes the
+            # SubjectAccessReview, so permission can be granted with a
+            # RoleBinding in this namespace rather than a cluster-wide one.
+            - name: AUTH_ENABLED
+              value: {{ .Values.auth.enabled | quote }}
+            - name: AUTH_ANONYMOUS_READ
+              value: {{ .Values.auth.anonymousRead | quote }}
+            - name: AUTH_MCP_REQUIRE_TOKEN
+              value: {{ .Values.auth.mcpRequireToken | quote }}
+            {{- with .Values.auth.audiences }}
+            - name: AUTH_AUDIENCES
+              value: {{ join "," . | quote }}
+            {{- end }}
+            # Named in 403 responses so a denial can quote the command that
+            # grants the permission.
+            - name: AUTH_OPERATOR_ROLE
+              value: {{ include "k8s-dencer.fullname" . }}-consolidation-operator
+            - name: AUTH_OIDC_ENABLED
+              value: {{ .Values.auth.oidc.enabled | quote }}
+            {{- if .Values.auth.oidc.enabled }}
+            - name: AUTH_OIDC_ISSUER_URL
+              value: {{ .Values.auth.oidc.issuerUrl | quote }}
+            - name: AUTH_OIDC_CLIENT_ID
+              value: {{ .Values.auth.oidc.clientId | quote }}
+            {{- with .Values.auth.oidc.scopes }}
+            - name: AUTH_OIDC_SCOPES
+              value: {{ join "," . | quote }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.auth.trustedProxy.enabled }}
+            - name: AUTH_TRUSTED_PROXY_ENABLED
+              value: "true"
+            - name: AUTH_TRUSTED_PROXY_USER_HEADER
+              value: {{ .Values.auth.trustedProxy.userHeader | quote }}
+            - name: AUTH_TRUSTED_PROXY_GROUPS_HEADER
+              value: {{ .Values.auth.trustedProxy.groupsHeader | quote }}
+            {{- end }}
             - name: POD_NAMESPACE
               valueFrom:
                 fieldRef:

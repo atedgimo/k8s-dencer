@@ -3,6 +3,7 @@ import CapacityRibbon from "./components/CapacityRibbon";
 import Inspector, { Selection } from "./components/Inspector";
 import PlanCanvas from "./components/PlanCanvas";
 import Scrubber from "./components/Scrubber";
+import { SignIn } from "./components/SignIn";
 import StatTiles from "./components/StatTiles";
 import StepList from "./components/StepList";
 import { runtimeConfig } from "./runtime-config";
@@ -74,8 +75,14 @@ export default function App() {
         />
       )}
 
-      {state.status === "error" && (
-        <Placeholder title="Cannot reach the planner" detail={state.message} tone="error" />
+      {state.status === "error" && state.needsAuth && <SignIn onDone={state.reload} />}
+
+      {state.status === "error" && !state.needsAuth && (
+        <Placeholder
+          title={state.grantWith ? "Not permitted" : "Cannot reach the planner"}
+          detail={state.grantWith ? `${state.message}\n\nGrant it with:\n${state.grantWith}` : state.message}
+          tone="error"
+        />
       )}
 
       {state.status === "ready" && (
