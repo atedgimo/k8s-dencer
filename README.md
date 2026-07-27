@@ -36,7 +36,7 @@ state on its own.
 | **M10** | Executor + Safety Guard, own ServiceAccount, `pods/eviction`, audited runs | **done** |
 | **M11** | UI rebuild: packing view, motion, action-first header | **done** |
 | **M12** | Execution controls, live run, OIDC sign-in flow, plan pinning | **done** |
-| **M13** | End-to-end on KWOK incl. real SSO against Dex | planned |
+| **M13** | End-to-end on KWOK: real drain, PDB block, Red refusal, SSO against Dex | **done** |
 
 Deferred beyond Phase 2: `MaintenanceWindow` CRD and scheduled execution,
 Postgres store, multi-agent orchestration, and **closing the reclamation loop**
@@ -201,7 +201,9 @@ property.
 All three converge on the same `SubjectAccessReview` — authentication is
 pluggable, authorization is one code path.
 
-**1. OIDC single sign-on** — the recommended deployment. When your API server
+**1. OIDC single sign-on** — the recommended deployment. Verified end to end
+against a real Dex by [`hack/verify-sso.sh`](hack/verify-sso.sh); see
+[Verifying SSO](#verifying-sso). When your API server
 runs with `--oidc-issuer-url`, an ID token from that issuer **is already a
 Kubernetes credential**, so `TokenReview` validates it for us and returns the
 user's IdP groups. SSO therefore costs a redirect flow in the browser and
@@ -431,6 +433,37 @@ and pruning it would leave the log pointing at nothing.
 ```bash
 curl -H "Authorization: Bearer $TOKEN" localhost:8090/api/v1/runs/<runId> | jq .events
 ```
+
+### Verifying SSO
+
+```bash
+make images && ./hack/verify-sso.sh      # ~2 minutes
+./hack/verify-sso.sh clean               # tear it down
+```
+
+Builds a throwaway k3d cluster whose API server trusts a local Dex, installs the
+chart, and walks the authorization matrix with a real IdP token:
+
+| | |
+|---|---|
+| no token | `401` |
+| forged token | `401` |
+| valid Dex token, no RBAC | `403` naming the verb |
+| after one RoleBinding | `200` |
+
+**Why k3d and not the OrbStack cluster.** OrbStack runs k3s with the API server
+embedded and no way to pass `--oidc-issuer-url` — no config file, no CLI flag,
+and the k8s VM is not reachable as a machine. A throwaway cluster is the only
+way to test this locally, and it has the side benefit of exercising the chart on
+a second, differently-provisioned cluster (k3s 1.35 rather than 1.34), which is
+the first real test of the platform-agnostic claim the chart has made since M0.
+
+**Known gap.** Dex's local connector cannot emit a `groups` claim alongside
+static passwords, so the script verifies the *username* identity
+(`oidc:alice@example.com`) rather than a group. Group mapping is stock
+Kubernetes behaviour driven by `--oidc-groups-claim`, and our code passes
+`status.user.groups` through to the SubjectAccessReview verbatim — covered by
+unit test, not by this script.
 
 ---
 
