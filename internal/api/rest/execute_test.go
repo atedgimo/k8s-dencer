@@ -144,19 +144,32 @@ func TestExecuteQueuesARunAndRecordsTheRequester(t *testing.T) {
 	}
 }
 
-// The API refuses Red early as a courtesy. The Safety Guard refuses it again
-// inside the executor against live state — that is the check that matters.
-func TestExecuteRefusesRedStepsUpFront(t *testing.T) {
-	srv, _ := executableServer(t, allowAll{operator},
+// The API must NOT judge Red.
+//
+// It used to refuse Red at admission as a courtesy. Once maintenance windows
+// existed that became a false negative — refusing steps a window had
+// legitimately authorised — because whether Red may run depends on live window
+// state evaluated against the step's own node, and only the Safety Guard
+// inside the executor knows both.
+//
+// So Red is queued here and adjudicated there. One authority rather than two
+// that can disagree, which is what doc §9 asks for.
+func TestExecuteDoesNotAdjudicateRed(t *testing.T) {
+	srv, db := executableServer(t, allowAll{operator},
 		planStep(1, "a", model.ImpactGreen), planStep(2, "b", model.ImpactRed))
 
 	res, body := postExecute(t, srv, `{"steps":[1,2]}`)
-	if res.StatusCode != http.StatusBadRequest {
-		t.Fatalf("got %d, want 400", res.StatusCode)
+	if res.StatusCode != http.StatusAccepted {
+		t.Fatalf("got %d, want 202 — the guard decides about Red, not this route: %v",
+			res.StatusCode, body)
 	}
-	msg, _ := body["error"].(string)
-	if !strings.Contains(msg, "maintenance window") || !strings.Contains(msg, "2") {
-		t.Errorf("refusal should name the Red step and why: %s", msg)
+
+	run, err := db.RunByID(context.Background(), body["runId"].(string))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(run.Steps) != 2 {
+		t.Errorf("the Red step was dropped rather than queued: %v", run.Steps)
 	}
 }
 

@@ -27,6 +27,7 @@ import (
 	"github.com/atedgimo/k8s-dencer/internal/store"
 	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlite"
 	"github.com/atedgimo/k8s-dencer/internal/telemetry"
+	"github.com/atedgimo/k8s-dencer/internal/window"
 )
 
 // version is stamped at build time via -ldflags.
@@ -78,12 +79,22 @@ func run(ctx context.Context, log *slog.Logger) error {
 		AllowRed: false,
 	}
 
+	// Maintenance windows are what unlock Red steps. Read live, per check: a
+	// window suspended thirty seconds ago must be suspended now, and a cached
+	// authorisation is not an authorisation.
+	windows, err := window.NewReader(cfg, log)
+	if err != nil {
+		return err
+	}
+	go windows.Run(ctx, duration(log, "WINDOW_SYNC_INTERVAL", 30*time.Second))
+
 	exec := executor.New(executor.NewK8sCluster(reader), db, db, log, executor.Options{
 		Worker:        env("POD_NAME", "executor"),
 		Limits:        limits,
 		StepTimeout:   duration(log, "STEP_TIMEOUT", 10*time.Minute),
 		SettleTimeout: duration(log, "SETTLE_TIMEOUT", 5*time.Minute),
 		PollInterval:  duration(log, "CLUSTER_POLL_INTERVAL", 2*time.Second),
+		Windows:       windows,
 	})
 
 	health := &httpserver.Health{}

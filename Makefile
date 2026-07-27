@@ -15,6 +15,7 @@ SHELL := /usr/bin/env bash
 # orbstack | k3d | kind | minikube
 # Selects both the images-load implementation and the ci/ values overlay.
 # Nothing outside this file and charts/k8s-dencer/ci/ may assume a provider.
+CONTROLLER_GEN  ?= $(shell go env GOPATH)/bin/controller-gen
 CLUSTER_PROVIDER ?= orbstack
 
 NAMESPACE   ?= k8s-dencer
@@ -236,6 +237,22 @@ logs: ## Tail the planner log
 # validates an ID token from an issuer it already trusts.
 TOKEN_SA       ?= dencer-operator
 TOKEN_DURATION ?= 8h
+
+.PHONY: crds
+crds: ## Regenerate CRD manifests from the Go types
+	$(CONTROLLER_GEN) object paths=./api/...
+	$(CONTROLLER_GEN) crd paths=./api/... output:crd:artifacts:config=config/crd/bases
+	cp config/crd/bases/*.yaml charts/k8s-dencer/crds/
+	@echo "==> CRDs regenerated into config/crd/bases and charts/k8s-dencer/crds"
+
+.PHONY: crd-upgrade
+crd-upgrade: ## Apply CRD changes to the cluster
+	@# Helm installs charts/*/crds/ on install and NEVER on upgrade — by design,
+	@# since a bad CRD change can orphan existing objects. So a chart upgrade
+	@# that adds or alters a CRD needs this applied by hand, which is the
+	@# standard operator dance rather than anything unusual here.
+	kubectl apply --server-side -f charts/k8s-dencer/crds/
+	@echo "==> CRDs applied"
 
 .PHONY: token
 token: ## Mint an operator token for the UI (paste it when prompted)

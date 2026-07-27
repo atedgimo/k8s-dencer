@@ -35,12 +35,8 @@ rules:
     verbs: ["get", "list", "watch"]
   - apiGroups: ["dencer.io"]
     resources:
-      - consolidationpolicies
+      - maintenancewindows
     verbs: ["get", "list", "watch"]
-  - apiGroups: ["dencer.io"]
-    resources:
-      - consolidationpolicies/status
-    verbs: ["get", "update", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -199,6 +195,15 @@ rules:
   - apiGroups: ["policy"]
     resources: ["poddisruptionbudgets"]
     verbs: ["get", "list", "watch"]
+  # Maintenance windows are the only thing that can unlock a Red step, so the
+  # executor must read them live. It writes only their status — never their
+  # spec, so the component that benefits from a window cannot widen one.
+  - apiGroups: ["dencer.io"]
+    resources: ["maintenancewindows"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["dencer.io"]
+    resources: ["maintenancewindows/status"]
+    verbs: ["get", "update", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
