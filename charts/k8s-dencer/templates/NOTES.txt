@@ -15,12 +15,27 @@ Reach the UI:
   open http://localhost:8080
 {{- end }}
 
-Verify the read-only guarantee:
+Verify who can evict. Note --subresource: `can-i create pods/eviction` answers
+"no" for everyone, including accounts that hold the permission, so the obvious
+form is a check that cannot fail.
 {{- range $component := list "planner" "ui-backend" }}
-  kubectl auth can-i create pods/eviction \
+  kubectl auth can-i create pods --subresource=eviction -n {{ $.Release.Namespace }} \
     --as=system:serviceaccount:{{ $.Release.Namespace }}:{{ include "k8s-dencer.componentServiceAccountName" (dict "component" $component "ctx" $) }}
 {{- end }}
   # both must print: no
+{{- if .Values.executor.enabled }}
+
+  kubectl auth can-i create pods --subresource=eviction -n {{ .Release.Namespace }} \
+    --as=system:serviceaccount:{{ .Release.Namespace }}:{{ include "k8s-dencer.componentServiceAccountName" (dict "component" "executor" "ctx" .) }}
+  # must print: yes — this is the one account that may drain nodes
+
+EXECUTION IS ENABLED. An operator holding create consolidations.dencer.io can
+drain nodes through the UI. Rails currently in force:
+  Red-rated steps      refused outright (maintenance windows are Phase 3)
+  max nodes per run    {{ .Values.safety.maxNodesPerRun }}
+  minimum ready nodes  {{ .Values.safety.minReadyNodes }}
+Aborting a step uncordons the node; it does NOT restore evicted pods.
+{{- end }}
 
 {{ if .Values.auth.enabled -}}
 Authentication is ON. Nobody can read a plan until you grant them the

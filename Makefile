@@ -114,6 +114,11 @@ images: ## Build native-arch images for the local cluster
 		--build-arg VERSION=$(IMAGE_TAG) \
 		-t $(IMAGE_PREFIX)-ui-backend:$(IMAGE_TAG) .
 	docker buildx build --load \
+		-f build/go.Dockerfile \
+		--build-arg COMPONENT=executor \
+		--build-arg VERSION=$(IMAGE_TAG) \
+		-t $(IMAGE_PREFIX)-executor:$(IMAGE_TAG) .
+	docker buildx build --load \
 		-f build/ui.Dockerfile \
 		-t $(IMAGE_PREFIX)-ui-frontend:$(IMAGE_TAG) .
 
@@ -133,6 +138,11 @@ images-release: ## Build multi-arch images (buildx cannot --load these; use --pu
 		--build-arg VERSION=$(IMAGE_TAG) \
 		-t $(IMAGE_PREFIX)-ui-backend:$(IMAGE_TAG) .
 	docker buildx build --platform $(PLATFORMS) \
+		-f build/go.Dockerfile \
+		--build-arg COMPONENT=executor \
+		--build-arg VERSION=$(IMAGE_TAG) \
+		-t $(IMAGE_PREFIX)-executor:$(IMAGE_TAG) .
+	docker buildx build --platform $(PLATFORMS) \
 		-f build/ui.Dockerfile \
 		-t $(IMAGE_PREFIX)-ui-frontend:$(IMAGE_TAG) .
 
@@ -141,12 +151,13 @@ images-load: ## Make locally built images visible to the cluster
 ifeq ($(CLUSTER_PROVIDER),orbstack)
 	@echo "==> orbstack shares the docker image store; nothing to load"
 else ifeq ($(CLUSTER_PROVIDER),k3d)
-	k3d image import $(IMAGE_PREFIX)-planner:$(IMAGE_TAG) $(IMAGE_PREFIX)-ui-backend:$(IMAGE_TAG) $(IMAGE_PREFIX)-ui-frontend:$(IMAGE_TAG)
+	k3d image import $(IMAGE_PREFIX)-planner:$(IMAGE_TAG) $(IMAGE_PREFIX)-ui-backend:$(IMAGE_TAG) $(IMAGE_PREFIX)-executor:$(IMAGE_TAG) $(IMAGE_PREFIX)-ui-frontend:$(IMAGE_TAG)
 else ifeq ($(CLUSTER_PROVIDER),kind)
-	kind load docker-image $(IMAGE_PREFIX)-planner:$(IMAGE_TAG) $(IMAGE_PREFIX)-ui-backend:$(IMAGE_TAG) $(IMAGE_PREFIX)-ui-frontend:$(IMAGE_TAG)
+	kind load docker-image $(IMAGE_PREFIX)-planner:$(IMAGE_TAG) $(IMAGE_PREFIX)-ui-backend:$(IMAGE_TAG) $(IMAGE_PREFIX)-executor:$(IMAGE_TAG) $(IMAGE_PREFIX)-ui-frontend:$(IMAGE_TAG)
 else ifeq ($(CLUSTER_PROVIDER),minikube)
 	minikube image load $(IMAGE_PREFIX)-planner:$(IMAGE_TAG)
 	minikube image load $(IMAGE_PREFIX)-ui-backend:$(IMAGE_TAG)
+	minikube image load $(IMAGE_PREFIX)-executor:$(IMAGE_TAG)
 	minikube image load $(IMAGE_PREFIX)-ui-frontend:$(IMAGE_TAG)
 else
 	$(error unknown CLUSTER_PROVIDER: $(CLUSTER_PROVIDER))
@@ -171,6 +182,7 @@ deploy: ## Install/upgrade the product chart with the provider overlay
 		-f $(CHART)/ci/$(CLUSTER_PROVIDER)-values.yaml \
 		--set planner.image.tag=$(IMAGE_TAG) \
 		--set uiBackend.image.tag=$(IMAGE_TAG) \
+		--set executor.image.tag=$(IMAGE_TAG) \
 		--set uiFrontend.image.tag=$(IMAGE_TAG) \
 		--wait --timeout 5m
 
@@ -301,12 +313,29 @@ demo-down: ## Remove the synthetic topology (deletes the fake nodes)
 	-kubectl delete namespace $(DEMO_NAMESPACE) --wait=false
 	-kubectl delete nodes -l dencer.io/synthetic=true --wait=false
 
+.PHONY: fabric-reset
+fabric-reset: ## Uncordon every KWOK node (undo an executor run)
+	@# Draining a node makes the node controller add
+	@# node.kubernetes.io/unschedulable to .spec.taints, owned by the
+	@# cluster's own field manager. The demo chart also manages .spec.taints,
+	@# so a server-side apply then fails with a field-manager conflict — which
+	@# is how `make scenario` breaks after a run. A scenario switch is a fabric
+	@# reset, so uncordoning first is both the fix and the honest semantics.
+	@nodes=$$(kubectl get nodes -l type=kwok -o jsonpath='{range .items[?(@.spec.unschedulable)]}{.metadata.name}{" "}{end}'); \
+	if [ -n "$$nodes" ]; then \
+		echo "==> uncordoning $$(echo $$nodes | wc -w | tr -d ' ') drained node(s)"; \
+		kubectl uncordon $$nodes >/dev/null; \
+	else \
+		echo "==> no cordoned KWOK nodes"; \
+	fi
+
 .PHONY: scenario
 scenario: ## Switch scenario: make scenario S=b-pdb-blocked
 	@if [ -z "$(S)" ]; then \
 		echo "usage: make scenario S=<a-fragmented|b-pdb-blocked|c-topology-spread|d-anti-affinity|e-tainted-pool|f-stateful>"; \
 		exit 1; \
 	fi
+	@$(MAKE) --no-print-directory fabric-reset
 	helm upgrade --install $(DEMO_RELEASE) demo/charts/dencer-demo \
 		--namespace $(DEMO_NAMESPACE) --create-namespace \
 		--set scenario=$(S)

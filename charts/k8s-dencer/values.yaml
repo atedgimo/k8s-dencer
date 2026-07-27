@@ -254,6 +254,82 @@ ingress:
           pathType: Prefix
   tls: []
 
+# The executor: the only component that can change your cluster.
+#
+# OFF by default, and an upgrade must never silently turn it on. Enabling it
+# creates a ServiceAccount holding pods/eviction and adds a POST route to
+# ui-backend — neither of which anyone should acquire by taking a chart bump.
+#
+# Even enabled, nothing runs without a person asking. The executor performs
+# only the steps named in a request that passed a SubjectAccessReview, and the
+# Safety Guard (see `safety` below) re-checks every one against live cluster
+# state before touching anything.
+#
+# Requires auth.enabled and persistence.enabled; values.schema.json rejects
+# either combination.
+executor:
+  enabled: false
+
+  image:
+    registry: ghcr.io
+    repository: atedgimo/k8s-dencer-executor
+    # Defaults to .Chart.AppVersion.
+    tag: ""
+    pullPolicy: IfNotPresent
+
+  logLevel: info
+
+  # Probes only. The executor serves no API — work arrives through the shared
+  # plan store, so it has no inbound network surface.
+  probePort: 8081
+
+  # How long one step may take end to end before it aborts and uncordons.
+  stepTimeout: 10m
+  # How long to wait for evicted pods to be replaced elsewhere before giving up
+  # on a step. Raise it for workloads with slow startup.
+  settleTimeout: 5m
+  # How often to look for queued work.
+  queuePollInterval: 3s
+  # How often cluster state is re-read while a drain is in progress. Every
+  # safety decision is made against a read this fresh.
+  clusterPollInterval: 2s
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  podAnnotations: {}
+  podLabels: {}
+  nodeSelector: {}
+  tolerations: []
+  # Left empty to inherit the co-scheduling the SQLite volume requires.
+  affinity: {}
+  priorityClassName: ""
+  extraEnv: []
+  extraVolumes: []
+  extraVolumeMounts: []
+
+# The non-negotiable rails on execution (architecture doc §9).
+#
+# Enforced in code by internal/safety, checked before every step and before
+# every individual eviction against freshly-read state — not by API input
+# validation, so no crafted request can bypass them.
+#
+# Note what is NOT configurable: Red-rated steps are refused outright. They are
+# confined to approved maintenance windows, which do not exist until Phase 3,
+# and exposing that as a value would turn a safety rail into a footgun.
+safety:
+  # Most nodes one execution request may drain. Reached mid-run, the run stops
+  # cleanly with the steps so far completed.
+  maxNodesPerRun: 5
+  # Schedulable nodes to leave behind, so a consolidation cannot squeeze the
+  # cluster to the point where the next failure has nowhere to go.
+  minReadyNodes: 3
+
 networkPolicy:
   # Restricts ui-backend ingress to the frontend and (when enabled) Kagent.
   #

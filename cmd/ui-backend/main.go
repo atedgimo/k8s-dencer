@@ -8,6 +8,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -71,6 +72,23 @@ func run(ctx context.Context, log *slog.Logger) error {
 	}
 
 	api := rest.New(db, log, version, guard, authCfg.Describe())
+
+	// The execute route exists only where an executor is deployed to claim the
+	// work. Without one there is no endpoint at all rather than a disabled
+	// one — a "not implemented" execute route is an invitation.
+	//
+	// ui-backend still holds no eviction permission: it writes a row, and the
+	// executor, which is unreachable from the network, performs the drain.
+	if boolEnv("EXECUTOR_ENABLED", false) {
+		if !authCfg.Enabled {
+			// Belt and braces with the chart's schema, which rejects the same
+			// combination. A mutating endpoint must never be reachable without
+			// authorization, however the binary was launched.
+			return errExecutorWithoutAuth
+		}
+		api = api.WithExecution(db)
+		log.Info("execution enabled", "route", "POST /api/v1/plans/{id}/execute")
+	}
 
 	health := &httpserver.Health{}
 	mux := http.NewServeMux()
@@ -169,6 +187,13 @@ func buildGuard(cfg auth.Config, log *slog.Logger) (*auth.Middleware, error) {
 		log,
 	), nil
 }
+
+// errExecutorWithoutAuth refuses to start rather than serve an unauthenticated
+// endpoint that can drain nodes. Failing loudly beats running in a state no
+// operator would have chosen on purpose.
+var errExecutorWithoutAuth = errors.New(
+	"EXECUTOR_ENABLED is set but AUTH_ENABLED is false; " +
+		"an execute endpoint must never be reachable without authorization")
 
 type errUnsupportedDatabase string
 

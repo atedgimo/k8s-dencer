@@ -24,10 +24,13 @@ var openRoutes = map[string]bool{
 //
 // Checked against the source rather than by probing, because probing can only
 // find routes a test already knows about — and the failure that matters is
-// somebody adding a route and not thinking about auth at all. Routes registers
-// guarded endpoints through the read() helper, which builds its pattern by
-// concatenation; anything handed a plain string literal went straight onto the
-// mux and skipped the guard.
+// somebody adding a route and not thinking about auth at all.
+//
+// Routes registers every guarded endpoint through the route() helper, which
+// takes an auth.Resource and so cannot be called without choosing a
+// permission. Its mux.Handle call receives the pattern as a variable, never a
+// literal — so any mux.Handle or mux.HandleFunc here holding a plain string
+// literal went straight onto the mux and skipped the guard entirely.
 //
 // From M10 this file is what stops an execute route shipping unauthenticated,
 // which is the single worst mistake available in this codebase.
@@ -75,7 +78,8 @@ func TestEveryRouteIsGuarded(t *testing.T) {
 	for _, pattern := range direct {
 		if !openRoutes[pattern] {
 			t.Errorf("route %q is registered directly on the mux and is therefore unauthenticated.\n"+
-				"Register it through the read() helper, or add it to openRoutes with a comment "+
+				"Register it through the route() helper with the permission it requires "+
+				"(read() for plain reads), or add it to openRoutes with a comment "+
 				"explaining why it is safe to serve without credentials.", pattern)
 		}
 	}

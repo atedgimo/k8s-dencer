@@ -65,6 +65,29 @@ persistence:
   storageClass: ""
   size: 1Gi
 
+# On by default here because the POC exists to exercise real drains against the
+# KWOK fabric — real cordons, real evictions, real PDB enforcement. This is the
+# one profile that turns it on; the product defaults keep it off.
+executor:
+  enabled: true
+  image:
+    registry: ""
+    repository: k8s-dencer-executor
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+safety:
+  # The fabric is 30 fake nodes with a floor that would otherwise refuse most
+  # of the plan; and a demo wants to see several nodes drain in one run.
+  maxNodesPerRun: 8
+  minReadyNodes: 5
+
 # Kagent 0.9.12 is already installed in this cluster.
 kagent:
   enabled: true
