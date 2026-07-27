@@ -20,4 +20,24 @@ spec:
     impact classifier.
   protocol: STREAMABLE_HTTP
   url: {{ printf "%s/mcp" (include "k8s-dencer.uiBackendURL" .) | quote }}
+  {{- with .Values.kagent.authSecret }}
+  {{/*
+  Presents a bearer token on the MCP endpoint, for installs that set
+  auth.mcpRequireToken=true.
+
+  The secret must live in the Kagent namespace and its value must be the WHOLE
+  header, "Bearer eyJ...", because Kagent substitutes it verbatim.
+
+  The chart does not mint this for you. Doing so would mean creating a
+  non-expiring ServiceAccount token Secret, and a long-lived credential
+  committed to a cluster is a worse default than a short-lived one you rotate
+  deliberately. See the README for the TokenRequest recipe.
+  */}}
+  headersFrom:
+    - name: Authorization
+      valueFrom:
+        type: Secret
+        name: {{ .name | quote }}
+        key: {{ .key | default "authorization" | quote }}
+  {{- end }}
 {{- end }}

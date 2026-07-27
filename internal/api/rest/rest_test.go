@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/atedgimo/k8s-dencer/internal/api/rest"
+	"github.com/atedgimo/k8s-dencer/internal/auth"
 	"github.com/atedgimo/k8s-dencer/internal/constraints"
 	"github.com/atedgimo/k8s-dencer/internal/model"
 	"github.com/atedgimo/k8s-dencer/internal/store"
@@ -35,7 +36,12 @@ func testServer(t *testing.T, records ...store.Record) *httptest.Server {
 		}
 	}
 
-	api := rest.New(db, slog.New(slog.DiscardHandler), "test")
+	// Auth disabled: these tests cover the read API's behaviour, and the guard
+	// has its own suite in internal/auth. A disabled middleware is the real
+	// type on a transparent path, not a stub, so the wiring is still exercised.
+	guard := auth.NewMiddleware(nil, nil, auth.Config{Enabled: false}, slog.New(slog.DiscardHandler))
+
+	api := rest.New(db, slog.New(slog.DiscardHandler), "test", guard, auth.Config{Enabled: false}.Describe())
 	mux := http.NewServeMux()
 	api.Routes(mux)
 	srv := httptest.NewServer(mux)

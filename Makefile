@@ -219,6 +219,26 @@ status: ## Show what is running
 logs: ## Tail the planner log
 	kubectl logs -n $(NAMESPACE) -l app.kubernetes.io/component=planner -f --tail=50
 
+# Tier 3 of the auth story: a plain bearer token, for the POC and for CI. The
+# production path is OIDC single sign-on (auth.oidc.*), where the API server
+# validates an ID token from an issuer it already trusts.
+TOKEN_SA       ?= dencer-operator
+TOKEN_DURATION ?= 8h
+
+.PHONY: token
+token: ## Mint an operator token for the UI (paste it when prompted)
+	@kubectl get serviceaccount $(TOKEN_SA) -n $(NAMESPACE) >/dev/null 2>&1 \
+		|| kubectl create serviceaccount $(TOKEN_SA) -n $(NAMESPACE) >/dev/null
+	@# Granting the operator role, not the viewer role, so the same token keeps
+	@# working when the executor lands in M10 and the UI gains a run button.
+	@kubectl get rolebinding $(TOKEN_SA) -n $(NAMESPACE) >/dev/null 2>&1 \
+		|| kubectl create rolebinding $(TOKEN_SA) -n $(NAMESPACE) \
+			--clusterrole=$(RELEASE)-consolidation-operator \
+			--serviceaccount=$(NAMESPACE):$(TOKEN_SA) >/dev/null
+	@echo "# ServiceAccount $(NAMESPACE)/$(TOKEN_SA), valid $(TOKEN_DURATION)." >&2
+	@echo "# Paste this into the UI's sign-in field." >&2
+	@kubectl create token $(TOKEN_SA) -n $(NAMESPACE) --duration=$(TOKEN_DURATION)
+
 .PHONY: undeploy
 undeploy: ## Remove the product release
 	-helm uninstall $(RELEASE) --namespace $(NAMESPACE)

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, GraphPayload, PlanResponse, api, subscribePlans } from "./api";
+import { onTokenChange } from "./auth";
 
 export type PlanState =
   | { status: "loading" }
   | { status: "empty" }
-  | { status: "error"; message: string }
+  | { status: "error"; message: string; needsAuth?: boolean; grantWith?: string }
   | { status: "ready"; plan: PlanResponse; graph: GraphPayload };
 
 /**
@@ -41,6 +42,8 @@ export function usePlan(): PlanState & { reload: () => void } {
         setState({
           status: "error",
           message: err instanceof Error ? err.message : String(err),
+          needsAuth: err instanceof ApiError && err.needsAuth,
+          grantWith: err instanceof ApiError ? err.grantWith : undefined,
         });
       }
     })();
@@ -51,6 +54,10 @@ export function usePlan(): PlanState & { reload: () => void } {
   useEffect(() => {
     return subscribePlans(() => reload());
   }, [reload]);
+
+  // Signing in has to re-drive the fetch: without this the operator enters a
+  // valid token and stares at the same 401 until they reload the page.
+  useEffect(() => onTokenChange(reload), [reload]);
 
   return { ...state, reload };
 }

@@ -2,7 +2,7 @@
 
 k8s-dencer continuously analyzes your Kubernetes cluster's constraints (PDBs, topology spread, affinity, taints) and builds a node consolidation plan — broken into discrete, impact-rated steps you can inspect and run on your own terms, on request or during a maintenance window. Nothing executes without explicit approval.
 
-**Phase 1 is read-only by construction.** It plans and explains; it never cordons, drains or evicts. The ServiceAccount is not granted `pods/eviction`, and `make lint` fails the build if any values profile ever grants it.
+**Still read-only.** It plans and explains; it never cordons, drains or evicts. No ServiceAccount is granted `pods/eviction`, and `make lint` fails the build if any values profile ever grants it. The executor arrives in M10 — with its own ServiceAccount, behind the authorization gate that M9 has already shipped.
 
 Full design: [docs/k8s-consolidation-agent-architecture.md](docs/k8s-consolidation-agent-architecture.md)
 
@@ -24,7 +24,22 @@ Phase 1 (MVP) — visibility and explainability. No execution capability.
 | **M7** | UI: capacity ribbon, packing canvas, scrubber, constraint inspector | **done** |
 | **M8** | Kagent agent: read-only MCP tools + `Agent` CR | **done** |
 
-**Phase 1 is complete.** Deferred to later phases: Executor, Safety Guard, Scheduler Simulator, `MaintenanceWindow` CRD, Postgres store, multi-agent orchestration.
+**Phase 1 is complete.**
+
+Phase 2 — on-request execution. Authentication lands first, deliberately: a
+window in which an execute endpoint exists unauthenticated is worse than either
+state on its own.
+
+| Milestone | Scope | State |
+|---|---|---|
+| **M9** | AuthN/AuthZ via TokenReview + SubjectAccessReview; OIDC SSO; NetworkPolicy on by default | **done** |
+| **M10** | Executor + Safety Guard, own ServiceAccount, `pods/eviction` | planned |
+| **M11** | UI rebuild: packing view, motion, action-first header | planned |
+| **M12** | Execution controls, live run, OIDC sign-in flow, plan pinning | planned |
+| **M13** | End-to-end on KWOK incl. real SSO against Dex | planned |
+
+Deferred beyond Phase 2: `MaintenanceWindow` CRD and scheduled execution,
+Postgres store, multi-agent orchestration.
 
 ### What actually runs today
 
@@ -55,6 +70,7 @@ YAML: `/debug/snapshot`, `/debug/constraints` and `/debug/plan`.
 
 ```bash
 make demo     # KWOK fabric + 30-node topology + build images + install the chart
+make token    # mint an operator token — the UI asks for one
 make ui       # port-forward and print the URLs
 make down     # remove all three releases
 ```
@@ -75,6 +91,7 @@ internal/
   planner/         Strategy interface + greedy first-fit-decreasing packer
   impact/          Green/Yellow/Red classifier + rationale composition
   store/           Store interface + SQLite implementation and migrations
+  auth/            TokenReview authn + SubjectAccessReview authz; no credential store of our own
   api/             rest/ (+ SSE events), graph/ (Cytoscape payload), agenttools/ (MCP)
 ui/                React + Vite + Cytoscape.js; bundled typefaces
 charts/k8s-dencer/ THE product deliverable — see Chart below
@@ -125,11 +142,133 @@ Runs `helm lint` and `kubeconform --strict` across every profile, then asserts t
 4. **no profile grants `pods/eviction`**
 5. `database.type=sqlite` with `uiBackend.replicaCount=2` is rejected by `values.schema.json`
 6. the packaged chart excludes the `ci/` fixtures
+7. **no profile disables authentication**
+8. `system:auth-delegator` is bound to ui-backend and to nothing else
+9. the consolidation-operator ClusterRole ships **unbound**
+10. a NetworkPolicy is present by default, and restricts ingress only
+11. `auth.oidc.enabled=true` without an issuer and client ID is rejected
 
 ### Known constraints
 
 - **SQLite is single-writer.** `uiBackend.replicaCount` is pinned to 1 and enforced by the schema; the planner is co-scheduled with ui-backend via a `requiredDuringScheduling` podAffinity, because a ReadWriteOnce claim only permits multiple pods on the same node. Both constraints disappear when the Postgres store lands.
 - **PDBs use `maxUnavailable`, never `minAvailable`.** A `minAvailable` PDB on a single-replica Deployment makes its own pod undrainable — the exact pathology this product exists to detect.
+
+---
+
+## Authentication
+
+k8s-dencer owns **no credential store**. A caller presents a token,
+[ui-backend](internal/auth/authenticator.go) validates it with a `TokenReview`,
+and permission is decided by a
+[`SubjectAccessReview`](internal/auth/authorizer.go). So "who may read the plan"
+and "who may drain a node" are ordinary RoleBindings that compose with whatever
+your cluster already uses, audit flows through the API server, and there is no
+user database to breach.
+
+On by default (`auth.enabled`). Two unbound ClusterRoles ship with the chart —
+bind whichever you need:
+
+| ClusterRole | Grants |
+|---|---|
+| `<release>-viewer` | `get plans.dencer.io` |
+| `<release>-consolidation-operator` | the above, plus `create consolidations.dencer.io` |
+
+Neither resource is a CRD, and neither ever will be: RBAC and
+SubjectAccessReview match on strings, so a permission can be granted against a
+resource name that has no API behind it. metrics-server relies on the same
+property.
+
+### Three ways to authenticate
+
+All three converge on the same `SubjectAccessReview` — authentication is
+pluggable, authorization is one code path.
+
+**1. OIDC single sign-on** — the recommended deployment. When your API server
+runs with `--oidc-issuer-url`, an ID token from that issuer **is already a
+Kubernetes credential**, so `TokenReview` validates it for us and returns the
+user's IdP groups. SSO therefore costs a redirect flow in the browser and
+nothing on the server: no session store, no user database, no client secret.
+
+```yaml
+auth:
+  oidc:
+    enabled: true
+    issuerUrl: https://login.example.com/realms/platform   # the SAME issuer the API server trusts
+    clientId: k8s-dencer                                   # public client, Authorization Code + PKCE
+```
+
+```bash
+kubectl create rolebinding dencer-operators -n k8s-dencer \
+  --clusterrole=k8s-dencer-consolidation-operator --group=oidc:platform-sre
+```
+
+Unavailable on clusters whose API server cannot validate a third-party token —
+EKS with IAM auth, GKE with Google auth. Use an auth proxy there.
+
+**2. Auth proxy** — oauth2-proxy, Ingress auth or a service mesh terminates SSO
+and asserts the identity in a header. We skip `TokenReview` and go straight to
+`SubjectAccessReview`, which accepts `spec.user` and `spec.groups` directly, so
+we can ask "may *this* person do this" without ever holding their token.
+
+Off by default, and **while it is off the headers are ignored, not merely
+unused** — a request carrying `X-Forwarded-User` is anonymous, not an
+administrator. Turning it on means anything that can reach ui-backend can claim
+to be anyone, so `networkPolicy.enabled` is what makes the proxy unbypassable.
+
+**3. Bearer token** — for the POC and CI.
+
+```bash
+make token     # mints one and prints it; paste into the UI
+```
+
+### Notes worth knowing
+
+- **Token expiry cannot break a run.** From M10, authorization happens once at
+  enqueue and the executor then works under its own ServiceAccount, so a
+  15-minute ID token can authorize a 40-minute consolidation. The authenticated
+  username and groups are recorded on the run and on every audit event.
+- **A 403 tells you how to fix it** — it names the exact verb, group and
+  resource, and quotes the `kubectl create rolebinding` that grants them.
+- **Authentication is cached for 30s; authorization never is.** A revoked
+  RoleBinding must stop working immediately.
+- **`/api/v1/authinfo` is served openly.** A client cannot sign in without
+  knowing where to sign in, and the answer is an issuer URL and a public client
+  ID. [A test](internal/api/rest/guarded_test.go) fails if any *other* route is
+  registered without a guard — which is what will stop an execute endpoint
+  shipping unauthenticated in M10.
+- **Do not assume your NetworkPolicy is enforced.** A CNI that does not
+  implement NetworkPolicy accepts the object and silently ignores it — there is
+  no warning and no event. k3s's default CNI is one of these, so on the OrbStack
+  POC cluster the policy provides *zero* protection: a pod in `default` reaches
+  ui-backend with a 200. Verify on your own cluster before relying on it, and
+  note that `auth.trustedProxy` is only safe where it *is* enforced.
+
+  ```bash
+  kubectl run probe --rm -i --restart=Never -n default --image=curlimages/curl:8.11.1 \
+    --command -- curl -s -o /dev/null -w '%{http_code}\n' \
+    http://<release>-ui-backend.<ns>.svc:8080/api/v1/authinfo   # 000 = enforced, 200 = not
+  ```
+
+- **The MCP surface can be token-guarded, and on an unenforced CNI it should
+  be.** Verified against Kagent 0.9.12: `RemoteMCPServer.headersFrom` presents a
+  bearer token and all four tools are discovered through it. Off by default only
+  because the secret is yours to create and rotate — the chart will not mint a
+  non-expiring ServiceAccount token on your behalf.
+
+  ```bash
+  kubectl create serviceaccount dencer-agent -n k8s-dencer
+  kubectl create rolebinding dencer-agent -n k8s-dencer \
+    --clusterrole=k8s-dencer-viewer --serviceaccount=k8s-dencer:dencer-agent
+  kubectl create secret generic dencer-mcp-token -n kagent \
+    --from-literal=authorization="Bearer $(kubectl create token dencer-agent -n k8s-dencer --duration=720h)"
+  helm upgrade ... --set auth.mcpRequireToken=true \
+    --set kagent.authSecret.name=dencer-mcp-token
+  ```
+
+  The value must be the whole header — Kagent substitutes it verbatim. The
+  surface is read-only either way, and a test fails if a fifth tool appears.
+- **The UI signs in by pasting a token.** The OIDC redirect flow lands in M12,
+  because M11 rebuilds the header and building the login twice would be waste.
 
 ---
 
@@ -255,6 +394,7 @@ Plans live in SQLite on the chart's PVC, not in a CRD. Doc §6 makes the case: a
 ### Endpoints
 
 ```
+GET /api/v1/authinfo                                 how to sign in — the only open route
 GET /api/v1/version
 GET /api/v1/plans                                    list, newest first
 GET /api/v1/plans/{id|latest}                        full plan
@@ -265,9 +405,15 @@ GET /api/v1/plans/{id}/constraints[/{ns}/{pod}]      constraint analysis
 GET /api/v1/events                                   live plan changes (SSE)
 ```
 
-`latest` is an alias, so the UI can deep-link without knowing an ID. **There is no mutating route** — not even a disabled one, because a "not implemented" execute endpoint is an invitation. A test asserts none exists.
+Everything but `authinfo` requires `get plans.dencer.io` — see
+[Authentication](#authentication). `latest` is an alias, so the UI can deep-link
+without knowing an ID. **There is no mutating route** — not even a disabled one,
+because a "not implemented" execute endpoint is an invitation. A test asserts
+none exists.
 
-Live updates use **Server-Sent Events rather than WebSockets**: the traffic is strictly one-way since the API is read-only, `EventSource` reconnects on its own, and it needs no dependency and no protocol upgrade. The stream sends current state on connect, so a client joining a stable cluster isn't left blank.
+Live updates use **Server-Sent Events rather than WebSockets**: the traffic is strictly one-way since the API is read-only, and it needs no dependency and no protocol upgrade. The stream sends current state on connect, so a client joining a stable cluster isn't left blank.
+
+The frontend consumes that stream with **`fetch` rather than `EventSource`**, which costs us the reconnect logic `EventSource` gives away. `EventSource` cannot send an `Authorization` header, and the alternative — putting the token in the query string — would write a working credential into every access log between the browser and the backend.
 
 The graph payload is shaped for Cytoscape's compound-node model — cluster nodes are parents, pods are children — and every pod carries **both** its current node and where the plan would move it, so the frontend can build the before/after view and animate the step scrubber from a single request.
 

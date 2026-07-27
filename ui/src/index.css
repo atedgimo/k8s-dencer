@@ -762,10 +762,99 @@
   max-width: 32rem;
   color: var(--text-secondary);
   font-size: 0.88rem;
+  /* A 403 carries the kubectl command that grants the missing permission.
+     Collapsing it onto one line would make it unreadable and un-copyable. */
+  white-space: pre-line;
 }
 
 .placeholder-error h2 {
   color: var(--impact-red);
+}
+
+/* --------------------------------------------------------------- sign-in */
+
+.signin {
+  grid-row: 2 / -1;
+  align-self: center;
+  justify-self: center;
+  width: min(30rem, calc(100vw - 3rem));
+  padding: 1.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.signin h2 {
+  margin: 0 0 0.65rem;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 650;
+}
+
+.signin-detail {
+  margin: 0 0 0.9rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.signin form {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.signin label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.signin input {
+  padding: 0.55rem 0.65rem;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.signin button {
+  justify-self: start;
+  margin-top: 0.35rem;
+  padding: 0.5rem 1.1rem;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  color: #fff;
+  background: var(--accent);
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.signin button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.signin-help {
+  margin-top: 1.1rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.signin-help summary {
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.signin-help pre {
+  margin: 0.6rem 0;
+  padding: 0.55rem 0.65rem;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  background: var(--surface-sunken);
+  border-radius: var(--radius-sm);
 }
 
 @media (max-width: 1000px) {

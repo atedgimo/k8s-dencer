@@ -71,6 +71,30 @@ app.kubernetes.io/component: {{ .component }}
 {{- end }}
 
 {{/*
+Per-component ServiceAccount name. Call with (dict "component" "planner" "ctx" $).
+
+Each component runs under its own account so permissions can differ: only
+ui-backend may create TokenReviews and SubjectAccessReviews, and from Phase 2
+only the executor may evict. A shared account would mean the widest permission
+any component needs is held by all of them, which defeats the point of the
+executor having its own in the first place.
+
+Setting serviceAccount.name overrides this and runs every component under one
+existing account — an escape hatch for clusters that pre-provision identities
+(IRSA, Workload Identity), at the cost of that separation.
+*/}}
+{{- define "k8s-dencer.componentServiceAccountName" -}}
+{{- $ctx := .ctx -}}
+{{- if $ctx.Values.serviceAccount.name -}}
+{{- $ctx.Values.serviceAccount.name -}}
+{{- else if $ctx.Values.serviceAccount.create -}}
+{{- printf "%s-%s" (include "k8s-dencer.fullname" $ctx) .component -}}
+{{- else -}}
+default
+{{- end -}}
+{{- end }}
+
+{{/*
 Image reference. Call with (dict "image" .Values.<component>.image "ctx" $).
 Tag falls back to the chart appVersion so a chart release pins a coherent set.
 */}}

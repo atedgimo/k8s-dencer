@@ -57,7 +57,97 @@ roleRef:
   kind: ClusterRole
   name: {{ include "k8s-dencer.fullname" . }}-read
 subjects:
+  {{- range $component := list "planner" "ui-backend" }}
   - kind: ServiceAccount
-    name: {{ include "k8s-dencer.serviceAccountName" . }}
+    name: {{ include "k8s-dencer.componentServiceAccountName" (dict "component" $component "ctx" $) }}
+    namespace: {{ $.Release.Namespace }}
+  {{- end }}
+{{- if .Values.auth.enabled }}
+---
+{{/*
+Lets ui-backend ask the API server "who is this?" (TokenReview) and "may they?"
+(SubjectAccessReview). system:auth-delegator is the built-in role for exactly
+this; every aggregated API server in the ecosystem uses it.
+
+Neither verb grants anything. TokenReview validates a token that was already
+issued, and SubjectAccessReview only reads an existing policy — which is why
+delegating authentication is safe in a way that minting credentials would not be.
+
+Bound to ui-backend alone. The planner never sees a request from a human.
+*/}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "k8s-dencer.fullname" . }}-auth-delegator
+  labels:
+    {{- include "k8s-dencer.componentLabels" (dict "ctx" . "component" "ui-backend") | nindent 4 }}
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "k8s-dencer.componentServiceAccountName" (dict "component" "ui-backend" "ctx" .) }}
     namespace: {{ .Release.Namespace }}
+---
+{{/*
+The permissions humans hold, shipped unbound.
+
+dencer.io/plans and dencer.io/consolidations are not CRDs and never will be —
+RBAC and SubjectAccessReview match on strings, so a permission can be granted
+against a resource name that has no API behind it. metrics-server and the
+Prometheus adapter rely on the same property.
+
+Bind whichever of these you need to a user or, better, to an IdP group:
+
+  kubectl create rolebinding dencer-viewer -n {{ .Release.Namespace }} \
+    --clusterrole={{ include "k8s-dencer.fullname" . }}-viewer --group=oidc:platform-eng
+
+Deliberately left unbound: the chart should not decide who may look at your
+capacity, still less who may drain a node.
+*/}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "k8s-dencer.fullname" . }}-viewer
+  labels:
+    {{- include "k8s-dencer.labels" . | nindent 4 }}
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+rules:
+  - apiGroups: ["dencer.io"]
+    resources: ["plans"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "k8s-dencer.fullname" . }}-consolidation-operator
+  labels:
+    {{- include "k8s-dencer.labels" . | nindent 4 }}
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+rules:
+  - apiGroups: ["dencer.io"]
+    resources: ["plans"]
+    verbs: ["get"]
+  {{/*
+  The permission to drain nodes. Nothing in this release accepts it yet — the
+  executor arrives in M10 — but it is defined now so that when the first
+  mutating route ships, the gate it sits behind is already deployed, already
+  bound, and already tested. An execute endpoint and its permission must never
+  be separated by a release.
+  */}}
+  - apiGroups: ["dencer.io"]
+    resources: ["consolidations"]
+    verbs: ["create"]
+{{- end }}
 {{- end }}
