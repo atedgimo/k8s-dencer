@@ -47,17 +47,18 @@ The planner watches the cluster through informers and publishes an immutable
 `ClusterSnapshot` every resync period:
 
 ```
-snapshot:    nodes=31 nodesOccupied=24 pods=117 pdbs=0 pdbsBlocking=0
-             cpuRequestedPct=37.0% memRequestedPct=18.8% usageData=false
-constraints: movable=116 blocked=1 stuck=26 antiAffinity=0 spreadBound=1
+snapshot:    nodes=31 nodesOccupied=29 pods=120 pdbs=0 pdbsBlocking=0
+             cpuRequestedPct=38.6% memRequestedPct=19.6% usageData=false
+constraints: movable=119 blocked=1 stuck=25 antiAffinity=0 spreadBound=1
              controllerPinned=1 nodesUndrainable=1
-plan:        id=8bb7900e46db steps=15 nodesBefore=28 nodesAfter=13 reclaims=15
-             green=6 yellow=5 red=4
+plan:        id=dcdd608cf7c9 steps=16 nodesBefore=29 nodesAfter=13 reclaims=16
+             green=7 yellow=4 red=5
 ```
 
 Plans are rated, explained, persisted, visualised, and answerable in natural
-language through a Kagent agent. Nothing in the release can drain, cordon or
-evict.
+language through a Kagent agent. The API is authenticated and authorized
+against cluster RBAC. Nothing in the release can drain, cordon or evict — and
+`make lint` fails the build if any values profile grants `pods/eviction`.
 
 Three debug endpoints on the planner's health port expose current state as
 YAML: `/debug/snapshot`, `/debug/constraints` and `/debug/plan`.
