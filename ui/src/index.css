@@ -1117,3 +1117,77 @@
   gap: 0.5rem;
   margin-top: 1.1rem;
 }
+
+/* ------------------------------------------------------- superseded plan */
+
+.supersede {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.55rem 1.75rem;
+  font-size: 0.78rem;
+  color: var(--graphite);
+  background: var(--panel-raised);
+  border-bottom: 1px solid var(--edge);
+  /* Deliberately uncoloured. A newer plan is information, not risk, and
+     colour on this page only ever means risk. */
+}
+
+.supersede button {
+  margin-left: auto;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.signin-sso {
+  width: 100%;
+  padding: 0.6rem 1rem;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--chalk);
+  border: 0;
+  border-radius: var(--radius-sm);
+}
+
+.signin-sso:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.signin-issuer {
+  margin: 0.4rem 0 0;
+  overflow-wrap: anywhere;
+  font-size: 0.7rem;
+  color: var(--graphite-dim);
+  text-align: center;
+}
+
+.signin-or {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  margin: 1.1rem 0 0.7rem;
+  font-size: 0.72rem;
+  color: var(--graphite-dim);
+}
+
+.signin-or::before,
+.signin-or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--edge);
+}
+
+.signin-failure {
+  margin: 0 0 0.9rem;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.78rem;
+  color: var(--risk-red);
+  background: var(--panel-sunken);
+  border-left: 2px solid var(--risk-red);
+  border-radius: var(--radius-sm);
+}

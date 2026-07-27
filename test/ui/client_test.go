@@ -16,11 +16,21 @@ import (
 
 const srcDir = "../../ui/src"
 
+func read(t *testing.T, rel string) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(srcDir, rel))
+	if err != nil {
+		t.Fatalf("read %s: %v", rel, err)
+	}
+	return string(b)
+}
+
 // Files permitted to call fetch() directly.
 //
 //	api.ts   — owns the client, and attaches the bearer token
 //	auth.ts  — fetches /authinfo, which is deliberately unauthenticated
 var mayCallFetch = map[string]bool{
+	"oidc.ts": true, // the library owns its own transport
 	"api.ts":  true,
 	"auth.ts": true,
 }
@@ -93,5 +103,49 @@ func TestTokenIsNotPersistedBeyondTheSession(t *testing.T) {
 	}
 	if !regexp.MustCompile(`sessionStorage\s*\.`).Match(body) {
 		t.Error("auth.ts no longer uses sessionStorage; where is the token being kept?")
+	}
+}
+
+// A plan must not be swapped out from under a selection.
+//
+// Step numbers are positional. The planner republishes every resync and again
+// after any drain, so ticking "steps 4 through 9" and pausing to think is
+// enough for the plan to change underneath — and the selection would survive
+// as numbers while quietly coming to mean different nodes. That is the one
+// path in this UI that could drain something the operator did not choose.
+func TestPlanIsPinnedWhileThereIsSomethingToProtect(t *testing.T) {
+	plan := read(t, "usePlan.ts")
+
+	// The subscription must consult the hold before reloading, not after.
+	if !regexp.MustCompile(`subscribePlans\([\s\S]{0,220}holdRef\.current`).MatchString(plan) {
+		t.Error("usePlan reloads on a publish without checking whether the view is held")
+	}
+	if !strings.Contains(plan, "setSuperseded(true)") {
+		t.Error("a withheld plan is dropped silently; the operator is never told a newer one exists")
+	}
+
+	app := read(t, "App.tsx")
+	// Held while a selection exists or a run is in flight.
+	if !regexp.MustCompile(`usePlan\(\s*checked\.size > 0 \|\| runActive\s*\)`).MatchString(app) {
+		t.Error("App does not pin the plan while a selection or run is outstanding")
+	}
+}
+
+// The Kubernetes credential is the ID token. An access token means nothing to
+// the API server, and confusing the two is the classic way to make this
+// integration fail with an opaque 401.
+func TestOidcUsesTheIdTokenAsTheCredential(t *testing.T) {
+	src := read(t, "oidc.ts")
+	if !strings.Contains(src, "user?.id_token") {
+		t.Error("oidc.ts does not take the ID token as the credential")
+	}
+	if regexp.MustCompile(`access_token`).MatchString(src) {
+		t.Error("oidc.ts references an access token; only the ID token is a Kubernetes credential")
+	}
+	// The library defaults to localStorage; both stores must be overridden.
+	for _, store := range []string{"userStore", "stateStore"} {
+		if !regexp.MustCompile(store + `:\s*new WebStorageStateStore\(\{ store: window\.sessionStorage \}\)`).MatchString(src) {
+			t.Errorf("%s is not pinned to sessionStorage; the default is localStorage", store)
+		}
 	}
 }

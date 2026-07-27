@@ -1,27 +1,73 @@
 import { FormEvent, useEffect, useState } from "react";
 import { AuthInfo, authInfo, token } from "../auth";
+import { completeSignIn, isCallback, restore, signIn } from "../oidc";
 
 /**
- * Collects a bearer token when the backend has rejected the request.
+ * Gets the operator a credential.
  *
- * Deliberately plain. M11 rebuilds the header and M12 replaces this with an
- * OIDC redirect flow, so anything more elaborate here would be built twice —
- * but an install with auth on and no way to present a credential is unusable,
- * so it cannot simply wait.
+ * Single sign-on when the install has an issuer configured, a pasted token
+ * otherwise. Both end in the same place — a bearer token on every request,
+ * which ui-backend hands to TokenReview — so the rest of the app never learns
+ * which path was taken.
  */
 export function SignIn({ onDone }: { onDone: () => void }) {
   const [info, setInfo] = useState<AuthInfo | null>(null);
   const [value, setValue] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
-    void authInfo().then((i) => live && setInfo(i));
+
+    void (async () => {
+      const i = await authInfo();
+      if (!live) return;
+      setInfo(i);
+
+      try {
+        // Returning from the issuer with a code to exchange.
+        if (isCallback()) {
+          setBusy(true);
+          const idToken = await completeSignIn(i);
+          if (idToken) {
+            token.set(idToken);
+            onDone();
+            return;
+          }
+          setFailure("The issuer redirected back without a usable token.");
+          return;
+        }
+        // A session from earlier in this tab.
+        const existing = await restore(i);
+        if (existing) {
+          token.set(existing);
+          onDone();
+        }
+      } catch (err) {
+        if (live) setFailure(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (live) setBusy(false);
+      }
+    })();
+
     return () => {
       live = false;
     };
-  }, []);
+  }, [onDone]);
 
-  const submit = (e: FormEvent) => {
+  const start = async () => {
+    if (!info) return;
+    setFailure(null);
+    setBusy(true);
+    try {
+      await signIn(info);
+    } catch (err) {
+      setFailure(err instanceof Error ? err.message : String(err));
+      setBusy(false);
+    }
+  };
+
+  const submitToken = (e: FormEvent) => {
     e.preventDefault();
     if (!value.trim()) return;
     token.set(value);
@@ -29,22 +75,33 @@ export function SignIn({ onDone }: { onDone: () => void }) {
     onDone();
   };
 
+  const sso = info?.oidc.enabled && info.oidc.issuerUrl;
+
   return (
     <div className="signin">
       <h2>Sign in</h2>
       <p className="signin-detail">
-        This install requires a Kubernetes credential. Permission to view plans is granted by RBAC,
-        so any token your cluster already trusts will work.
+        This install requires a Kubernetes credential. Permission is granted by RBAC, so any
+        identity your cluster already trusts will work.
       </p>
 
-      {info?.oidc.enabled && info.oidc.issuerUrl && (
-        <p className="signin-detail">
-          Single sign-on is configured against <code>{info.oidc.issuerUrl}</code>. Browser sign-in
-          arrives in the next release; until then, paste a token below.
+      {failure && (
+        <p className="signin-failure" role="alert">
+          {failure}
         </p>
       )}
 
-      <form onSubmit={submit}>
+      {sso && (
+        <>
+          <button className="signin-sso" onClick={start} disabled={busy}>
+            {busy ? "Signing in…" : "Sign in with single sign-on"}
+          </button>
+          <p className="signin-issuer mono">{info.oidc.issuerUrl}</p>
+          <p className="signin-or">or paste a token</p>
+        </>
+      )}
+
+      <form onSubmit={submitToken}>
         <label htmlFor="token">Bearer token</label>
         <input
           id="token"
@@ -62,7 +119,7 @@ export function SignIn({ onDone }: { onDone: () => void }) {
 
       <details className="signin-help">
         <summary>How do I get one?</summary>
-        <pre>kubectl create token dencer-viewer -n k8s-dencer</pre>
+        <pre>kubectl create token dencer-operator -n k8s-dencer</pre>
         <p>
           Or run <code>make token</code> from the repository, which mints one and prints it.
         </p>
