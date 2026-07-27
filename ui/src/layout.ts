@@ -123,7 +123,7 @@ export function placementAtStep(model: Model, steps: PlanStep[], step: number): 
   const placement = new Map<string, string>();
   for (const pod of model.pods) placement.set(pod.key, pod.homeNode);
 
-  for (const s of steps) {
+  for (const s of steps ?? []) {
     if (s.sequenceNumber > step) break;
     for (const m of s.moves) {
       placement.set(`${m.namespace}/${m.pod}`, m.toNode);

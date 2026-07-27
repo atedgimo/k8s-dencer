@@ -21,9 +21,20 @@ interface Props {
   current: number;
   focusedRating: Impact | null;
   onSelect: (seq: number | null) => void;
+  /** Steps ticked for execution. */
+  checked: Set<number>;
+  onToggle: (seq: number, shiftKey: boolean) => void;
 }
 
-export default function StepLedger({ steps, selected, current, focusedRating, onSelect }: Props) {
+export default function StepLedger({
+  steps,
+  selected,
+  current,
+  focusedRating,
+  onSelect,
+  checked,
+  onToggle,
+}: Props) {
   const listRef = useRef<HTMLOListElement>(null);
 
   // Keep the selected row in view when selection comes from elsewhere — the
@@ -40,6 +51,9 @@ export default function StepLedger({ steps, selected, current, focusedRating, on
     <section className="ledger" aria-label="Consolidation steps">
       <div className="ledger-head">
         <h2 className="panel-title mono">steps</h2>
+        {checked.size > 0 && (
+          <span className="ledger-picked mono">{checked.size} picked</span>
+        )}
         {focusedRating && (
           <button className="ledger-clear mono" onClick={() => onSelect(null)}>
             {visible.length} {focusedRating.toLowerCase()}
@@ -51,7 +65,30 @@ export default function StepLedger({ steps, selected, current, focusedRating, on
         {visible.map((step) => {
           const done = step.sequenceNumber <= current;
           return (
-            <li key={step.id}>
+            <li key={step.id} className="ledger-item">
+              {/* Red cannot be ticked at all. The Safety Guard refuses it
+                  against live state regardless, so offering the checkbox
+                  would only be a way to be told no later. */}
+              <input
+                type="checkbox"
+                className="row-check"
+                checked={checked.has(step.sequenceNumber)}
+                disabled={step.impact === "Red"}
+                onChange={(e) =>
+                  onToggle(step.sequenceNumber, (e.nativeEvent as MouseEvent).shiftKey)
+                }
+                onClick={(e) => e.stopPropagation()}
+                aria-label={
+                  step.impact === "Red"
+                    ? `Step ${step.sequenceNumber} is Red and cannot be run: ${step.rationale}`
+                    : `Select step ${step.sequenceNumber}, ${step.impact}`
+                }
+                title={
+                  step.impact === "Red"
+                    ? "Red steps may only run inside an approved maintenance window, which this release does not implement."
+                    : undefined
+                }
+              />
               <button
                 data-seq={step.sequenceNumber}
                 className={[

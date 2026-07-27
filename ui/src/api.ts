@@ -255,6 +255,13 @@ export const api = {
       dryRun,
     }),
 
+  podConstraints: (planId: string, namespace: string, pod: string, signal?: AbortSignal) =>
+    get<PodConstraints>(
+      `/api/v1/plans/${encodeURIComponent(planId)}/constraints/` +
+        `${encodeURIComponent(namespace)}/${encodeURIComponent(pod)}`,
+      signal,
+    ),
+
   run: (runId: string, signal?: AbortSignal) => get<RunDetail>(`/api/v1/runs/${runId}`, signal),
 
   /** The in-flight run, if any. Lets a page reload rejoin a consolidation

@@ -1010,3 +1010,110 @@
   font-size: 0.7rem;
   color: var(--graphite-dim);
 }
+
+/* Per-step selection. Red rows carry a disabled box rather than none, so the
+   reason is discoverable on hover instead of the control just being absent. */
+.ledger-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+}
+
+.ledger-item > .row-why {
+  grid-column: 2;
+}
+
+.row-check {
+  margin: 0 0 0 0.75rem;
+  accent-color: var(--chalk);
+}
+
+.row-check:disabled {
+  opacity: 0.25;
+}
+
+.ledger-picked {
+  margin-left: auto;
+  margin-right: 0.5rem;
+  font-size: 0.66rem;
+  color: var(--chalk);
+}
+
+.verdict-flag {
+  display: block;
+  color: var(--risk-yellow);
+}
+
+.verdict-clear {
+  padding: 0;
+  font-size: 0.68rem;
+  color: var(--graphite);
+  text-decoration: underline;
+  background: transparent;
+  border: 0;
+}
+
+/* ----------------------------------------------------------------- crash */
+
+.crash {
+  grid-row: 1 / -1;
+  align-self: center;
+  justify-self: center;
+  width: min(44rem, calc(100vw - 3rem));
+  padding: 1.75rem;
+  background: var(--panel);
+  border: 1px solid var(--risk-red);
+  border-radius: var(--radius);
+}
+
+.crash h2 {
+  margin: 0 0 0.5rem;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--risk-red);
+}
+
+.crash-detail {
+  margin: 0 0 1rem;
+  color: var(--graphite);
+  font-size: 0.83rem;
+  line-height: 1.55;
+}
+
+.crash-message,
+.crash-more pre {
+  margin: 0;
+  padding: 0.6rem 0.7rem;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  white-space: pre-wrap;
+  background: var(--panel-sunken);
+  border-radius: var(--radius-sm);
+}
+
+.crash-more {
+  margin-top: 0.8rem;
+  font-size: 0.78rem;
+  color: var(--graphite);
+}
+
+.crash-more summary {
+  cursor: pointer;
+  margin-bottom: 0.4rem;
+  color: var(--graphite-dim);
+}
+
+.crash-more pre {
+  max-height: 14rem;
+  overflow-y: auto;
+  font-size: 0.72rem;
+}
+
+.crash-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1.1rem;
+}

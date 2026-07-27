@@ -101,6 +101,14 @@ export default function PackingField({
   const rows = Math.ceil(model.nodes.length / columns);
   const height = rows * (layout.nodeHeight + NODE_GAP_Y);
 
+  // How many nodes the plan drains in total. The tray counts progress against
+  // the plan, not against the cluster: showing "of 31" beside a header reading
+  // "Reclaim 1 of 14" put two different denominators on one screen.
+  const plannedDrains = useMemo(
+    () => new Set(steps.map((s) => s.targetNode).filter(Boolean)).size,
+    [steps],
+  );
+
   const podsByNode = useMemo(() => {
     const out = new Map<string, number>();
     for (const pod of model.pods) {
@@ -215,7 +223,7 @@ export default function PackingField({
         })}
       </div>
 
-      <ReclaimedTray count={reclaimed.size} total={model.nodes.length} />
+      <ReclaimedTray count={reclaimed.size} total={plannedDrains} />
     </div>
   );
 }

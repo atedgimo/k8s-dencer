@@ -148,6 +148,14 @@ export function RunTrail({ state, onDismiss }: { state: RunState; onDismiss: () 
 
       {run.summary && <p className="trail-summary">{run.summary}</p>}
 
+      {done && run.status === "Succeeded" && !run.dryRun && (
+        <p className="trail-note">
+          The drained nodes are empty and cordoned. k8s-dencer does not delete nodes — removing the
+          machines is your autoscaler&apos;s or node-pool tooling&apos;s job. Run{" "}
+          <code>kubectl uncordon</code> to put one back into service.
+        </p>
+      )}
+
       {done && run.status === "Blocked" && (
         <p className="trail-note">
           The Safety Guard stopped this run. That is the rails working, not a failure — any node it

@@ -9,9 +9,11 @@ import { GLYPH } from "./Impact";
  * the recommendation in a sentence, breaks it down by how much confidence each
  * part needs, and puts the run control immediately beneath.
  *
- * The run controls do what they say. They queue the Green steps only —
- * Yellow needs a deliberate per-step choice, which is why the tally for it
- * filters the ledger rather than offering a button.
+ * The run button defaults to the Green steps — the safe, unattended answer —
+ * but follows the ledger's selection the moment an operator ticks anything.
+ * That is how Yellow gets run: it is executable on request and flagged, so it
+ * requires a deliberate per-step choice rather than a bulk button. Red is not
+ * offered at all, since the Safety Guard refuses it regardless.
  */
 
 interface Props {
@@ -21,6 +23,9 @@ interface Props {
   focusedRating: Impact | null;
   onRun: (dryRun: boolean) => void;
   busy: boolean;
+  /** Steps ticked in the ledger. Empty means "the Green ones". */
+  picked: PlanStep[];
+  onClearPicked: () => void;
 }
 
 export default function Verdict({
@@ -30,10 +35,16 @@ export default function Verdict({
   focusedRating,
   onRun,
   busy,
+  picked,
+  onClearPicked,
 }: Props) {
   const green = stats.ratings.Green ?? 0;
   const yellow = stats.ratings.Yellow ?? 0;
   const red = stats.ratings.Red ?? 0;
+
+  const custom = picked.length > 0;
+  const runCount = custom ? picked.length : green;
+  const hasYellow = picked.some((s) => s.impact === "Yellow");
 
   return (
     <header className="verdict">
@@ -76,26 +87,42 @@ export default function Verdict({
         <button
           className="btn btn-primary"
           onClick={() => onRun(false)}
-          disabled={green === 0 || busy}
+          disabled={runCount === 0 || busy}
           title={
-            green === 0
-              ? "No step in this plan is safe to run unattended."
-              : "Cordon and drain the Green steps, in order."
+            runCount === 0
+              ? "No step is safe to run unattended. Tick the steps you want in the ledger."
+              : custom
+                ? "Cordon and drain the steps you have ticked, in order."
+                : "Cordon and drain the Green steps, in order."
           }
         >
-          Run the {green} safe {green === 1 ? "step" : "steps"}
+          {custom
+            ? `Run ${runCount} selected step${runCount === 1 ? "" : "s"}`
+            : `Run the ${green} safe step${green === 1 ? "" : "s"}`}
         </button>
         <button
           className="btn"
           onClick={() => onRun(true)}
-          disabled={green === 0 || busy}
+          disabled={runCount === 0 || busy}
           title="Run the full Safety Guard and show the same trail, without touching anything."
         >
           Dry run
         </button>
-        <p className="verdict-note">
-          {steps.length} step{steps.length === 1 ? "" : "s"} · {stats.podsMoved} pods move
-        </p>
+
+        {custom ? (
+          <p className="verdict-note">
+            {hasYellow && <span className="verdict-flag">▲ includes flagged steps</span>}
+            <button className="verdict-clear" onClick={onClearPicked}>
+              clear selection
+            </button>
+          </p>
+        ) : (
+          <p className="verdict-note">
+            {green === 0 && yellow > 0
+              ? "Tick steps in the ledger to run them"
+              : `${steps.length} step${steps.length === 1 ? "" : "s"} · ${stats.podsMoved} pods move`}
+          </p>
+        )}
       </div>
     </header>
   );

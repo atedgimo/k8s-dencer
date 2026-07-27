@@ -269,6 +269,13 @@ func (s *Server) record(ctx context.Context, id string) (store.Record, error) {
 }
 
 func planResponse(rec store.Record) map[string]any {
+	// A JSON list is never null. Go marshals a nil slice as `null`, and a
+	// fully consolidated cluster legitimately produces a plan with no steps —
+	// so this is a normal state, not an edge case, and every client would have
+	// to defend against it otherwise.
+	if rec.Plan.Steps == nil {
+		rec.Plan.Steps = []model.PlanStep{}
+	}
 	return map[string]any{
 		"plan":     rec.Plan,
 		"strategy": rec.Strategy,

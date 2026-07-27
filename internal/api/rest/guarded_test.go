@@ -1,14 +1,23 @@
 package rest_test
 
 import (
+	"context"
+	"encoding/json"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"io"
+	"log/slog"
 	"net/http"
+	"net/http/httptest"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/atedgimo/k8s-dencer/internal/api/rest"
+	"github.com/atedgimo/k8s-dencer/internal/auth"
+	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlite"
 )
 
 // openRoutes are the only endpoints permitted to bypass the guard.
@@ -134,5 +143,65 @@ func TestAuthInfoLeaksNothingSensitive(t *testing.T) {
 		if strings.Contains(body, forbidden) {
 			t.Errorf("authinfo mentions %q, which suggests a credential leaked in:\n%s", forbidden, body)
 		}
+	}
+}
+
+// A JSON list must never serialize as null.
+//
+// Go marshals a nil slice to `null`, and a fully consolidated cluster produces
+// a plan with no steps — an ordinary state, not an edge case. The UI called
+// .filter() on it and the entire React tree unmounted, which presents as a
+// blank page with the real cause only in the console. Every client would have
+// had to defend against this.
+func TestEmptyPlanSerialisesStepsAsAnArrayNotNull(t *testing.T) {
+	db, err := sqlitestore.Open(filepath.Join(t.TempDir(), "empty.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if err := db.Migrate(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	// A plan with nothing to do: the cluster is already packed.
+	rec := sampleRecord("plan-empty")
+	rec.Plan.Steps = nil
+	rec.Plan.NodesBefore, rec.Plan.NodesAfter = 13, 13
+	if _, err := db.Save(context.Background(), rec); err != nil {
+		t.Fatal(err)
+	}
+
+	guard := auth.NewMiddleware(nil, nil, auth.Config{Enabled: false}, slog.New(slog.DiscardHandler))
+	api := rest.New(db, slog.New(slog.DiscardHandler), "test", guard,
+		auth.Config{Enabled: false}.Describe())
+	mux := http.NewServeMux()
+	api.Routes(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	res, err := http.Get(srv.URL + "/api/v1/plans/latest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = res.Body.Close() }()
+	raw, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if strings.Contains(string(raw), `"steps":null`) {
+		t.Errorf("an empty plan serialised steps as null:\n%s", raw)
+	}
+
+	var body struct {
+		Plan struct {
+			Steps []map[string]any `json:"steps"`
+		} `json:"plan"`
+	}
+	if err := json.Unmarshal(raw, &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Plan.Steps == nil {
+		t.Error("steps decoded as nil; it must be an empty array")
 	}
 }

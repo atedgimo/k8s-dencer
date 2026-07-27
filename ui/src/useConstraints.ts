@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { ApiError, PodConstraints } from "./api";
-import { runtimeConfig } from "./runtime-config";
+import { ApiError, PodConstraints, api } from "./api";
 
 export type ConstraintsState =
   | { status: "idle" }
@@ -35,23 +34,20 @@ export function usePodConstraints(planId: string | null, podKey: string | null):
 
     (async () => {
       try {
-        const res = await fetch(
-          `${runtimeConfig().apiBaseUrl}/api/v1/plans/${encodeURIComponent(planId)}/constraints/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}`,
-          { signal: controller.signal },
-        );
-        if (res.status === 404) {
-          setState({ status: "missing" });
-          return;
-        }
-        if (!res.ok) {
-          throw new ApiError(res.status, res.statusText);
-        }
-        const constraints = (await res.json()) as PodConstraints;
+        // Goes through the shared client so it carries the bearer token.
+        // This used to be a bare fetch() and silently 401'd once M9 turned
+        // authentication on: the plan loaded and only the inspector broke,
+        // which is a nastier failure than the whole page refusing.
+        const constraints = await api.podConstraints(planId, namespace, name, controller.signal);
         if (!controller.signal.aborted) {
           setState({ status: "ready", constraints });
         }
       } catch (err) {
         if (controller.signal.aborted) return;
+        if (err instanceof ApiError && err.isEmpty) {
+          setState({ status: "missing" });
+          return;
+        }
         setState({
           status: "error",
           message: err instanceof Error ? err.message : String(err),

@@ -110,6 +110,7 @@ build/             Dockerfile.go (parameterised by COMPONENT) + Dockerfile.ui
 hack/              lint-chart.sh — the portability gate
 test/fixtures/     ClusterSnapshots captured from a live cluster for golden tests
 test/palette/      guards the CVD mitigation: glyph+word per rating, chroma only for risk
+test/ui/           guards that every request carries the token, and the token never leaves the tab
 ```
 
 Structural rules worth preserving:
@@ -153,16 +154,17 @@ Runs `helm lint` and `kubeconform --strict` across every profile, then asserts t
 4. **no profile grants `pods/eviction`**
 5. `database.type=sqlite` with `uiBackend.replicaCount=2` is rejected by `values.schema.json`
 6. the packaged chart excludes the `ci/` fixtures
-7. **`pods/eviction` appears only on the executor's ClusterRole**, and only in a profile that enabled it
-8. planner and ui-backend hold **no write verb on nodes or pods**, ever
-9. the executor renders **no Service** — the component that can evict is unreachable
-10. `executor.enabled=true` is rejected without `auth.enabled` and without `persistence.enabled`
-11. no container declares a **duplicate env key** (valid YAML, rejected by server-side apply)
-12. **no profile disables authentication**
-13. `system:auth-delegator` is bound to ui-backend and to nothing else
-14. the consolidation-operator ClusterRole ships **unbound**
-15. a NetworkPolicy is present by default, and restricts ingress only
-16. `auth.oidc.enabled=true` without an issuer and client ID is rejected
+7. an empty plan serialises `steps` as `[]`, never `null`
+8. **`pods/eviction` appears only on the executor's ClusterRole**, and only in a profile that enabled it
+9. planner and ui-backend hold **no write verb on nodes or pods**, ever
+10. the executor renders **no Service** — the component that can evict is unreachable
+11. `executor.enabled=true` is rejected without `auth.enabled` and without `persistence.enabled`
+12. no container declares a **duplicate env key** (valid YAML, rejected by server-side apply)
+13. **no profile disables authentication**
+14. `system:auth-delegator` is bound to ui-backend and to nothing else
+15. the consolidation-operator ClusterRole ships **unbound**
+16. a NetworkPolicy is present by default, and restricts ingress only
+17. `auth.oidc.enabled=true` without an issuer and client ID is rejected
 
 ### Known constraints
 
