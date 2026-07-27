@@ -76,13 +76,77 @@ grep -q "readOnlyRootFilesystem: true" <<<"$minimal" || fail "minimal profile lo
 grep -q "allowPrivilegeEscalation: false" <<<"$minimal" || fail "minimal profile lost allowPrivilegeEscalation"
 green "  restricted security context intact with all optionals off"
 
-bold "==> contract: no eviction permission anywhere (Phase 1 is read-only)"
-for profile in defaults minimal production orbstack; do
+bold "==> contract: eviction is granted only to the executor, only when enabled"
+# Phase 1's assertion was "nobody, anywhere". Phase 2 narrows it rather than
+# dropping it: the executor exists to evict, but every other component must
+# still be provably unable to, and an install that did not ask for an executor
+# must gain nothing.
+# These profiles do not ask for an executor, so they must gain nothing. The
+# orbstack profile deliberately does — it is the POC that exercises real
+# drains — and is checked separately below.
+for profile in defaults minimal production; do
   if render "$profile" | grep -q "pods/eviction"; then
-    fail "$profile grants pods/eviction; Phase 1 must be read-only"
+    fail "$profile grants pods/eviction without enabling the executor"
   fi
 done
-green "  no profile grants pods/eviction"
+green "  no eviction in any profile that did not ask for an executor"
+
+# The one profile that opts in must still confine the grant.
+orbstack_eviction="$(awk '/^kind: ClusterRole$/,/^---/' <<<"$(render orbstack)" \
+  | awk '/^  name: /{n=$2} /pods\/eviction/{print n}' | sort -u)"
+if [[ "$orbstack_eviction" != "dencer-k8s-dencer-executor" ]]; then
+  fail "orbstack enables the executor but pods/eviction landed on: ${orbstack_eviction:-nothing}"
+fi
+green "  orbstack opts in, and only its executor role holds eviction"
+
+with_executor="$(helm template dencer "$CHART" --namespace k8s-dencer \
+  --set executor.enabled=true --set persistence.enabled=true)"
+
+# The grant must live on the executor's ClusterRole and no other.
+eviction_roles="$(awk '/^kind: ClusterRole$/,/^---/' <<<"$with_executor" \
+  | awk '/^  name: /{n=$2} /pods\/eviction/{print n}' | sort -u)"
+if [[ "$eviction_roles" != "dencer-k8s-dencer-executor" ]]; then
+  fail "pods/eviction appears on unexpected ClusterRole(s): ${eviction_roles:-none}"
+fi
+green "  pods/eviction confined to the executor ClusterRole"
+
+# The read role the planner and ui-backend share must never acquire a write
+# verb on a cluster workload. It legitimately writes status on its own
+# ConsolidationPolicy CRD, so the check is scoped to nodes and pods rather than
+# banning every write verb outright.
+read_role="$(awk '/name: dencer-k8s-dencer-read$/,/^---/' <<<"$with_executor")"
+offending="$(awk '
+  /^  - apiGroups:/       { resources = ""; }
+  /^    resources:/       { collecting = 1; next }
+  /^      - /             { if (collecting) { gsub(/^      - /, ""); resources = resources " " $0 } ; next }
+  /^    verbs:/           {
+      collecting = 0
+      if (resources ~ /(^| )(nodes|pods|pods\/eviction)( |$)/ &&
+          $0 ~ /(patch|update|delete|create)/) print "  " resources " ->" $0
+  }
+  /^    resources: \[/    { line = $0; sub(/^    resources: \[/, "", line); gsub(/[]"]/, "", line); resources = " " line }
+' <<<"$read_role")"
+if [[ -n "$offending" ]]; then
+  fail "the shared read ClusterRole grants writes on cluster workloads:
+$offending"
+fi
+green "  planner and ui-backend hold no write verb on nodes or pods"
+
+# The executor is the one workload with eviction, so it must also be the one
+# workload with no Service in front of it.
+if grep -q "name: dencer-k8s-dencer-executor$" <<<"$(awk '/^kind: Service$/,/^---/' <<<"$with_executor")"; then
+  fail "the executor has a Service; the component holding pods/eviction must not be reachable"
+fi
+green "  executor has no Service"
+
+bold "==> contract: the executor cannot be enabled into an unsafe configuration"
+if helm template dencer "$CHART" --set executor.enabled=true --set auth.enabled=false >/dev/null 2>&1; then
+  fail "schema accepted an executor with authentication disabled"
+fi
+if helm template dencer "$CHART" --set executor.enabled=true --set persistence.enabled=false >/dev/null 2>&1; then
+  fail "schema accepted an executor with no shared volume to claim work from"
+fi
+green "  rejected without auth, and without persistence"
 
 bold "==> contract: no duplicate env keys in any container"
 # kubeconform passes duplicate env names and so does helm template — a

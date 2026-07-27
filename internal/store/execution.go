@@ -1,0 +1,134 @@
+package store
+
+import (
+	"context"
+	"time"
+)
+
+// RunStatus is the lifecycle of an execution request.
+type RunStatus string
+
+const (
+	// RunPending has been accepted and authorized but not yet claimed.
+	RunPending RunStatus = "Pending"
+	// RunRunning has been claimed by an executor.
+	RunRunning RunStatus = "Running"
+	// RunSucceeded completed every requested step.
+	RunSucceeded RunStatus = "Succeeded"
+	// RunBlocked stopped because the Safety Guard refused a step. Not a
+	// failure: the rails worked. Kept distinct from Failed so an operator can
+	// tell "we protected you" from "something broke".
+	RunBlocked RunStatus = "Blocked"
+	// RunFailed stopped on an error.
+	RunFailed RunStatus = "Failed"
+)
+
+// Terminal reports whether a run has finished.
+func (s RunStatus) Terminal() bool {
+	return s == RunSucceeded || s == RunBlocked || s == RunFailed
+}
+
+// Run is one execution request covering a subset of a plan's steps.
+//
+// Bound to a specific plan ID. The planner keeps producing new plans while a
+// run is in flight, and a run must keep executing the steps that were
+// authorized rather than silently following whatever the latest plan says.
+type Run struct {
+	ID     string    `json:"id"`
+	PlanID string    `json:"planId"`
+	Steps  []int     `json:"steps"`
+	DryRun bool      `json:"dryRun"`
+	Status RunStatus `json:"status"`
+
+	// Actor is the authenticated identity that requested the run, captured at
+	// enqueue. Authorization happens once, up front, so a run outlives the
+	// token that authorized it — a 15-minute ID token can start a 40-minute
+	// consolidation. This field is how it stays attributable afterwards.
+	Actor       string   `json:"actor"`
+	ActorGroups []string `json:"actorGroups,omitempty"`
+
+	RequestedAt time.Time  `json:"requestedAt"`
+	StartedAt   *time.Time `json:"startedAt,omitempty"`
+	FinishedAt  *time.Time `json:"finishedAt,omitempty"`
+
+	// Worker identifies the executor that claimed this run.
+	Worker string `json:"worker,omitempty"`
+
+	// Summary is the closing human-readable outcome.
+	Summary string `json:"summary,omitempty"`
+}
+
+// EventLevel separates progress from refusals and errors.
+type EventLevel string
+
+const (
+	EventInfo    EventLevel = "Info"
+	EventBlocked EventLevel = "Blocked"
+	EventError   EventLevel = "Error"
+)
+
+// RunEvent is one entry in the audit trail.
+//
+// Doc §9 requires a full audit log of every action taken, tied to the plan
+// version and the specific step that authorized it. Every field below exists
+// to answer a question someone will ask after an incident: what happened, to
+// what, under whose authority, and which rule stopped it.
+type RunEvent struct {
+	RunID    string     `json:"runId"`
+	Sequence int        `json:"sequence"`
+	At       time.Time  `json:"at"`
+	Level    EventLevel `json:"level"`
+
+	// Step is the plan step this event belongs to, 0 for run-level events.
+	Step int `json:"step,omitempty"`
+	// Node and Pod name what was acted on, when applicable.
+	Node string `json:"node,omitempty"`
+	Pod  string `json:"pod,omitempty"`
+
+	// Action is a stable identifier: Cordon, Evict, Uncordon, Verify, Claim...
+	Action string `json:"action"`
+	// Rule names the Safety Guard rail that refused, for Blocked events.
+	Rule string `json:"rule,omitempty"`
+
+	Message string `json:"message"`
+}
+
+// ExecutionStore persists execution requests and their audit trail.
+//
+// Separate from Store because the writers differ: ui-backend enqueues, the
+// executor claims and appends. Keeping them apart makes it obvious in a
+// deployment which component needs which half.
+type ExecutionStore interface {
+	// Enqueue records an authorized request and returns its run ID.
+	Enqueue(ctx context.Context, run Run) (string, error)
+
+	// Claim atomically takes the oldest pending run for worker, or returns
+	// ErrNotFound when there is nothing to do.
+	//
+	// Atomicity is the whole contract: two executors must never take the same
+	// run, or a node gets drained twice concurrently.
+	Claim(ctx context.Context, worker string) (Run, error)
+
+	// AppendEvent adds one audit entry. The sequence number is assigned by the
+	// store so ordering survives concurrent writers.
+	AppendEvent(ctx context.Context, ev RunEvent) error
+
+	// Finish closes a run with a terminal status and summary.
+	Finish(ctx context.Context, runID string, status RunStatus, summary string) error
+
+	// RunByID returns one run.
+	RunByID(ctx context.Context, runID string) (Run, error)
+
+	// Events returns a run's audit trail in order.
+	Events(ctx context.Context, runID string) ([]RunEvent, error)
+
+	// RunsForPlan lists runs against a plan, newest first.
+	RunsForPlan(ctx context.Context, planID string, limit int) ([]Run, error)
+
+	// ActiveRun returns the run currently pending or running, if any.
+	//
+	// One at a time is a deliberate constraint, not a limitation of the
+	// implementation: concurrent consolidations would each be making placement
+	// decisions the other invalidates.
+	ActiveRun(ctx context.Context) (Run, error)
+}

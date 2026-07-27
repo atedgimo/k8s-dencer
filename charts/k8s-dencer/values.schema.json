@@ -294,6 +294,109 @@
         }
       ]
     },
+    "executor": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "image": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "registry": {
+              "type": "string"
+            },
+            "repository": {
+              "type": "string"
+            },
+            "tag": {
+              "type": "string"
+            },
+            "pullPolicy": {
+              "type": "string",
+              "enum": [
+                "Always",
+                "IfNotPresent",
+                "Never"
+              ]
+            }
+          }
+        },
+        "logLevel": {
+          "type": "string",
+          "enum": [
+            "debug",
+            "info",
+            "warn",
+            "error"
+          ]
+        },
+        "probePort": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "stepTimeout": {
+          "type": "string"
+        },
+        "settleTimeout": {
+          "type": "string"
+        },
+        "queuePollInterval": {
+          "type": "string"
+        },
+        "clusterPollInterval": {
+          "type": "string"
+        },
+        "resources": {
+          "type": "object"
+        },
+        "podAnnotations": {
+          "type": "object"
+        },
+        "podLabels": {
+          "type": "object"
+        },
+        "nodeSelector": {
+          "type": "object"
+        },
+        "tolerations": {
+          "type": "array"
+        },
+        "affinity": {
+          "type": "object"
+        },
+        "priorityClassName": {
+          "type": "string"
+        },
+        "extraEnv": {
+          "type": "array"
+        },
+        "extraVolumes": {
+          "type": "array"
+        },
+        "extraVolumeMounts": {
+          "type": "array"
+        }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "$comment": "Red-rated steps are refused in code and are deliberately not configurable here.",
+      "properties": {
+        "maxNodesPerRun": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "minReadyNodes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
     "ingress": {
       "type": "object",
       "properties": {
@@ -666,6 +769,86 @@
             }
           }
         }
+      }
+    },
+    {
+      "$comment": "An execute endpoint must never be reachable without authorization. Refusing to render is the only way to make that impossible rather than merely discouraged.",
+      "if": {
+        "properties": {
+          "executor": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            },
+            "required": [
+              "enabled"
+            ]
+          }
+        },
+        "required": [
+          "executor"
+        ]
+      },
+      "then": {
+        "properties": {
+          "auth": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "$comment": "executor.enabled=true requires auth.enabled=true",
+                "const": true
+              }
+            },
+            "required": [
+              "enabled"
+            ]
+          }
+        },
+        "required": [
+          "auth"
+        ]
+      }
+    },
+    {
+      "$comment": "The executor claims work from the shared plan store. On an emptyDir it gets its own empty copy, never sees a queued run, and appears silently broken.",
+      "if": {
+        "properties": {
+          "executor": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            },
+            "required": [
+              "enabled"
+            ]
+          }
+        },
+        "required": [
+          "executor"
+        ]
+      },
+      "then": {
+        "properties": {
+          "persistence": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "$comment": "executor.enabled=true requires persistence.enabled=true",
+                "const": true
+              }
+            },
+            "required": [
+              "enabled"
+            ]
+          }
+        },
+        "required": [
+          "persistence"
+        ]
       }
     }
   ],

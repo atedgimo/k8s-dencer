@@ -84,6 +84,11 @@ spec:
             # POD_NAMESPACE is already declared below; it also scopes the
             # SubjectAccessReview, so permission can be granted with a
             # RoleBinding in this namespace rather than a cluster-wide one.
+            # Adds POST /api/v1/plans/{id}/execute. Without an executor to
+            # claim the work there is no route at all, rather than one that
+            # queues requests nothing will ever perform.
+            - name: EXECUTOR_ENABLED
+              value: {{ .Values.executor.enabled | quote }}
             - name: AUTH_ENABLED
               value: {{ .Values.auth.enabled | quote }}
             - name: AUTH_ANONYMOUS_READ

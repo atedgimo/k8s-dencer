@@ -150,4 +150,73 @@ rules:
     resources: ["consolidations"]
     verbs: ["create"]
 {{- end }}
+{{- if .Values.executor.enabled }}
+---
+{{/*
+The only grant of pods/eviction in this chart, on the only ServiceAccount that
+is not attached to anything reachable from the network.
+
+Read this list against internal/executor/cluster.go, which enumerates the four
+operations the code can perform. They should match exactly:
+
+  nodes  patch   -> cordon and uncordon, as a merge patch of spec.unschedulable
+  pods/eviction  -> the policy/v1 eviction API, which is what makes the API
+                    server enforce PodDisruptionBudgets
+
+Note what is absent and must stay absent:
+
+  - delete on pods. A delete bypasses PodDisruptionBudgets entirely. Eviction
+    is the whole point; a delete verb here would silently defeat it.
+  - update on nodes. patch carries one field, so a concurrent change by the
+    cluster autoscaler or an operator with kubectl cannot be clobbered.
+  - anything on secrets, configmaps, deployments, or scale subresources.
+*/}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "k8s-dencer.fullname" . }}-executor
+  labels:
+    {{- include "k8s-dencer.componentLabels" (dict "ctx" . "component" "executor") | nindent 4 }}
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch", "patch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/eviction"]
+    verbs: ["create"]
+  # Read-only, and only to name a pod's real controller in the audit trail and
+  # to verify a workload recovered after its pods moved.
+  - apiGroups: ["apps"]
+    resources: ["replicasets", "deployments", "statefulsets", "daemonsets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["policy"]
+    resources: ["poddisruptionbudgets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "k8s-dencer.fullname" . }}-executor
+  labels:
+    {{- include "k8s-dencer.componentLabels" (dict "ctx" . "component" "executor") | nindent 4 }}
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "k8s-dencer.fullname" . }}-executor
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "k8s-dencer.componentServiceAccountName" (dict "component" "executor" "ctx" .) }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
 {{- end }}

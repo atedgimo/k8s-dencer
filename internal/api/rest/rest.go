@@ -38,6 +38,7 @@ type Guard interface {
 // Server serves the API over a plan store.
 type Server struct {
 	store    store.Store
+	runs     store.ExecutionStore
 	log      *slog.Logger
 	version  string
 	events   *Broker
@@ -58,13 +59,31 @@ func New(s store.Store, log *slog.Logger, version string, guard Guard, authInfo 
 	}
 }
 
+// WithExecution enables the execution routes.
+//
+// Separate from New and off by default so that a deployment without an
+// executor has no execute endpoint at all — not a disabled one. Phase 1 held
+// that a "not implemented" execute route is an invitation, and that still
+// holds for installs that never turn the executor on.
+func (s *Server) WithExecution(runs store.ExecutionStore) *Server {
+	s.runs = runs
+	return s
+}
+
 // Events exposes the broker so the poller can publish plan changes.
 func (s *Server) Events() *Broker { return s.events }
 
 // Routes registers every endpoint on mux.
 func (s *Server) Routes(mux *http.ServeMux) {
+	// Every route goes through here, and every route must therefore name the
+	// permission it requires. There is no way to register one without
+	// choosing — which is the point: guarded_test.go fails the build if a
+	// handler reaches the mux by any other path.
+	route := func(pattern string, res auth.Resource, h http.HandlerFunc) {
+		mux.Handle(pattern, s.guard.Require(res, h))
+	}
 	read := func(pattern string, h http.HandlerFunc) {
-		mux.Handle("GET "+pattern, s.guard.Require(auth.ReadPlans, h))
+		route("GET "+pattern, auth.ReadPlans, h)
 	}
 
 	// The one open route. It reveals the issuer URL and public client ID a
@@ -86,6 +105,15 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	// frontend consumes this with fetch streaming instead — putting the token
 	// in a query string would write it to every access log in the path.
 	read("/api/v1/events", s.events.ServeHTTP)
+	read("/api/v1/runs/{runId}", s.handleRun)
+	read("/api/v1/runs", s.handleActiveRun)
+	read("/api/v1/plans/{id}/runs", s.handleRunsForPlan)
+
+	// The only route that can change a cluster. It requires a different
+	// permission from every read above — "may look" and "may drain" are
+	// separate grants, which is the entire reason for putting this behind
+	// SubjectAccessReview rather than a single "authenticated" check.
+	route("POST /api/v1/plans/{id}/execute", auth.ExecuteConsolidations, s.handleExecute)
 }
 
 func (s *Server) handleAuthInfo(w http.ResponseWriter, _ *http.Request) {

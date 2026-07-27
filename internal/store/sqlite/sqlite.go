@@ -54,7 +54,7 @@ func Open(path string) (*Store, error) {
 // Close releases the database handle.
 func (s *Store) Close() error { return s.db.Close() }
 
-const schemaVersion = 1
+const schemaVersion = 2
 
 // Migrate creates or upgrades the schema.
 func (s *Store) Migrate(ctx context.Context) error {
@@ -75,6 +75,11 @@ func (s *Store) Migrate(ctx context.Context) error {
 	if current < 1 {
 		if _, err := tx.ExecContext(ctx, schemaV1); err != nil {
 			return fmt.Errorf("apply schema v1: %w", err)
+		}
+	}
+	if current < 2 {
+		if _, err := tx.ExecContext(ctx, schemaV2); err != nil {
+			return fmt.Errorf("apply schema v2: %w", err)
 		}
 	}
 
@@ -118,6 +123,50 @@ CREATE TABLE IF NOT EXISTS plan_steps (
     executed_by                 TEXT,
     result                      TEXT,
     PRIMARY KEY (plan_id, sequence_number)
+);
+`
+
+// Phase 2. Execution requests live here rather than in a CRD for the same
+// reason plans do (doc §6): they are written continuously, read almost
+// entirely by the UI, and nothing external "desires" a particular run.
+//
+// The runs table doubles as the work queue between ui-backend and the
+// executor. That keeps the executor free of any inbound network surface —
+// the only workload holding pods/eviction cannot be reached from the network
+// at all — and makes a run survive an executor restart.
+const schemaV2 = `
+CREATE TABLE IF NOT EXISTS runs (
+    id            TEXT PRIMARY KEY,
+    -- No ON DELETE CASCADE, deliberately: see Prune. An audit record that
+    -- vanishes with its plan is not an audit record.
+    plan_id       TEXT NOT NULL,
+    steps         BLOB NOT NULL,
+    dry_run       INTEGER NOT NULL DEFAULT 0,
+    status        TEXT NOT NULL,
+    actor         TEXT NOT NULL,
+    actor_groups  BLOB,
+    requested_at  TEXT NOT NULL,
+    started_at    TEXT,
+    finished_at   TEXT,
+    worker        TEXT,
+    summary       TEXT
+);
+
+CREATE INDEX IF NOT EXISTS runs_status ON runs (status, requested_at);
+CREATE INDEX IF NOT EXISTS runs_plan ON runs (plan_id, requested_at DESC);
+
+CREATE TABLE IF NOT EXISTS run_events (
+    run_id    TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+    sequence  INTEGER NOT NULL,
+    at        TEXT NOT NULL,
+    level     TEXT NOT NULL,
+    step      INTEGER NOT NULL DEFAULT 0,
+    node      TEXT,
+    pod       TEXT,
+    action    TEXT NOT NULL,
+    rule      TEXT,
+    message   TEXT NOT NULL,
+    PRIMARY KEY (run_id, sequence)
 );
 `
 
@@ -369,10 +418,16 @@ func (s *Store) Prune(ctx context.Context, keep int) (int, error) {
 	if keep <= 0 {
 		return 0, nil
 	}
+	// A plan that some run executed is never pruned, however old it is.
+	// Doc §9 requires the audit log to be tied to the plan version and the
+	// step IDs that authorized each action — so deleting the plan would leave
+	// the audit trail pointing at nothing, which is worse than keeping a few
+	// extra rows on the volume.
 	res, err := s.db.ExecContext(ctx, `
 		DELETE FROM plans WHERE id NOT IN (
 			SELECT id FROM plans ORDER BY stored_at DESC, rowid DESC LIMIT ?
-		)`, keep)
+		)
+		AND id NOT IN (SELECT DISTINCT plan_id FROM runs)`, keep)
 	if err != nil {
 		return 0, err
 	}
