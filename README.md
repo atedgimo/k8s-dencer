@@ -44,7 +44,8 @@ Phase 3 — maintenance windows.
 |---|---|---|
 | **M14** | `MaintenanceWindow` CRD; Red steps unlocked by an open window | **done** |
 | **M15** | Readiness verification — the executor waits for Ready, not Running | **done** |
-| **M16–M21** | Scale to 1000 nodes / 50k pods; metrics; published images; local hardening | planned |
+| **M16** | Measured ceiling — synthesised clusters, `make bench`, [docs/benchmarks.md](docs/benchmarks.md) | **done** |
+| **M17–M21** | Scale to 1000 nodes / 50k pods; metrics; published images; local hardening | planned |
 
 Deferred: scheduled automatic execution,
 Postgres store, multi-agent orchestration, and **closing the reclamation loop**
