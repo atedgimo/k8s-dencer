@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { AuthInfo, authInfo, token } from "../auth";
+import { AuthInfo, authInfo, storageUnavailable, token } from "../auth";
 import { completeSignIn, isCallback, restore, signIn } from "../oidc";
 
 /**
@@ -15,6 +15,11 @@ export function SignIn({ onDone }: { onDone: () => void }) {
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+
+  // Being shown this form while a token is already held means that token was
+  // rejected. Saying so beats re-presenting an identical empty form, which
+  // reads as the button doing nothing.
+  const [rejected] = useState(() => token.get() !== null);
 
   useEffect(() => {
     let live = true;
@@ -88,6 +93,20 @@ export function SignIn({ onDone }: { onDone: () => void }) {
       {failure && (
         <p className="signin-failure" role="alert">
           {failure}
+        </p>
+      )}
+
+      {!failure && rejected && (
+        <p className="signin-failure" role="alert">
+          That credential was rejected — it may have expired, or it may lack
+          permission to read plans. <code>make token</code> mints a fresh one.
+        </p>
+      )}
+
+      {storageUnavailable && (
+        <p className="signin-detail">
+          This browser is blocking session storage, so the token will not
+          survive a reload. Signing in still works for this page.
         </p>
       )}
 
