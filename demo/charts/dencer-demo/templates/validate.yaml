@@ -7,3 +7,36 @@ bug rather than a values mistake.
 {{- if not (has .Values.scenario $valid) -}}
 {{- fail (printf "unknown scenario %q; valid scenarios are: %s" .Values.scenario (join ", " $valid)) -}}
 {{- end -}}
+
+{{/*
+Refuse to build a fabric large enough to hurt the machine hosting it.
+
+KWOK nodes are free — no kubelets — but the pods on them are not. Every pod is
+a real API object written through k3s's kine backend, held in the API server's
+watch cache, and then held AGAIN in k8s-dencer's own informer cache. On a
+laptop-sized control plane a few thousand is fine and fifty thousand is not.
+
+Worse than the memory: the planner would immediately try to analyse them.
+constraints.Analyze is roughly cubic today (docs/benchmarks.md), so a fabric
+that large does not merely run slowly — it pegs a core for hours while the
+executor lists every pod every two seconds. The cluster becomes unusable, and
+the cause looks like a k8s-dencer bug rather than a values mistake.
+
+Scale numbers belong in `make bench`, which measures the same code paths over
+generated clusters with no cluster at all.
+
+The ceiling is deliberately awkward to lift: set fabric.acknowledgeLarge=true
+and you are stating you know what you are asking for.
+*/}}
+{{- $nodes := int .Values.nodes.count -}}
+{{- $pods := int .Values.base.replicas -}}
+{{- $maxNodes := int .Values.fabric.maxNodes -}}
+{{- $maxPods := int .Values.fabric.maxPods -}}
+{{- if not .Values.fabric.acknowledgeLarge -}}
+  {{- if gt $nodes $maxNodes -}}
+    {{- fail (printf "nodes.count=%d exceeds the %d-node ceiling for a laptop control plane.\nUse `make bench` for scale numbers — it measures the same code with no cluster.\nTo proceed anyway: --set fabric.acknowledgeLarge=true" $nodes $maxNodes) -}}
+  {{- end -}}
+  {{- if gt $pods $maxPods -}}
+    {{- fail (printf "base.replicas=%d exceeds the %d-pod ceiling for a laptop control plane.\nEvery pod is an API object held in the API server cache and again in the planner's informer cache,\nand the planner will try to analyse all of them (constraints.Analyze is ~cubic; see docs/benchmarks.md).\nTo proceed anyway: --set fabric.acknowledgeLarge=true" $pods $maxPods) -}}
+  {{- end -}}
+{{- end -}}

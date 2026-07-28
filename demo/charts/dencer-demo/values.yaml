@@ -16,6 +16,24 @@
 # consolidate; the scenario adds the constraint that should change the ratings.
 scenario: a-fragmented
 
+# Ceiling on how large a fabric this chart will build.
+#
+# KWOK nodes are free; the pods on them are not. Each is a real API object in
+# the API server's watch cache and again in k8s-dencer's informer cache — and
+# the planner will try to analyse every one of them, which is roughly cubic
+# today (docs/benchmarks.md). A fabric of tens of thousands does not run
+# slowly, it takes the control plane down.
+#
+# These limits are sized for a laptop. Scale numbers come from `make bench`,
+# which exercises the same code paths over generated clusters with no cluster
+# at all.
+fabric:
+  maxNodes: 200
+  maxPods: 3000
+  # Deliberately awkward: setting this is a statement that you know what you
+  # are asking your machine to do.
+  acknowledgeLarge: false
+
 nodes:
   # 30 fake nodes cost nothing to run (no kubelets) but give the bin-packer a
   # problem worth solving. Each is deliberately larger than the real node.

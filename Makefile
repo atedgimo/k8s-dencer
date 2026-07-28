@@ -300,10 +300,21 @@ kwok-down: ## Remove the KWOK fabric
 # not-ready forever, so --wait turns a cosmetic fabric quirk into a failed
 # install. Use `make demo-wait` to block on pods being *scheduled*, which is
 # what the planner actually cares about.
+# Fabric size tiers. The default is the demo you use daily; medium is the
+# largest that validates the informer and executor read paths without putting
+# the control plane at risk. Scale numbers come from `make bench`, not from
+# standing up a huge fabric — see docs/benchmarks.md.
+ifeq ($(SCALE),medium)
+FABRIC_ARGS := --set nodes.count=200 --set base.replicas=2000
+else
+FABRIC_ARGS :=
+endif
+
 .PHONY: demo-up
-demo-up: ## Install the synthetic topology (SCENARIO=a-fragmented)
+demo-up: ## Install the synthetic topology (SCENARIO=a-fragmented, SCALE=medium)
 	helm upgrade --install $(DEMO_RELEASE) demo/charts/dencer-demo \
 		--namespace $(DEMO_NAMESPACE) --create-namespace \
+		$(FABRIC_ARGS) \
 		--set scenario=$(SCENARIO)
 
 .PHONY: demo-wait
@@ -355,6 +366,7 @@ scenario: ## Switch scenario: make scenario S=b-pdb-blocked
 	@$(MAKE) --no-print-directory fabric-reset
 	helm upgrade --install $(DEMO_RELEASE) demo/charts/dencer-demo \
 		--namespace $(DEMO_NAMESPACE) --create-namespace \
+		$(FABRIC_ARGS) \
 		--set scenario=$(S)
 	@$(MAKE) --no-print-directory demo-wait
 
