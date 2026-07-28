@@ -238,6 +238,10 @@ logs: ## Tail the planner log
 TOKEN_SA       ?= dencer-operator
 TOKEN_DURATION ?= 8h
 
+.PHONY: print-tag
+print-tag: ## Print the image tag this checkout builds
+	@echo $(IMAGE_TAG)
+
 .PHONY: bench
 bench: ## Scale benchmarks over synthesised clusters (no cluster required)
 	@# Runs entirely offline. internal/model has no Kubernetes imports, which

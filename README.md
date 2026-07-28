@@ -515,9 +515,26 @@ curl -H "Authorization: Bearer $TOKEN" localhost:8090/api/v1/runs/<runId> | jq .
 ### Verifying SSO
 
 ```bash
-make images && ./hack/verify-sso.sh      # ~2 minutes
-./hack/verify-sso.sh clean               # tear it down
+make images && ./hack/verify-sso.sh              # Dex, ~2 minutes
+make images && IDP=keycloak ./hack/verify-sso.sh # Keycloak, ~4 minutes
+./hack/verify-sso.sh clean                       # tear it down
 ```
+
+**Use Keycloak if you care about groups.** Dex's local connector cannot emit a
+groups claim alongside static passwords, so that path can only bind by
+username. Keycloak emits real groups, so it verifies what operators actually
+want — access granted to an IdP *group* rather than a list of people:
+
+```
+groups: ["platform-sre"]
+kubectl create rolebinding … --group=oidc:platform-sre   -> 200
+```
+
+It also guards a trap that costs an afternoon in production. Keycloak's Group
+Membership mapper defaults to **full group path**, emitting `/platform-sre`
+with a leading slash — so every RoleBinding would need `oidc:/platform-sre`,
+which reads as a typo. The realm sets `full.path=false` and the script fails if
+a leading slash ever appears.
 
 Builds a throwaway k3d cluster whose API server trusts a local Dex, installs the
 chart, and walks the authorization matrix with a real IdP token:
@@ -536,12 +553,9 @@ way to test this locally, and it has the side benefit of exercising the chart on
 a second, differently-provisioned cluster (k3s 1.35 rather than 1.34), which is
 the first real test of the platform-agnostic claim the chart has made since M0.
 
-**Known gap.** Dex's local connector cannot emit a `groups` claim alongside
-static passwords, so the script verifies the *username* identity
-(`oidc:alice@example.com`) rather than a group. Group mapping is stock
-Kubernetes behaviour driven by `--oidc-groups-claim`, and our code passes
-`status.user.groups` through to the SubjectAccessReview verbatim — covered by
-unit test, not by this script.
+**Closed gap.** The Dex path could only verify a username identity. `IDP=keycloak`
+closes it: the group claim is asserted in the token, and the RoleBinding is made
+against the group rather than the person.
 
 ---
 

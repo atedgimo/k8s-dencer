@@ -17,19 +17,49 @@
 # yields the same ID token by a different route, and what needs proving is that
 # the token is accepted, not that oidc-client-ts can perform a redirect.
 #
-#   ./hack/verify-sso.sh          run it
-#   ./hack/verify-sso.sh clean    tear down the cluster and Dex
+#   ./hack/verify-sso.sh              run it against Dex (fast)
+#   IDP=keycloak ./hack/verify-sso.sh  run it against Keycloak
+#   ./hack/verify-sso.sh clean        tear everything down
+#
+# Keycloak is slower to start but proves more. Dex's local connector cannot
+# emit a groups claim alongside static passwords, so the Dex path can only
+# verify a username identity. Keycloak emits real groups, which means the
+# Keycloak path verifies the thing operators actually want: access granted to
+# an IdP *group* rather than a list of people.
+#
+# It also catches a trap that costs an afternoon in production. Keycloak's
+# Group Membership mapper defaults to "full group path", which emits
+# "/platform-sre" with a leading slash — so the RoleBinding has to say
+# "oidc:/platform-sre", which looks like a typo. The realm here sets
+# full.path=false, and the script asserts the claim has no leading slash.
 #
 set -euo pipefail
 
+IDP="${IDP:-dex}"
 CLUSTER="${CLUSTER:-dencer-sso}"
 CTX="k3d-${CLUSTER}"
-DEX_CONTAINER="dencer-dex"
-DEX_PORT=5556
-ISSUER="https://host.k3d.internal:${DEX_PORT}/dex"
+IDP_PORT=5556
 CLIENT_ID="k8s-dencer"
 USER_EMAIL="alice@example.com"
 USER_PASS="dencer"
+GROUP="platform-sre"
+
+case "$IDP" in
+  dex)
+    IDP_CONTAINER="dencer-dex"
+    ISSUER="https://host.k3d.internal:${IDP_PORT}/dex"
+    # Dex static passwords carry no groups, so the Dex path binds by username.
+    SUBJECT_FLAG="--user=oidc:${USER_EMAIL}"
+    ;;
+  keycloak)
+    IDP_CONTAINER="dencer-keycloak"
+    ISSUER="https://host.k3d.internal:${IDP_PORT}/realms/dencer"
+    # The point of the Keycloak path: bind to a GROUP, not a person.
+    SUBJECT_FLAG="--group=oidc:${GROUP}"
+    ;;
+  *)
+    echo "unknown IDP $IDP; use dex or keycloak" >&2; exit 1 ;;
+esac
 WORK="${WORK:-$(mktemp -d)}"
 # Absolute, because the certificate step cds into $WORK and everything after it
 # would otherwise resolve chart paths and git against the temp directory.
@@ -42,7 +72,7 @@ fail()  { red "FAIL: $*"; exit 1; }
 
 teardown() {
   k3d cluster delete "$CLUSTER" >/dev/null 2>&1 || true
-  docker rm -f "$DEX_CONTAINER" >/dev/null 2>&1 || true
+  docker rm -f dencer-dex dencer-keycloak >/dev/null 2>&1 || true
   green "torn down"
 }
 
@@ -65,13 +95,35 @@ openssl x509 -req -in dex.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
   -out dex.crt -days 2 -extfile san.cnf 2>/dev/null
 green "  CA and server certificate for host.k3d.internal"
 
-bold "==> dex"
+bold "==> $IDP"
+if [[ "$IDP" == "keycloak" ]]; then
+  docker rm -f "$IDP_CONTAINER" >/dev/null 2>&1 || true
+  docker run -d --name "$IDP_CONTAINER" -p "${IDP_PORT}:8443" \
+    -v "$WORK/certs:/certs:ro" \
+    -v "$REPO/hack/keycloak-realm.json:/opt/keycloak/data/import/realm.json:ro" \
+    -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
+    -e KC_HTTPS_CERTIFICATE_FILE=/certs/dex.crt \
+    -e KC_HTTPS_CERTIFICATE_KEY_FILE=/certs/dex.key \
+    -e "KC_HOSTNAME=https://host.k3d.internal:${IDP_PORT}" \
+    quay.io/keycloak/keycloak:26.0 start-dev --import-realm >/dev/null
+  # Keycloak takes appreciably longer than Dex to become useful.
+  for _ in $(seq 1 90); do
+    curl -sk --resolve "host.k3d.internal:${IDP_PORT}:127.0.0.1" \
+      "${ISSUER}/.well-known/openid-configuration" >/dev/null 2>&1 && break
+    sleep 2
+  done
+  curl -sk --resolve "host.k3d.internal:${IDP_PORT}:127.0.0.1" \
+    "${ISSUER}/.well-known/openid-configuration" >/dev/null 2>&1 \
+    || { docker logs --tail 20 "$IDP_CONTAINER"; fail "keycloak never came up"; }
+  green "  serving discovery at ${ISSUER}"
+else
+
 HASH="$(htpasswd -bnBC 10 "" "$USER_PASS" | tr -d ':\n' | sed 's/^\$2y/\$2a/')"
 cat > "$WORK/dex.yaml" <<EOF
 issuer: ${ISSUER}
 storage: {type: memory}
 web:
-  https: 0.0.0.0:${DEX_PORT}
+  https: 0.0.0.0:${IDP_PORT}
   tlsCert: /certs/dex.crt
   tlsKey: /certs/dex.key
 oauth2:
@@ -88,16 +140,17 @@ staticPasswords:
     username: alice
     userID: alice-uid
 EOF
-docker rm -f "$DEX_CONTAINER" >/dev/null 2>&1 || true
-docker run -d --name "$DEX_CONTAINER" -p "${DEX_PORT}:${DEX_PORT}" \
+docker rm -f "$IDP_CONTAINER" >/dev/null 2>&1 || true
+docker run -d --name "$IDP_CONTAINER" -p "${IDP_PORT}:${IDP_PORT}" \
   -v "$WORK/dex.yaml:/etc/dex/config.yaml:ro" -v "$WORK/certs:/certs:ro" \
   ghcr.io/dexidp/dex:v2.41.1 dex serve /etc/dex/config.yaml >/dev/null
 for _ in $(seq 1 30); do
-  curl -sk --resolve "host.k3d.internal:${DEX_PORT}:127.0.0.1" \
+  curl -sk --resolve "host.k3d.internal:${IDP_PORT}:127.0.0.1" \
     "${ISSUER}/.well-known/openid-configuration" >/dev/null 2>&1 && break
   sleep 1
 done
 green "  serving discovery at ${ISSUER}"
+fi
 
 bold "==> k3d cluster trusting that issuer"
 k3d cluster delete "$CLUSTER" >/dev/null 2>&1 || true
@@ -112,15 +165,53 @@ k3d cluster create "$CLUSTER" --servers 1 --agents 0 --wait --timeout 180s \
   --k3s-arg "--kube-apiserver-arg=--oidc-groups-prefix=oidc:@server:*" >/dev/null 2>&1
 green "  $CTX up"
 
-bold "==> an ID token from dex"
-TOKEN="$(curl -sk --resolve "host.k3d.internal:${DEX_PORT}:127.0.0.1" \
-  -X POST "${ISSUER}/token" \
+bold "==> an ID token from $IDP"
+# Both providers expose a password grant, which is what makes this scriptable.
+# The browser redirect is oidc-client-ts's job; what needs proving here is that
+# the resulting token is accepted as a Kubernetes credential.
+if [[ "$IDP" == "keycloak" ]]; then
+  TOKEN_URL="${ISSUER}/protocol/openid-connect/token"
+  LOGIN="alice"           # Keycloak authenticates on username
+  # No "groups" scope: Keycloak has no client scope by that name and rejects
+  # the request outright. The Group Membership mapper lives on the client, so
+  # the claim is emitted regardless of scopes.
+  SCOPES="openid profile email"
+else
+  TOKEN_URL="${ISSUER}/token"
+  LOGIN="${USER_EMAIL}"   # Dex's local connector authenticates on email
+  SCOPES="openid profile email groups"
+fi
+
+RESPONSE="$(curl -sk --resolve "host.k3d.internal:${IDP_PORT}:127.0.0.1" \
+  -X POST "$TOKEN_URL" \
   -d grant_type=password -d "client_id=${CLIENT_ID}" \
-  -d "username=${USER_EMAIL}" -d "password=${USER_PASS}" \
-  -d "scope=openid profile email groups" \
-  | python3 -c 'import json,sys; print(json.load(sys.stdin).get("id_token",""))')"
-[[ -n "$TOKEN" ]] || fail "dex issued no ID token"
+  -d "username=${LOGIN}" -d "password=${USER_PASS}" \
+  -d "scope=${SCOPES}")"
+TOKEN="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("id_token",""))' <<<"$RESPONSE")"
+[[ -n "$TOKEN" ]] || { echo "$RESPONSE" | head -c 300; echo; fail "$IDP issued no ID token"; }
 green "  issued"
+
+if [[ "$IDP" == "keycloak" ]]; then
+  bold "==> the groups claim"
+  # The trap this exists to catch. Keycloak's Group Membership mapper defaults
+  # to "full group path", which emits "/platform-sre" — so every RoleBinding
+  # would need "oidc:/platform-sre", which reads as a typo and costs an
+  # afternoon. The realm sets full.path=false; this proves it took.
+  CLAIM="$(python3 - "$TOKEN" <<'PYEOF'
+import base64, json, sys
+p = sys.argv[1].split(".")[1]
+p += "=" * (-len(p) % 4)
+print(json.dumps(json.loads(base64.urlsafe_b64decode(p)).get("groups", [])))
+PYEOF
+)"
+  echo "  groups: $CLAIM"
+  grep -q "\"${GROUP}\"" <<<"$CLAIM" \
+    || fail "the token carries no ${GROUP} group; the Group Membership mapper is missing"
+  if grep -q '"/' <<<"$CLAIM"; then
+    fail "groups carry a leading slash (${CLAIM}) — set full.path=false on the mapper, or every RoleBinding needs oidc:/${GROUP}"
+  fi
+  green "  ${GROUP} present, no leading slash"
+fi
 
 bold "==> the API server accepts it as a credential"
 SERVER="$(kubectl config view -o jsonpath="{.clusters[?(@.name==\"$CTX\")].cluster.server}")"
@@ -146,7 +237,9 @@ done
 green "  authenticated as $WHO — no Kubernetes credential involved"
 
 bold "==> k8s-dencer with that issuer"
-TAG="$(git -C "$REPO" rev-parse --short HEAD)"
+# Ask the Makefile rather than recomputing: IMAGE_TAG carries a content hash
+# for uncommitted work, so a plain HEAD sha names images that were never built.
+TAG="$(make -C "$REPO" -s print-tag)"
 for c in planner ui-backend ui-frontend; do
   docker image inspect "k8s-dencer-$c:$TAG" >/dev/null 2>&1 \
     || fail "image k8s-dencer-$c:$TAG missing; run 'make images' first"
@@ -189,8 +282,11 @@ green "  valid token, no RBAC    -> 403"
 
 # Granting is one RoleBinding against the OIDC identity — the point of the
 # whole design. The 403 above prints this command itself.
+#
+# Under Keycloak this binds a GROUP rather than a person, which is what an
+# operator actually wants and what the Dex path cannot demonstrate.
 kubectl --context "$CTX" create rolebinding dencer-operator -n k8s-dencer \
-  --clusterrole=k8s-dencer-consolidation-operator --user="oidc:${USER_EMAIL}" >/dev/null
+  --clusterrole=k8s-dencer-consolidation-operator "$SUBJECT_FLAG" >/dev/null
 sleep 2
 
 [[ "$(code -H "Authorization: Bearer $TOKEN" localhost:8092/api/v1/version)" == "200" ]] \
@@ -205,6 +301,6 @@ EXEC="$(code -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: applica
 green "  execute permission      -> $EXEC (not 403)"
 
 echo
-green "Tier-1 single sign-on verified: an ID token from the cluster's own issuer
-is a Kubernetes credential, and access is one RoleBinding against the OIDC
-identity. Run '$0 clean' to tear the cluster and dex down."
+green "Tier-1 single sign-on verified against ${IDP}: an ID token from the
+cluster's own issuer is a Kubernetes credential, and access is one RoleBinding
+against ${SUBJECT_FLAG#--}. Run '$0 clean' to tear it all down."
