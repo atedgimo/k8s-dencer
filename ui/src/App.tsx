@@ -159,6 +159,7 @@ export default function App() {
           <Verdict
             stats={state.graph.stats}
             steps={steps}
+            generatedAt={state.plan.storedAt}
             focusedRating={focusedRating}
             onFocusRating={setFocusedRating}
             onRun={requestRun}

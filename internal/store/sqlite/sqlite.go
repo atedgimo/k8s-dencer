@@ -176,6 +176,13 @@ func (s *Store) Save(ctx context.Context, rec store.Record) (bool, error) {
 		return false, errors.New("nil plan")
 	}
 
+	// Defaulted before the dedup branch below reads it: callers routinely
+	// leave StoredAt zero and let the store stamp it.
+	storedAt := rec.StoredAt
+	if storedAt.IsZero() {
+		storedAt = time.Now().UTC()
+	}
+
 	var latestID string
 	err := s.db.QueryRowContext(ctx,
 		`SELECT id FROM plans ORDER BY stored_at DESC, rowid DESC LIMIT 1`).Scan(&latestID)
@@ -185,6 +192,17 @@ func (s *Store) Save(ctx context.Context, rec store.Record) (bool, error) {
 	if latestID == rec.Plan.ID {
 		// Same content hash as the last write: the cluster has not changed in
 		// any way that alters the plan.
+		//
+		// stored_at is still touched, because it means "last confirmed against
+		// the cluster" and that is what a reader needs. Leaving it alone made
+		// a plan the planner had just re-verified read as nineteen hours old,
+		// so the UI's staleness warning fired on the healthiest possible
+		// state. An unchanged plan is the strongest evidence it is current.
+		if _, err := s.db.ExecContext(ctx,
+			`UPDATE plans SET stored_at = ? WHERE id = ?`,
+			storedAt.UTC().Format(time.RFC3339Nano), rec.Plan.ID); err != nil {
+			return false, fmt.Errorf("touch plan: %w", err)
+		}
 		return false, nil
 	}
 
@@ -195,11 +213,6 @@ func (s *Store) Save(ctx context.Context, rec store.Record) (bool, error) {
 	analysisJSON, err := json.Marshal(rec.Analysis)
 	if err != nil {
 		return false, fmt.Errorf("encode analysis: %w", err)
-	}
-
-	storedAt := rec.StoredAt
-	if storedAt.IsZero() {
-		storedAt = time.Now().UTC()
 	}
 
 	tx, err := s.db.BeginTx(ctx, nil)

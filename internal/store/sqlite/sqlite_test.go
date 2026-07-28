@@ -307,3 +307,39 @@ func mustSave(t *testing.T, s *sqlitestore.Store, rec store.Record, wantStored b
 		t.Fatalf("save %s: stored=%v, want %v", rec.Plan.ID, stored, wantStored)
 	}
 }
+
+// An unchanged plan is the strongest evidence the plan is current, so
+// re-confirming one must refresh stored_at.
+//
+// It did not, and the UI's staleness warning consequently fired hardest on the
+// healthiest possible state: a plan the planner had re-verified seconds ago
+// read as nineteen hours old, because dedup skipped the write entirely.
+func TestReconfirmingAPlanRefreshesStoredAt(t *testing.T) {
+	db := openTemp(t)
+	ctx := context.Background()
+
+	rec := record("plan-1", step(1, "a", model.ImpactGreen))
+	rec.StoredAt = time.Now().UTC().Add(-2 * time.Hour)
+	if written, err := db.Save(ctx, rec); err != nil || !written {
+		t.Fatalf("first save: written=%v err=%v", written, err)
+	}
+
+	// Same content hash: dedup, no new row — but the timestamp must move.
+	again := record("plan-1", step(1, "a", model.ImpactGreen))
+	again.StoredAt = time.Now().UTC()
+	written, err := db.Save(ctx, again)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if written {
+		t.Error("an identical plan was written as a new row")
+	}
+
+	got, err := db.Latest(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if age := time.Since(got.StoredAt); age > time.Minute {
+		t.Errorf("storedAt is %s old after re-confirmation; it should be fresh", age.Round(time.Second))
+	}
+}
