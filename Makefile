@@ -238,6 +238,19 @@ logs: ## Tail the planner log
 TOKEN_SA       ?= dencer-operator
 TOKEN_DURATION ?= 8h
 
+.PHONY: bench
+bench: ## Scale benchmarks over synthesised clusters (no cluster required)
+	@# Runs entirely offline. internal/model has no Kubernetes imports, which
+	@# is what makes it possible to measure the planner at thousands of pods
+	@# without standing anything up.
+	go test ./internal/planner -run XXX -bench Scale -benchtime 1x -timeout 30m
+
+.PHONY: bench-baseline
+bench-baseline: ## Rewrite docs/benchmarks.md from a fresh run
+	@go test ./internal/planner -run XXX -bench Scale -benchtime 1x -timeout 30m \
+		| tee /tmp/dencer-bench.txt
+	@echo "==> raw output in /tmp/dencer-bench.txt; update docs/benchmarks.md from it"
+
 .PHONY: crds
 crds: ## Regenerate CRD manifests from the Go types
 	$(CONTROLLER_GEN) object paths=./api/...
