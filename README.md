@@ -43,9 +43,25 @@ Phase 3 — maintenance windows.
 | Milestone | Scope | State |
 |---|---|---|
 | **M14** | `MaintenanceWindow` CRD; Red steps unlocked by an open window | **done** |
+
+Phase 4 — production hardening. Target: 1000+ nodes, 50k pods. Measured, not
+estimated — every milestone here starts from a number in
+[docs/benchmarks.md](docs/benchmarks.md).
+
+| Milestone | Scope | State |
+|---|---|---|
 | **M15** | Readiness verification — the executor waits for Ready, not Running | **done** |
-| **M16** | Measured ceiling — synthesised clusters, `make bench`, [docs/benchmarks.md](docs/benchmarks.md) | **done** |
-| **M17–M21** | Scale to 1000 nodes / 50k pods; metrics; published images; local hardening | planned |
+| **M16** | Measured ceiling — synthesised clusters, `make bench` | **done** |
+| **M17** | Data volume — gzipped plan blobs (23.8× at 5k pods), informer cache transform (−30% heap), paginated reads | **done** |
+| **M18** | Planner cost — memoised topology-spread counts, **112×** faster analysis at 5k pods | **done** |
+| **M19** | UI at scale — density rendering, virtualised field, aggregated graph payload | planned |
+| **M20** | `/metrics` on all three components; honest `serviceMonitor`; published images | planned |
+| **M21** | Multi-node k3d, PodSecurity enforcing, real ingress and StorageClass | planned |
+
+High availability and a Postgres store were **dropped, not deferred**: a
+consolidation planner is not a serving path. The run queue is already crash-safe
+and resumes, the planner replans on restart, and a minute of UI downtime costs
+nothing.
 
 Deferred: scheduled automatic execution,
 Postgres store, multi-agent orchestration, and **closing the reclamation loop**
@@ -58,12 +74,12 @@ The planner watches the cluster through informers and publishes an immutable
 `ClusterSnapshot` every resync period:
 
 ```
-snapshot:    nodes=31 nodesOccupied=29 pods=120 pdbs=0 pdbsBlocking=0
+snapshot:    nodes=31 nodesOccupied=29 pods=121 pdbs=0 pdbsBlocking=0
              cpuRequestedPct=38.6% memRequestedPct=19.6% usageData=false
-constraints: movable=119 blocked=1 stuck=25 antiAffinity=0 spreadBound=1
+constraints: movable=120 blocked=1 stuck=26 antiAffinity=0 spreadBound=1
              controllerPinned=1 nodesUndrainable=1
-plan:        id=dcdd608cf7c9 steps=16 nodesBefore=29 nodesAfter=13 reclaims=16
-             green=7 yellow=4 red=5
+plan:        id=283ba43a9d15 steps=16 nodesBefore=29 nodesAfter=13 reclaims=16
+             green=12 yellow=1 red=3
 ```
 
 Plans are rated, explained, persisted, visualised, and answerable in natural

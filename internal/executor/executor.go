@@ -330,14 +330,18 @@ func (e *Executor) drain(ctx context.Context, run store.Run, step model.PlanStep
 }
 
 // waitGone blocks until the pod has left the API server's view.
+//
+// Asks about the one pod rather than reading the cluster. This used to take a
+// full snapshot on every tick — every pod in the cluster, every two seconds,
+// to answer a question about a single object.
 func (e *Executor) waitGone(ctx context.Context, pod model.Pod) error {
 	deadline := time.Now().Add(e.opts.SettleTimeout)
 	for {
-		live, err := e.cluster.Snapshot(ctx)
+		present, err := e.cluster.PodPresent(ctx, pod.Namespace, pod.Name)
 		if err != nil {
-			return fmt.Errorf("read cluster state: %w", err)
+			return fmt.Errorf("check %s: %w", pod.Key(), err)
 		}
-		if p, ok := findPod(live, pod.Namespace, pod.Name); !ok || p.Terminating {
+		if !present {
 			return nil
 		}
 		if time.Now().After(deadline) {

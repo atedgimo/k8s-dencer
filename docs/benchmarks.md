@@ -9,6 +9,67 @@ measured at thousands of pods without standing anything up.
 Apple M-series laptop, Go 1.26, `-benchtime 1x`. Absolute numbers will differ on
 other hardware; **the growth curves are the point.**
 
+## After M17 — memory and stored bytes
+
+M18 made the planner fast enough; M17 addresses what it costs to *hold* and
+*keep* a cluster this size. Three changes, each measured.
+
+**Stored plans are gzipped** ([sqlite.go](../internal/store/sqlite/sqlite.go)).
+JSON of a cluster snapshot is extremely repetitive, and the snapshot and
+analysis BLOBs compress accordingly. The encoding is self-describing via the
+gzip magic bytes, so no migration was needed and rows written before this change
+still read back.
+
+| Pods | JSON in | Stored on disk | Ratio | `Save` time |
+|---|---|---|---|---|
+| 119 | 0.10 MB | 5.3 KB | 19.1× | 1.5 ms |
+| 916 | 1.00 MB | 54 KB | 19.2× | 4.7 ms |
+| 2,526 | 4.44 MB | 197 KB | 23.1× | 18 ms |
+| 5,026 | 14.1 MB | **609 KB** | **23.8×** | 54 ms |
+
+The ratio improves with size, which is what you would expect: more pods means
+more repetition of the same key names and label values. At the 50,000-pod target
+this is the difference between a retention policy measured in gigabytes and one
+measured in tens of megabytes.
+
+Compressing did not cost time at the sizes that matter. Against the
+pre-compression baseline below, `Save` is slower at 119 pods (0.74 → 1.5 ms) and
+*faster* from 2,526 up (29 → 18 ms, 83 → 54 ms): past a certain size, writing
+20× fewer bytes to SQLite more than pays for the gzip.
+
+`BenchmarkScaleStoreSave` now reports the bytes actually on disk. It previously
+reported the marshalled JSON length, which after this change would have
+overstated retention by ~20× — the exact quantity the benchmark exists to
+track.
+
+**The informer cache is transformed on the way in**
+([collector.go](../internal/cluster/collector.go)). Managed fields, pod
+annotations and container statuses are discarded before anything is cached.
+
+| | Heap per pod | 50,000 pods |
+|---|---|---|
+| Untransformed | 9,183 B | 459 MB |
+| Transformed | 6,423 B | **321 MB** |
+
+**30% off the planner's dominant memory cost** — 138 MB at the 50k target. The
+number depends entirely on how large real managed fields are, so it was
+calibrated rather than assumed: on the development cluster,
+`kubectl get pods -A -o json --show-managed-fields` reports a mean 3,505 B of
+managed fields on kubelet-run pods, about 40% of the serialised object. (The
+flag matters — kubectl hides the section by default, which is why a first pass
+measured 2 B and made the transform look worthless.)
+
+The correctness risk here is stripping something the converter reads, so
+`transform_test.go` asserts the property directly rather than by inspection: it
+converts an object, transforms it, converts it again, and requires the two
+domain objects to be identical. Three mutations were run against it — stripping
+node annotations, pod conditions, and pod labels — and each fails the test.
+
+**Reads are paginated and scoped**
+([direct.go](../internal/cluster/direct.go)). Every List now pages at 500, and
+the drain loop's "has this pod gone yet" poll — which listed every pod in the
+cluster every 2 seconds to ask about one — is a single Get.
+
 ## After M18 — the spread index
 
 `Placement.domainCounts` is memoised and maintained incrementally

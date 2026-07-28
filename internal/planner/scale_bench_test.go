@@ -167,7 +167,6 @@ func BenchmarkScaleStoreSave(b *testing.B) {
 			}
 
 			b.ReportAllocs()
-			b.ReportMetric(float64(len(snapJSON)+len(analysisJSON))/1024/1024, "MB/row")
 
 			n := 0
 			for b.Loop() {
@@ -182,6 +181,21 @@ func BenchmarkScaleStoreSave(b *testing.B) {
 					b.Fatal(err)
 				}
 			}
+
+			// Report what is actually on disk, not the JSON that went in. Since
+			// M17 the blobs are gzipped, and a metric that kept reporting the
+			// uncompressed size would overstate retention by an order of
+			// magnitude — the exact thing this benchmark exists to track.
+			var stored int64
+			row := db.QueryRowForTest(context.Background(),
+				`SELECT length(snapshot) + length(analysis) FROM plans WHERE id = ?`,
+				fmt.Sprintf("plan-%d", n))
+			if err := row.Scan(&stored); err != nil {
+				b.Fatal(err)
+			}
+			raw := len(snapJSON) + len(analysisJSON)
+			b.ReportMetric(float64(stored)/1024/1024, "MB/row")
+			b.ReportMetric(float64(raw)/float64(stored), "compression")
 		})
 	}
 }

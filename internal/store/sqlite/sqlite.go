@@ -11,6 +11,8 @@
 package sqlite
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -206,11 +208,11 @@ func (s *Store) Save(ctx context.Context, rec store.Record) (bool, error) {
 		return false, nil
 	}
 
-	snapshotJSON, err := json.Marshal(rec.Snapshot)
+	snapshotJSON, err := encodeBlob(rec.Snapshot)
 	if err != nil {
 		return false, fmt.Errorf("encode snapshot: %w", err)
 	}
-	analysisJSON, err := json.Marshal(rec.Analysis)
+	analysisJSON, err := encodeBlob(rec.Analysis)
 	if err != nil {
 		return false, fmt.Errorf("encode analysis: %w", err)
 	}
@@ -325,10 +327,10 @@ func (s *Store) ByID(ctx context.Context, id string) (store.Record, error) {
 	}
 	rec.StoredAt = parseTime(storedAt)
 
-	if err := json.Unmarshal(snapshotJSON, &rec.Snapshot); err != nil {
+	if err := decodeBlob(snapshotJSON, &rec.Snapshot); err != nil {
 		return store.Record{}, fmt.Errorf("decode snapshot: %w", err)
 	}
-	if err := json.Unmarshal(analysisJSON, &rec.Analysis); err != nil {
+	if err := decodeBlob(analysisJSON, &rec.Analysis); err != nil {
 		return store.Record{}, fmt.Errorf("decode analysis: %w", err)
 	}
 
@@ -471,3 +473,61 @@ func boolToInt(b bool) int {
 
 // compile-time check
 var _ store.Store = (*Store)(nil)
+
+// Snapshot and analysis blobs are gzipped.
+//
+// They are the bulk of a plan row — a 5,000-pod snapshot is 1.6 MB of JSON,
+// written on every plan change and retained. Pod specs compress about 13x
+// because the field names repeat on every object, so this is close to free
+// space back for a little CPU on a path that runs at most once per resync.
+//
+// BestSpeed rather than BestCompression: the difference in ratio is small and
+// the planner should not spend its cycle here.
+func encodeBlob(v any) ([]byte, error) {
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	var buf bytes.Buffer
+	zw, err := gzip.NewWriterLevel(&buf, gzip.BestSpeed)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := zw.Write(raw); err != nil {
+		return nil, err
+	}
+	if err := zw.Close(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+// decodeBlob reads a blob written by encodeBlob, or a plain JSON one.
+//
+// Rows written before compression are still readable: gzip has a two-byte
+// magic number, so the format is self-describing and no migration is needed.
+// A schema bump would have meant rewriting every historical row, and plan
+// history is an audit trail worth not rewriting.
+func decodeBlob(data []byte, into any) error {
+	if len(data) >= 2 && data[0] == 0x1f && data[1] == 0x8b {
+		zr, err := gzip.NewReader(bytes.NewReader(data))
+		if err != nil {
+			return err
+		}
+		defer func() { _ = zr.Close() }()
+		return json.NewDecoder(zr).Decode(into)
+	}
+	return json.Unmarshal(data, into)
+}
+
+// ExecForTest runs a statement directly. Test-only: it exists so a test can
+// forge a pre-compression row and prove it is still readable.
+func (s *Store) ExecForTest(ctx context.Context, query string, args ...any) error {
+	_, err := s.db.ExecContext(ctx, query, args...)
+	return err
+}
+
+// QueryRowForTest reads one row directly. Test-only.
+func (s *Store) QueryRowForTest(ctx context.Context, query string, args ...any) *sql.Row {
+	return s.db.QueryRowContext(ctx, query, args...)
+}

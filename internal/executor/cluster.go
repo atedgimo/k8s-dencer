@@ -30,6 +30,14 @@ type Cluster interface {
 	// drain must leave the node usable, since evicted pods cannot be un-evicted.
 	Uncordon(ctx context.Context, node string) error
 
+	// PodPresent reports whether one pod still exists and is not terminating.
+	//
+	// Narrow on purpose. The drain loop asks this every couple of seconds per
+	// evicted pod, and answering it from a full cluster snapshot meant listing
+	// every pod in the cluster to learn about one — which on a large cluster
+	// cost more than the drain itself.
+	PodPresent(ctx context.Context, namespace, name string) (bool, error)
+
 	// Evict requests voluntary eviction through the policy/v1 eviction API,
 	// which is what makes the API server enforce PodDisruptionBudgets. A plain
 	// pod delete would bypass them entirely — the single most important

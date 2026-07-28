@@ -32,6 +32,11 @@ func (k *K8sCluster) Snapshot(ctx context.Context) (*model.ClusterSnapshot, erro
 	return k.reader.Snapshot(ctx)
 }
 
+// PodPresent reports whether one pod still exists and is not terminating.
+func (k *K8sCluster) PodPresent(ctx context.Context, namespace, name string) (bool, error) {
+	return k.reader.PodPresent(ctx, namespace, name)
+}
+
 // Cordon marks a node unschedulable.
 func (k *K8sCluster) Cordon(ctx context.Context, node string) error {
 	return k.setUnschedulable(ctx, node, true)
