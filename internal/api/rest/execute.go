@@ -112,10 +112,15 @@ func (s *Server) handleExecute(w http.ResponseWriter, r *http.Request) {
 
 // validateSteps rejects a request before it reaches the queue.
 //
-// Rejecting Red here is a courtesy, not a control: the Safety Guard refuses it
-// again inside the executor against live state, which is the check that
-// actually cannot be bypassed. Failing early just means the operator learns
-// now rather than after a run starts and immediately blocks.
+// It deliberately does NOT judge Red. It used to, as a courtesy — but once
+// maintenance windows existed that courtesy became a false negative, refusing
+// steps a window had legitimately authorised. Whether a Red step may run
+// depends on live window state evaluated against the step's own node, and the
+// Safety Guard inside the executor is the only place that knows both.
+//
+// So a Red step is queued and then either runs or comes back Blocked with the
+// window's own explanation. One authority, checked against live state, exactly
+// as doc §9 requires — rather than two that can disagree.
 func validateSteps(requested []int, plan *model.Plan) ([]int, error) {
 	if len(requested) == 0 {
 		return nil, errors.New("no steps requested")
@@ -132,27 +137,16 @@ func validateSteps(requested []int, plan *model.Plan) ([]int, error) {
 
 	seen := map[int]bool{}
 	out := make([]int, 0, len(requested))
-	var red []int
 
 	for _, seq := range requested {
-		step, ok := bySeq[seq]
-		if !ok {
+		if _, ok := bySeq[seq]; !ok {
 			return nil, fmt.Errorf("plan %s has no step %d", plan.ID, seq)
 		}
 		if seen[seq] {
 			continue // a duplicate is a client slip, not an error
 		}
 		seen[seq] = true
-		if step.RequiresMaintenanceWindow() {
-			red = append(red, seq)
-		}
 		out = append(out, seq)
-	}
-
-	if len(red) > 0 {
-		return nil, fmt.Errorf(
-			"step(s) %v are rated Red and may only run inside an approved maintenance window, "+
-				"which this release does not implement", red)
 	}
 
 	// Ascending regardless of how they were sent. Steps are ordered for a

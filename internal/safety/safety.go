@@ -60,10 +60,22 @@ type Limits struct {
 	// MinReadyNodes is the floor of Ready, schedulable nodes to leave behind.
 	MinReadyNodes int
 
-	// AllowRed is false and stays false until Phase 3 introduces approved
-	// maintenance windows. It exists so the rule reads honestly rather than
-	// being hardcoded, but nothing in Phase 2 sets it true.
+	// AllowRed is a blanket override, and remains false in every shipped
+	// configuration. Red steps are unlocked by an open MaintenanceWindow that
+	// sets allowRed — a decision scoped to a time and a set of nodes — not by
+	// a global switch. This exists for tests and for a deliberate operator
+	// escape hatch, never as a values key.
 	AllowRed bool
+}
+
+// Windows reports whether an open maintenance window permits a Red step on a
+// node, and explains the answer.
+//
+// An interface so the guard does not depend on how windows are discovered, and
+// so "no windows at all" is representable as nil — which is what Phase 2 was,
+// and what an install that never creates one stays.
+type Windows interface {
+	AllowsRedOn(node model.Node) (bool, string)
 }
 
 // DefaultLimits are deliberately conservative. An operator who wants to drain
@@ -89,11 +101,19 @@ func block(rule Rule, format string, args ...any) *Blocked {
 
 // Guard evaluates the rails.
 type Guard struct {
-	limits Limits
+	limits  Limits
+	windows Windows
 }
 
-// New builds a Guard.
+// New builds a Guard with no maintenance windows, so Red is always refused.
 func New(limits Limits) *Guard { return &Guard{limits: limits} }
+
+// WithWindows attaches the maintenance windows a Red step may be permitted by.
+// A nil Windows keeps the Phase 2 behaviour: Red is refused outright.
+func (g *Guard) WithWindows(w Windows) *Guard {
+	g.windows = w
+	return g
+}
 
 // Limits exposes the configured rails, for reporting.
 func (g *Guard) Limits() Limits { return g.limits }
@@ -111,14 +131,6 @@ type RunState struct {
 // from. Checking a step against the state that produced it would confirm only
 // that the planner was self-consistent.
 func (g *Guard) CheckStep(step model.PlanStep, live *model.ClusterSnapshot, run RunState) error {
-	// Impact first: it is the cheapest check and the most absolute.
-	if step.Impact.RequiresMaintenanceWindow() && !g.limits.AllowRed {
-		return block(RuleRedRequiresWindow,
-			"step %d is rated Red and may only run inside an approved maintenance window, "+
-				"which this release does not yet implement. Rated Red because: %s",
-			step.SequenceNumber, step.Rationale)
-	}
-
 	if g.limits.MaxNodesPerRun > 0 && run.NodesDrainedSoFar >= g.limits.MaxNodesPerRun {
 		return block(RuleMaxNodesPerRun,
 			"this run has already drained %d node(s), the configured maximum. "+
@@ -136,6 +148,13 @@ func (g *Guard) CheckStep(step model.PlanStep, live *model.ClusterSnapshot, run 
 			"node %s no longer exists; the plan is stale", step.TargetNode)
 	}
 
+	// Red is checked against the windows covering THIS node, which is why it
+	// comes after the node is resolved rather than first. A window scoped to a
+	// batch pool must not authorise a step elsewhere.
+	if err := g.checkRed(step, node); err != nil {
+		return err
+	}
+
 	// Draining below the floor is refused before anything is touched, rather
 	// than discovered when the last node fills up.
 	if err := g.checkNodeFloor(node, live); err != nil {
@@ -143,6 +162,34 @@ func (g *Guard) CheckStep(step model.PlanStep, live *model.ClusterSnapshot, run 
 	}
 
 	return g.checkStepFeasible(step, live)
+}
+
+// checkRed enforces the confinement of Red steps to an approved window.
+//
+// Doc §9: "Red-rated steps can only execute inside an active, approved
+// maintenance window — enforced by the Safety Guard itself, not left to UI/API
+// input validation, so it cannot be bypassed by a crafted request."
+func (g *Guard) checkRed(step model.PlanStep, node model.Node) error {
+	if !step.Impact.RequiresMaintenanceWindow() {
+		return nil
+	}
+	if g.limits.AllowRed {
+		return nil
+	}
+	if g.windows == nil {
+		return block(RuleRedRequiresWindow,
+			"step %d is rated Red and may only run inside an approved maintenance window; "+
+				"none is configured. Rated Red because: %s",
+			step.SequenceNumber, step.Rationale)
+	}
+	allowed, why := g.windows.AllowsRedOn(node)
+	if !allowed {
+		return block(RuleRedRequiresWindow,
+			"step %d is rated Red and may only run inside an approved maintenance window: %s. "+
+				"Rated Red because: %s",
+			step.SequenceNumber, why, step.Rationale)
+	}
+	return nil
 }
 
 // checkNodeFloor keeps enough Ready, schedulable capacity in the cluster.

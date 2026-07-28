@@ -48,6 +48,10 @@ type Options struct {
 
 	// PollInterval is how often cluster state is re-read while waiting.
 	PollInterval time.Duration
+
+	// Windows unlock Red steps. Nil means none are configured, which keeps the
+	// Phase 2 behaviour of refusing Red outright.
+	Windows safety.Windows
 }
 
 // withDefaults fills unset values with conservative ones.
@@ -80,11 +84,15 @@ type Executor struct {
 // New builds an executor.
 func New(cluster Cluster, runs store.ExecutionStore, plans store.Store, log *slog.Logger, opts Options) *Executor {
 	opts = opts.withDefaults()
+	guard := safety.New(opts.Limits)
+	if opts.Windows != nil {
+		guard = guard.WithWindows(opts.Windows)
+	}
 	return &Executor{
 		cluster: cluster,
 		runs:    runs,
 		plans:   plans,
-		guard:   safety.New(opts.Limits),
+		guard:   guard,
 		log:     log,
 		opts:    opts,
 	}

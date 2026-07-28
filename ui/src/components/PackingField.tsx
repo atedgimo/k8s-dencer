@@ -55,7 +55,10 @@ export default function PackingField({
 }: Props) {
   const model: Model = useMemo(() => toModel(graph), [graph]);
   const peak = useMemo(() => peakOccupancy(model, steps), [model, steps]);
-  const columns = useMemo(() => gridColumns(model.nodes.length), [model.nodes.length]);
+  const columns = useMemo(
+    () => gridColumns(model.nodes.length),
+    [model.nodes.length],
+  );
 
   const placement = useMemo(
     () => placementAtStep(model, steps, step),
@@ -89,7 +92,11 @@ export default function PackingField({
   const revealOrder = useMemo(() => {
     const order = new Map<string, number>();
     [...model.nodes]
-      .sort((a, b) => (layout.nodeFill.get(b.name) ?? 0) - (layout.nodeFill.get(a.name) ?? 0))
+      .sort(
+        (a, b) =>
+          (layout.nodeFill.get(b.name) ?? 0) -
+          (layout.nodeFill.get(a.name) ?? 0),
+      )
       .forEach((n, i) => order.set(n.name, i));
     return order;
     // Deliberately keyed to the model alone: the reveal happens once, and
@@ -120,107 +127,114 @@ export default function PackingField({
 
   return (
     <div className="field-wrap">
-      <div
-        className="field"
-        style={{ width, height }}
-        onClick={() => {
-          onSelectNode(null);
-          onSelectPod(null);
-        }}
-      >
-        {model.nodes.map((node) => {
-          const pos = layout.nodes.get(node.id);
-          if (!pos) return null;
-          const fill = layout.nodeFill.get(node.name) ?? 0;
-          const gone = reclaimed.has(node.name);
-          const count = podsByNode.get(node.name) ?? 0;
+      <div className="field-scroll">
+        <div
+          className="field"
+          style={{ width, height }}
+          onClick={() => {
+            onSelectNode(null);
+            onSelectPod(null);
+          }}
+        >
+          {model.nodes.map((node) => {
+            const pos = layout.nodes.get(node.id);
+            if (!pos) return null;
+            const fill = layout.nodeFill.get(node.name) ?? 0;
+            const gone = reclaimed.has(node.name);
+            const count = podsByNode.get(node.name) ?? 0;
 
-          return (
-            <div
-              key={node.id}
-              className={[
-                "box",
-                gone ? "box-reclaimed" : "",
-                selectedNode === node.name ? "box-selected" : "",
-                stepTarget === node.name ? "box-targeted" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-              style={
-                {
-                  transform: `translate(${pos.x}px, ${pos.y}px)`,
-                  width: layout.nodeWidth,
-                  height: layout.nodeHeight,
-                  "--delay": `${(revealOrder.get(node.name) ?? 0) * 14}ms`,
-                } as React.CSSProperties
-              }
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelectNode(selectedNode === node.name ? null : node.name);
-              }}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  onSelectNode(selectedNode === node.name ? null : node.name);
+            return (
+              <div
+                key={node.id}
+                className={[
+                  "box",
+                  gone ? "box-reclaimed" : "",
+                  selectedNode === node.name ? "box-selected" : "",
+                  stepTarget === node.name ? "box-targeted" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                style={
+                  {
+                    transform: `translate(${pos.x}px, ${pos.y}px)`,
+                    width: layout.nodeWidth,
+                    height: layout.nodeHeight,
+                    "--delay": `${(revealOrder.get(node.name) ?? 0) * 14}ms`,
+                  } as React.CSSProperties
                 }
-              }}
-              aria-label={`${node.name}, ${Math.round(fill * 100)} percent requested, ${count} pods${
-                gone ? ", reclaimed" : ""
-              }`}
-            >
-              <div className="box-head">
-                <span className="box-name mono">{shortName(node.name)}</span>
-                <span className="box-pct num">{gone ? "—" : `${Math.round(fill * 100)}`}</span>
-              </div>
-              {/* The fill bar is the node's own gauge: it drains visibly as
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectNode(selectedNode === node.name ? null : node.name);
+                }}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelectNode(selectedNode === node.name ? null : node.name);
+                  }
+                }}
+                aria-label={`${node.name}, ${Math.round(fill * 100)} percent requested, ${count} pods${
+                  gone ? ", reclaimed" : ""
+                }`}
+              >
+                <div className="box-head">
+                  <span className="box-name mono">{shortName(node.name)}</span>
+                  <span className="box-pct num">
+                    {gone ? "—" : `${Math.round(fill * 100)}`}
+                  </span>
+                </div>
+                {/* The fill bar is the node's own gauge: it drains visibly as
                   pods leave, which is the moment the whole view exists for. */}
-              <div className="box-gauge" aria-hidden="true">
-                <div
-                  className="box-gauge-fill"
-                  style={{ width: `${Math.min(100, fill * 100)}%`, background: rampColor(fill) }}
-                />
+                <div className="box-gauge" aria-hidden="true">
+                  <div
+                    className="box-gauge-fill"
+                    style={{
+                      width: `${Math.min(100, fill * 100)}%`,
+                      background: rampColor(fill),
+                    }}
+                  />
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
 
-        {model.pods.map((pod) => {
-          const pos = layout.pods.get(pod.id);
-          if (!pos) return null;
-          const host = placement.get(pod.key) ?? pod.homeNode;
-          const leaving = reclaimed.has(host);
+          {model.pods.map((pod) => {
+            const pos = layout.pods.get(pod.id);
+            if (!pos) return null;
+            const host = placement.get(pod.key) ?? pod.homeNode;
+            const leaving = reclaimed.has(host);
 
-          return (
-            <div
-              key={pod.id}
-              className={[
-                "blk",
-                pod.blocked ? "blk-blocked" : "",
-                !pod.movable ? "blk-pinned" : "",
-                selectedPod === pod.key ? "blk-selected" : "",
-                leaving ? "blk-orphan" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-              style={{
-                transform: `translate(${pos.x}px, ${pos.y}px)`,
-                width: POD_SIZE,
-                height: POD_SIZE,
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelectPod(selectedPod === pod.key ? null : pod.key);
-              }}
-              role="button"
-              tabIndex={-1}
-              title={`${pod.key}${pod.blocked ? " — blocked" : ""}${
-                !pod.movable ? " — pinned to this node" : ""
-              }`}
-            />
-          );
-        })}
+            return (
+              <div
+                key={pod.id}
+                className={[
+                  "blk",
+                  pod.blocked ? "blk-blocked" : "",
+                  !pod.movable ? "blk-pinned" : "",
+                  selectedPod === pod.key ? "blk-selected" : "",
+                  leaving ? "blk-orphan" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                style={{
+                  transform: `translate(${pos.x}px, ${pos.y}px)`,
+                  width: POD_SIZE,
+                  height: POD_SIZE,
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectPod(selectedPod === pod.key ? null : pod.key);
+                }}
+                role="button"
+                tabIndex={-1}
+                title={`${pod.key}${pod.blocked ? " — blocked" : ""}${
+                  !pod.movable ? " — pinned to this node" : ""
+                }`}
+              />
+            );
+          })}
+        </div>
       </div>
 
       <ReclaimedTray count={reclaimed.size} total={plannedDrains} />
@@ -244,10 +258,15 @@ function ReclaimedTray({ count, total }: { count: number; total: number }) {
       <span className="tray-label mono">drained</span>
       <span className="tray-count num">{count}</span>
       <span className="tray-of mono">of {total}</span>
-      {count > 0 && <span className="tray-hint">empty and cordoned — ready to remove</span>}
+      {count > 0 && (
+        <span className="tray-hint">empty and cordoned — ready to remove</span>
+      )}
       <div className="tray-marks" aria-hidden="true">
         {Array.from({ length: total }, (_, i) => (
-          <span key={i} className={i < count ? "tray-mark tray-mark-on" : "tray-mark"} />
+          <span
+            key={i}
+            className={i < count ? "tray-mark tray-mark-on" : "tray-mark"}
+          />
         ))}
       </div>
     </div>

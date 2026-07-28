@@ -262,3 +262,99 @@ func TestRedIsNotAllowedByDefault(t *testing.T) {
 		t.Error("DefaultLimits has no cap on nodes per run")
 	}
 }
+
+// stubWindows stands in for the cluster's maintenance windows.
+type stubWindows struct {
+	allow bool
+	why   string
+}
+
+func (s stubWindows) AllowsRedOn(model.Node) (bool, string) { return s.allow, s.why }
+
+// The whole point of Phase 3: an open window that permits Red unlocks a step
+// that was previously refused outright.
+func TestRedIsPermittedByAnOpenWindow(t *testing.T) {
+	live := &model.ClusterSnapshot{Nodes: []model.Node{node("a", 4000), node("b", 4000)}}
+	red := step(7, "a", model.ImpactRed)
+
+	t.Run("no windows configured", func(t *testing.T) {
+		err := safety.New(permissive()).CheckStep(red, live, safety.RunState{})
+		b := blockedBy(t, err, safety.RuleRedRequiresWindow)
+		if !strings.Contains(b.Reason, "none is configured") {
+			t.Errorf("refusal should say no window exists: %s", b.Reason)
+		}
+	})
+
+	t.Run("window open but Red not permitted", func(t *testing.T) {
+		g := safety.New(permissive()).WithWindows(stubWindows{
+			allow: false, why: "maintenance window nightly is open but does not permit Red steps",
+		})
+		b := blockedBy(t, g.CheckStep(red, live, safety.RunState{}), safety.RuleRedRequiresWindow)
+		// The refusal must carry the window's own explanation, so an operator
+		// can tell "nothing is open" from "open, but not for this".
+		if !strings.Contains(b.Reason, "does not permit Red steps") {
+			t.Errorf("refusal lost the window's reason: %s", b.Reason)
+		}
+		// And still quote the classifier.
+		if !strings.Contains(b.Reason, "test rationale") {
+			t.Errorf("refusal lost the rationale: %s", b.Reason)
+		}
+	})
+
+	t.Run("window open and permits Red", func(t *testing.T) {
+		g := safety.New(permissive()).WithWindows(stubWindows{allow: true, why: "open until 06:00"})
+		if err := g.CheckStep(red, live, safety.RunState{}); err != nil {
+			t.Errorf("an open permissive window should admit a Red step: %v", err)
+		}
+	})
+}
+
+// A window must not turn off the other rails. It unlocks Red; it does not
+// license draining the cluster to nothing.
+func TestAnOpenWindowDoesNotSuspendTheOtherRails(t *testing.T) {
+	g := safety.New(safety.Limits{MaxNodesPerRun: 2, MinReadyNodes: 2}).
+		WithWindows(stubWindows{allow: true, why: "open"})
+
+	live := &model.ClusterSnapshot{Nodes: []model.Node{node("a", 4000), node("b", 4000)}}
+
+	// Node floor still applies.
+	blockedBy(t, g.CheckStep(step(1, "a", model.ImpactRed), live, safety.RunState{}),
+		safety.RuleMinReadyNodes)
+
+	// Run cap still applies.
+	big := &model.ClusterSnapshot{Nodes: []model.Node{
+		node("a", 4000), node("b", 4000), node("c", 4000), node("d", 4000),
+	}}
+	blockedBy(t, g.CheckStep(step(1, "a", model.ImpactRed), big, safety.RunState{NodesDrainedSoFar: 2}),
+		safety.RuleMaxNodesPerRun)
+}
+
+// Windows are evaluated per node, so a step on an uncovered node is still
+// refused while one inside the window's scope is not.
+func TestRedIsCheckedAgainstTheStepsOwnNode(t *testing.T) {
+	live := &model.ClusterSnapshot{Nodes: []model.Node{
+		{Name: "batch-1", Ready: true, Labels: map[string]string{"pool": "batch"},
+			Allocatable: model.Resources{MilliCPU: 4000, MemoryBytes: 1 << 34, Pods: 110}},
+		{Name: "web-1", Ready: true, Labels: map[string]string{"pool": "web"},
+			Allocatable: model.Resources{MilliCPU: 4000, MemoryBytes: 1 << 34, Pods: 110}},
+	}}
+
+	// A stub that only covers the batch pool, the way a scoped window would.
+	scoped := scopedWindows{pool: "batch"}
+	g := safety.New(permissive()).WithWindows(scoped)
+
+	if err := g.CheckStep(step(1, "batch-1", model.ImpactRed), live, safety.RunState{}); err != nil {
+		t.Errorf("a node inside the window's scope should be permitted: %v", err)
+	}
+	blockedBy(t, g.CheckStep(step(2, "web-1", model.ImpactRed), live, safety.RunState{}),
+		safety.RuleRedRequiresWindow)
+}
+
+type scopedWindows struct{ pool string }
+
+func (s scopedWindows) AllowsRedOn(n model.Node) (bool, string) {
+	if n.Labels["pool"] == s.pool {
+		return true, "covered"
+	}
+	return false, "no open maintenance window covers node " + n.Name
+}

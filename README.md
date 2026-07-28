@@ -38,7 +38,14 @@ state on its own.
 | **M12** | Execution controls, live run, OIDC sign-in flow, plan pinning | **done** |
 | **M13** | End-to-end on KWOK: real drain, PDB block, Red refusal, SSO against Dex | **done** |
 
-Deferred beyond Phase 2: `MaintenanceWindow` CRD and scheduled execution,
+Phase 3 — maintenance windows.
+
+| Milestone | Scope | State |
+|---|---|---|
+| **M14** | `MaintenanceWindow` CRD; Red steps unlocked by an open window | **done** |
+| **M15** | Scheduled execution inside a window, within policy limits | planned |
+
+Deferred: scheduled automatic execution,
 Postgres store, multi-agent orchestration, and **closing the reclamation loop**
 — today a drained node looks the same whether an autoscaler is about to remove
 it or nothing ever will (see [Draining is not removing](#draining-is-not-removing)).
@@ -90,7 +97,6 @@ make down          # remove all three releases
 ## Layout
 
 ```
-api/v1alpha1/      CRD types (ConsolidationPolicy) — importable, not internal/
 cmd/               planner, ui-backend, executor — one dir per shipped image
 internal/
   model/           domain types; NO k8s imports, so the planner is testable from a YAML snapshot
@@ -116,10 +122,9 @@ test/ui/           guards that every request carries the token, and the token ne
 Structural rules worth preserving:
 
 - `internal/model` has **zero** Kubernetes imports. That is what lets the planner be tested against a fixture snapshot with no cluster.
-- `api/` stays out of `internal/` so CRD types remain importable by other tools.
 - `demo/` is never referenced by the product chart. It installs as a separate release and can be torn down independently.
 - The no-Kubernetes-imports rule on `internal/model` is enforced by a test, not a convention. If it breaks, snapshots stop being plain data and the planner can no longer be tested without a cluster.
-- CRD YAML is generated into `config/crd/bases` and copied into the chart by make — never hand-maintained in two places.
+- CRD types live in `api/`, outside `internal/`, so they remain importable by other tools. CRD YAML is generated into `config/crd/bases` and copied into the chart by make — never hand-maintained in two places.
 
 ---
 
@@ -349,6 +354,61 @@ would bypass PodDisruptionBudgets entirely; that single choice is what makes
 every PDB guarantee in this product real. The executor's RBAC grants
 `create pods/eviction` and deliberately does **not** grant `delete pods`.
 
+### Maintenance windows
+
+Until M14, a Red step was refused outright — doc §9 confines them to "an
+approved maintenance window", and with no such object the safe reading was
+"never". The `MaintenanceWindow` CRD is that object.
+
+```yaml
+apiVersion: dencer.io/v1alpha1
+kind: MaintenanceWindow
+metadata: {name: sunday-night}
+spec:
+  schedule: "0 2 * * 0"        # five-field cron; descriptors like @every are rejected
+  duration: "4h"
+  timeZone: "Europe/London"    # required, no default — see below
+  allowRed: true               # off by default; a window does not unlock Red by itself
+  nodeSelector: {pool: batch}  # optional; empty means every node
+```
+
+```bash
+kubectl get mw
+# NAME           SCHEDULE    DURATION  ZONE            RED   ACTIVE  CLOSES
+# sunday-night   0 2 * * 0   4h        Europe/London   true  false
+```
+
+**Everything about this fails closed.** An unparseable schedule, an unknown or
+missing timezone, a suspended window, a window that cannot be read at all —
+each resolves to *closed*, and each says why. The asymmetry is deliberate: a
+window wrongly shut costs an operator some waiting; a window wrongly open costs
+an unattended drain of something that should not have been touched.
+
+Three specific choices worth knowing:
+
+- **`timeZone` is required with no default.** `time.LoadLocation("")` returns
+  UTC without an error, so a defaulted zone would silently open "Sunday 02:00"
+  at the wrong hour for most of the world — and, twice a year, for the person
+  who wrote it. A test covers exactly that.
+- **`allowRed` defaults to false.** Creating a window must not by itself unlock
+  the most dangerous class of step.
+- **Status is not the authorisation.** It refreshes on a 30-second sweep, so it
+  can read `ACTIVE=true` for a window suspended a moment ago. The Safety Guard
+  never consults it; it re-evaluates the spec against the clock on every check.
+
+Windows are read-only to every component — the executor may write their
+*status* and nothing else, so the thing that benefits from a permissive window
+cannot create one. `make lint` asserts it.
+
+CRDs are installed by Helm on install and **never on upgrade**, which is by
+design: a bad CRD change can orphan existing objects. After a chart upgrade
+that changes one:
+
+```bash
+make crds         # regenerate manifests from the Go types
+make crd-upgrade  # apply them to the cluster
+```
+
 ### The Safety Guard
 
 [`internal/safety`](internal/safety/safety.go) — architecture doc §9, enforced in
@@ -357,15 +417,17 @@ Each rail is named in the audit event that blocks on it.
 
 | Rule | Refuses |
 |---|---|
-| `RedRequiresWindow` | any Red step — maintenance windows are Phase 3, so there is no window to be inside |
+| `RedRequiresWindow` | a Red step with no open window covering its node that permits Red |
 | `MaxNodesPerRun` | draining more than `safety.maxNodesPerRun` in one request |
 | `MinReadyNodes` | dropping below `safety.minReadyNodes` schedulable nodes |
 | `StepFreshness` | a step whose pods no longer have anywhere to go |
 | `PDBHeadroom` | an eviction the budget cannot absorb, re-checked per pod |
 | `NodeNotFound` | a target node that has vanished |
 
-**Red is not configurable.** There is no value that permits it. Exposing one
-would turn a safety rail into a footgun.
+**Red is not unlocked by a chart value.** There is no `safety.allowRed`.
+Unlocking it takes a `MaintenanceWindow` that is open, covers the step's node,
+and sets `allowRed` — a decision scoped to a time and a set of machines, rather
+than a global switch someone flips and forgets.
 
 The guard predicts; the executor then **verifies reality**. This is the
 deliberate alternative to importing kube-scheduler's framework (doc §7): after

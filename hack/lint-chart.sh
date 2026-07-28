@@ -139,6 +139,29 @@ if grep -q "name: dencer-k8s-dencer-executor$" <<<"$(awk '/^kind: Service$/,/^--
 fi
 green "  executor has no Service"
 
+bold "==> contract: nothing can widen a maintenance window"
+# A window is the only thing that unlocks a Red step. The executor reads them
+# and writes their status, but must never be able to edit a spec — otherwise
+# the component that benefits from a permissive window could create one.
+for role in read executor; do
+  block="$(awk "/name: dencer-k8s-dencer-$role\$/,/^---/" <<<"$with_executor")"
+  if awk '
+      /resources:.*\["maintenancewindows"\]/ { want = 1; next }
+      /^      - maintenancewindows$/           { want = 1; next }
+      /verbs:/ && want { print; want = 0 }
+    ' <<<"$block" | grep -qE 'create|update|patch|delete'; then
+    fail "the $role ClusterRole can write maintenancewindows; only their status may be written"
+  fi
+done
+green "  windows are read-only to every component"
+
+bold "==> contract: the CRD ships with the chart"
+[[ -f "$CHART/crds/dencer.io_maintenancewindows.yaml" ]] \
+  || fail "the MaintenanceWindow CRD is missing from $CHART/crds"
+grep -q "scope: Cluster" "$CHART/crds/dencer.io_maintenancewindows.yaml" \
+  || fail "MaintenanceWindow should be cluster-scoped"
+green "  MaintenanceWindow CRD present and cluster-scoped"
+
 bold "==> contract: the executor cannot be enabled into an unsafe configuration"
 if helm template dencer "$CHART" --set executor.enabled=true --set auth.enabled=false >/dev/null 2>&1; then
   fail "schema accepted an executor with authentication disabled"

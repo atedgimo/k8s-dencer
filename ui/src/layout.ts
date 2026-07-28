@@ -19,6 +19,23 @@ import { GraphPayload, PlanStep } from "./api";
 export const POD_SIZE = 22;
 export const POD_GAP = 4;
 export const POD_COLS = 4;
+
+/**
+ * Widest a node box is allowed to get, in pod columns.
+ *
+ * Boxes are sized to the busiest node in the whole plan so the grid never
+ * reflows while scrubbing. With four columns that made a node peaking at 28
+ * pods seven rows tall, and since most nodes hold three or four, the field
+ * became mostly empty box. Widening instead of heightening keeps the box near
+ * square and the field dense.
+ */
+const MAX_POD_COLS = 10;
+
+/** Columns for a box that must hold `peak` pods without becoming a tower. */
+export function podColumns(peak: number): number {
+  if (peak <= POD_COLS * 2) return POD_COLS;
+  return Math.min(MAX_POD_COLS, Math.ceil(Math.sqrt(peak * 1.6)));
+}
 export const NODE_HEADER = 26;
 export const NODE_PAD = 8;
 export const NODE_GAP_X = 34;
@@ -146,8 +163,9 @@ export function computeLayout(
   maxPodsPerNode: number,
   columns: number,
 ): Positioned {
-  const rows = Math.max(2, Math.ceil(maxPodsPerNode / POD_COLS));
-  const innerWidth = POD_COLS * POD_SIZE + (POD_COLS - 1) * POD_GAP;
+  const cols = podColumns(maxPodsPerNode);
+  const rows = Math.max(2, Math.ceil(maxPodsPerNode / cols));
+  const innerWidth = cols * POD_SIZE + (cols - 1) * POD_GAP;
   const innerHeight = rows * POD_SIZE + (rows - 1) * POD_GAP;
   const nodeWidth = innerWidth + NODE_PAD * 2;
   const nodeHeight = innerHeight + NODE_HEADER + NODE_PAD;
@@ -179,8 +197,8 @@ export function computeLayout(
     here.forEach((pod, j) => {
       load += pod.cpuRequest;
       if (pod.movable) movable++;
-      const pc = j % POD_COLS;
-      const pr = Math.floor(j / POD_COLS);
+      const pc = j % cols;
+      const pr = Math.floor(j / cols);
       // Top-left origin. Positions were centres while this fed Cytoscape;
       // the packing field places absolutely-positioned elements instead, and
       // half-box offsets everywhere were pure friction.
