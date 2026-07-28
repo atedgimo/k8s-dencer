@@ -53,14 +53,33 @@ func ownerKey(pod model.Pod) string {
 	return pod.Namespace + "/" + pod.Owner.Kind + "/" + pod.Owner.Name
 }
 
+// Readiness is how the executor decides a replacement pod counts.
+type Readiness string
+
+const (
+	// ReadinessReady waits for the pod's Ready condition. The correct answer
+	// on a real cluster: a pod can be Running and failing its probes, and
+	// treating that as recovered drains the next node while the service is
+	// still down.
+	ReadinessReady Readiness = "Ready"
+
+	// ReadinessRunning waits only for the phase.
+	//
+	// Exists for KWOK. stage-fast's pod-ready Stage selector matches only
+	// `phase In [Pending]`, so a fake pod that reaches Running never becomes
+	// Ready and a Ready-based wait hangs forever. Correct on the fabric,
+	// wrong on a real cluster — which is why the default is Ready and the
+	// KWOK overlay is the only thing that changes it.
+	ReadinessRunning Readiness = "Running"
+)
+
 // healthy reports whether a pod counts towards a workload having recovered.
-//
-// The domain model carries no readiness condition — only phase — so recovery
-// is verified at Running rather than Ready. That is weaker than it sounds in
-// one direction and stronger in another: it will not catch a pod that starts
-// and then fails its probes, but it also sidesteps the KWOK trap where
-// stage-fast's pod-ready Stage matches only `phase In [Pending]`, so a fake pod
-// reaching Running never becomes Ready and a Ready-based wait hangs forever.
-func healthy(pod model.Pod) bool {
-	return pod.Phase == model.PodRunning && !pod.Terminating
+func healthy(pod model.Pod, criterion Readiness) bool {
+	if pod.Terminating || pod.Phase != model.PodRunning {
+		return false
+	}
+	if criterion == ReadinessRunning {
+		return true
+	}
+	return pod.Ready
 }

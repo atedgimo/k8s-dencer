@@ -95,6 +95,7 @@ func run(ctx context.Context, log *slog.Logger) error {
 		SettleTimeout: duration(log, "SETTLE_TIMEOUT", 5*time.Minute),
 		PollInterval:  duration(log, "CLUSTER_POLL_INTERVAL", 2*time.Second),
 		Windows:       windows,
+		Readiness:     executor.Readiness(env("EXECUTOR_READINESS", string(executor.ReadinessReady))),
 	})
 
 	health := &httpserver.Health{}

@@ -51,6 +51,7 @@ func convertPod(p *corev1.Pod, ownerOf ownerResolver) model.Pod {
 		Requests:     effectiveRequests(p),
 		NodeSelector: p.Spec.NodeSelector,
 		Terminating:  p.DeletionTimestamp != nil,
+		Ready:        podReady(p),
 	}
 
 	if p.Spec.Priority != nil {
@@ -247,4 +248,19 @@ func convertSelectorRequirements(reqs []corev1.NodeSelectorRequirement) []model.
 		})
 	}
 	return out
+}
+
+// podReady reports the pod's Ready condition.
+//
+// Read from conditions rather than inferred from the phase: Running means the
+// kubelet started the containers, Ready means the pod is actually serving. The
+// executor waits on the latter, because a workload whose replacement started
+// and then failed its probes has not recovered.
+func podReady(p *corev1.Pod) bool {
+	for _, c := range p.Status.Conditions {
+		if c.Type == corev1.PodReady {
+			return c.Status == corev1.ConditionTrue
+		}
+	}
+	return false
 }

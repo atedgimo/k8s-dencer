@@ -84,6 +84,13 @@ type Pod struct {
 	PodAffinity    *PodAffinity               `json:"podAffinity,omitempty"`
 	TopologySpread []TopologySpreadConstraint `json:"topologySpread,omitempty"`
 
+	// Ready is the pod's Ready condition, not its phase.
+	//
+	// The distinction is load-bearing for the executor. A pod can be Running
+	// and failing its probes, and treating that as recovered means draining the
+	// next node while the service is still down. Phase alone cannot see it.
+	Ready bool `json:"ready"`
+
 	Owner            *OwnerRef `json:"owner,omitempty"`
 	PriorityClass    string    `json:"priorityClass,omitempty"`
 	Priority         int32     `json:"priority,omitempty"`

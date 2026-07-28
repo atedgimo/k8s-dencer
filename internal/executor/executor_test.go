@@ -32,6 +32,10 @@ type fakeCluster struct {
 	// replaceOnEvict recreates an evicted pod on another node, the way a
 	// ReplicaSet would. Off for tests that need a workload to stay down.
 	replaceOnEvict bool
+	// replacementReady controls whether the recreated pod passes its probes.
+	// False models the case that matters on a real cluster: the pod starts,
+	// reports Running, and never becomes Ready.
+	replacementReady bool
 	// evictErr fails eviction of a specific pod key.
 	evictErr map[string]error
 	// uncordonErr fails uncordon, to exercise the "needs manual repair" path.
@@ -107,6 +111,7 @@ func (f *fakeCluster) Evict(_ context.Context, namespace, name string) error {
 		repl.Name = fmt.Sprintf("%s-r%d", evicted.Name, f.replacement)
 		repl.NodeName = f.someOtherSchedulableNode(evicted.NodeName)
 		repl.Phase = model.PodRunning
+		repl.Ready = f.replacementReady
 		f.snap.Pods = append(f.snap.Pods, repl)
 	}
 	return nil
@@ -151,6 +156,10 @@ func testNode(name string) model.Node {
 func testPod(ns, name, node, owner string) model.Pod {
 	return model.Pod{
 		Namespace: ns, Name: name, NodeName: node, Phase: model.PodRunning,
+		// A healthy cluster: Running and passing probes. The executor compares
+		// readiness before and after, so a fixture where nothing is ever Ready
+		// would make the recovery check vacuous.
+		Ready:    true,
 		Labels:   map[string]string{"app": owner},
 		Requests: model.Resources{MilliCPU: 500, MemoryBytes: 1 << 28},
 		Owner:    &model.OwnerRef{Kind: "ReplicaSet", Name: owner},
@@ -165,6 +174,14 @@ type harness struct {
 }
 
 func newHarness(t *testing.T, snap model.ClusterSnapshot, steps []model.PlanStep, limits safety.Limits) *harness {
+	t.Helper()
+	// Deliberately leaves Readiness unset, so every existing test also asserts
+	// that the default is the strict criterion.
+	return newHarnessWithReadiness(t, snap, steps, limits, "")
+}
+
+func newHarnessWithReadiness(t *testing.T, snap model.ClusterSnapshot, steps []model.PlanStep,
+	limits safety.Limits, readiness executor.Readiness) *harness {
 	t.Helper()
 
 	db, err := sqlitestore.Open(filepath.Join(t.TempDir(), "exec.db"))
@@ -188,7 +205,10 @@ func newHarness(t *testing.T, snap model.ClusterSnapshot, steps []model.PlanStep
 		t.Fatal(err)
 	}
 
-	cluster := &fakeCluster{snap: snap, replaceOnEvict: true, evictErr: map[string]error{}}
+	cluster := &fakeCluster{
+		snap: snap, replaceOnEvict: true, replacementReady: true,
+		evictErr: map[string]error{},
+	}
 	return &harness{
 		cluster: cluster,
 		db:      db,
@@ -196,7 +216,7 @@ func newHarness(t *testing.T, snap model.ClusterSnapshot, steps []model.PlanStep
 		exec: executor.New(cluster, db, db, slog.New(slog.DiscardHandler), executor.Options{
 			Worker: "test-worker", Limits: limits,
 			StepTimeout: 5 * time.Second, SettleTimeout: 2 * time.Second,
-			PollInterval: time.Millisecond,
+			PollInterval: time.Millisecond, Readiness: readiness,
 		}),
 	}
 }
@@ -577,5 +597,65 @@ func TestApiServerEvictionRefusalIsTreatedAsAGuardBlock(t *testing.T) {
 	}
 	if h.cluster.nodeCordoned("a") {
 		t.Error("node left cordoned after an API-server refusal")
+	}
+}
+
+// The gap M15 closes, and the only one in this product that can cause an
+// outage rather than an inconvenience.
+//
+// A replacement pod that starts and then fails its probes is Running but not
+// Ready. Verifying at Running would call that recovered and drain the next
+// node while the service is still down.
+func TestReplacementThatNeverBecomesReadyFailsTheStep(t *testing.T) {
+	h := newHarness(t, model.ClusterSnapshot{
+		Nodes: []model.Node{testNode("a"), testNode("b")},
+		Pods:  []model.Pod{testPod("app", "web-1", "a", "web")},
+	}, []model.PlanStep{step(1, "a", model.ImpactGreen)}, permissive())
+
+	// The pod comes back, and stays unhealthy.
+	h.cluster.replacementReady = false
+
+	run := h.request(t, []int{1}, false)
+
+	if run.Status != store.RunFailed {
+		t.Fatalf("status = %s (%s), want Failed — the workload never became ready",
+			run.Status, run.Summary)
+	}
+	if !strings.Contains(run.Summary, "did not recover") {
+		t.Errorf("summary should explain the failure: %s", run.Summary)
+	}
+	if h.cluster.nodeCordoned("a") {
+		t.Error("node left cordoned after a failed verification")
+	}
+}
+
+// The KWOK escape hatch. On the fabric a fake pod reaches Running and never
+// becomes Ready, so the strict criterion would hang every demo drain forever.
+func TestRunningCriterionAcceptsAPodThatIsNeverReady(t *testing.T) {
+	h := newHarnessWithReadiness(t, model.ClusterSnapshot{
+		Nodes: []model.Node{testNode("a"), testNode("b")},
+		Pods:  []model.Pod{testPod("app", "web-1", "a", "web")},
+	}, []model.PlanStep{step(1, "a", model.ImpactGreen)}, permissive(), executor.ReadinessRunning)
+
+	h.cluster.replacementReady = false
+
+	if run := h.request(t, []int{1}, false); run.Status != store.RunSucceeded {
+		t.Errorf("status = %s (%s), want Succeeded under the Running criterion",
+			run.Status, run.Summary)
+	}
+}
+
+// An unset criterion must never silently mean the weaker one.
+func TestReadinessDefaultsToTheStrictCriterion(t *testing.T) {
+	h := newHarness(t, model.ClusterSnapshot{
+		Nodes: []model.Node{testNode("a"), testNode("b")},
+		Pods:  []model.Pod{testPod("app", "web-1", "a", "web")},
+	}, []model.PlanStep{step(1, "a", model.ImpactGreen)}, permissive())
+	h.cluster.replacementReady = false
+
+	// newHarness leaves Options.Readiness unset.
+	if run := h.request(t, []int{1}, false); run.Status != store.RunFailed {
+		t.Errorf("an unset readiness criterion behaved as Running; it must default to Ready (%s)",
+			run.Status)
 	}
 }

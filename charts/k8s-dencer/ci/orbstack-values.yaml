@@ -70,6 +70,11 @@ persistence:
 # one profile that turns it on; the product defaults keep it off.
 executor:
   enabled: true
+  # KWOK's fake pods reach Running and never become Ready — stage-fast's
+  # pod-ready Stage selector matches only `phase In [Pending]`. The strict
+  # criterion would hang every drain on the fabric forever. This is the only
+  # profile allowed to weaken it.
+  readiness: Running
   image:
     registry: ""
     repository: k8s-dencer-executor
