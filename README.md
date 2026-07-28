@@ -552,9 +552,32 @@ A node-consolidation planner cannot be tested on a single-node cluster. [KWOK](h
 ```bash
 make kwok-up                        # upstream kwok + stage-fast charts (pinned 0.3.0 / app v0.8.0)
 make demo-up                        # 30 fake nodes across 3 zones + the base workload
+make demo-up SCALE=medium           # 200 nodes / 2000 pods — the largest safe locally
 make scenario S=b-pdb-blocked       # switch constraint scenario
 make demo-down && make kwok-down
 ```
+
+### The fabric has a ceiling, on purpose
+
+KWOK nodes are free — no kubelets — but **the pods on them are not**. Every pod
+is a real API object held in the API server's watch cache and again in
+k8s-dencer's own informer cache, and the planner will try to analyse all of
+them. `constraints.Analyze` is roughly cubic today
+([docs/benchmarks.md](docs/benchmarks.md)), so a fabric of tens of thousands
+does not run slowly — it pegs a core for hours while the executor lists every
+pod every two seconds, and takes the control plane with it.
+
+The chart therefore refuses to build one:
+
+| tier | size | for |
+|---|---|---|
+| default | 30 nodes, 90 pods | the everyday demo |
+| `SCALE=medium` | 200 nodes, 2000 pods | validating informer and executor read paths |
+| ceiling | 200 nodes / 3000 pods | `--set fabric.acknowledgeLarge=true` to override |
+
+**Scale numbers come from `make bench`, not from a large fabric.** It exercises
+the same code paths over generated clusters with no cluster at all, which is why
+5,000 pods can be measured in seconds on a laptop that could not host them.
 
 **After an executor run, reset the fabric before switching scenarios.**
 Cordoning a node makes the node controller add
