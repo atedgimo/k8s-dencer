@@ -26,31 +26,48 @@ const STORAGE_KEY = "dencer.token";
  * M12 replaces manual entry with an OIDC redirect flow, at which point this
  * becomes the fallback for installs without an issuer configured.
  */
+// Memory is the source of truth; sessionStorage only lets a token survive a
+// reload.
+//
+// It used to be storage-only, with a swallowed exception. Any browser that
+// blocks storage — private mode, strict privacy settings, an embedded webview
+// — therefore dropped the token silently: you pasted, clicked Continue, and
+// the form came back with no explanation, forever. Holding it in memory means
+// the session works regardless, and only persistence is lost.
+let inMemory: string | null = null;
+
+/** True when the token could not be persisted, so a reload will lose it. */
+export let storageUnavailable = false;
+
 export const token = {
   get(): string | null {
+    if (inMemory !== null) return inMemory;
     try {
-      return sessionStorage.getItem(STORAGE_KEY);
+      inMemory = sessionStorage.getItem(STORAGE_KEY);
     } catch {
-      // Storage can be blocked outright by browser settings. Losing the token
-      // on reload is a far better outcome than failing to render.
-      return null;
+      storageUnavailable = true;
+      inMemory = null;
     }
+    return inMemory;
   },
 
   set(value: string): void {
+    inMemory = value.trim();
     try {
-      sessionStorage.setItem(STORAGE_KEY, value.trim());
+      sessionStorage.setItem(STORAGE_KEY, inMemory);
     } catch {
-      /* non-fatal; see get() */
+      // The session still works; it just will not outlive a reload.
+      storageUnavailable = true;
     }
     notify();
   },
 
   clear(): void {
+    inMemory = null;
     try {
       sessionStorage.removeItem(STORAGE_KEY);
     } catch {
-      /* non-fatal */
+      storageUnavailable = true;
     }
     notify();
   },
