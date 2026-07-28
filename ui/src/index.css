@@ -1373,3 +1373,64 @@
   color: var(--risk-red);
   font-size: 0.78rem;
 }
+
+/* --------------------------------------------- next move and plan age */
+
+.verdict-age {
+  color: var(--graphite-dim);
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
+/* Amber, not red: an ageing plan is worth knowing about, not a failure. It
+   shares the Yellow of "needs a human" rather than introducing a new hue. */
+.verdict-age-stale {
+  color: var(--risk-yellow);
+}
+
+.verdict-nodes {
+  color: var(--chalk);
+}
+
+.verdict-nodes-more {
+  color: var(--graphite-dim);
+}
+
+.verdict-cost {
+  color: var(--chalk);
+}
+
+/* ------------------------------------------------------ ledger progress */
+
+.ledger-progress {
+  height: 2px;
+  margin: 0 1rem 0.5rem;
+  background: var(--panel-sunken);
+}
+
+.ledger-progress-fill {
+  height: 100%;
+  background: var(--fill-75);
+  transition: width var(--step-slow) var(--ease-out);
+}
+
+/* The way into the full list. Deliberately quiet: arbitrary selection is the
+   advanced path, since out-of-order execution packs worse. */
+.ledger-more {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 1rem 0.9rem;
+  font-size: 0.74rem;
+  color: var(--graphite);
+  text-align: left;
+  background: transparent;
+  border: 0;
+}
+
+.ledger-more:hover {
+  color: var(--chalk);
+}
+
+.ledger-more-hint {
+  color: var(--graphite-dim);
+}

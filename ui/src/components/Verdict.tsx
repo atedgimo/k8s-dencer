@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { GraphStats, Impact, PlanStep } from "../api";
 import { GLYPH } from "./Impact";
 
@@ -19,6 +20,15 @@ import { GLYPH } from "./Impact";
 interface Props {
   stats: GraphStats;
   steps: PlanStep[];
+  /**
+   * When the plan was last confirmed against the cluster — the store's
+   * storedAt, not the plan's generatedAt.
+   *
+   * An unchanged plan keeps its original generatedAt however many times the
+   * planner re-verifies it, so that field reported a perfectly current plan as
+   * hours stale. Confirmation is the question a reader is actually asking.
+   */
+  generatedAt: string;
   onFocusRating: (impact: Impact | null) => void;
   focusedRating: Impact | null;
   onRun: (dryRun: boolean) => void;
@@ -31,6 +41,7 @@ interface Props {
 export default function Verdict({
   stats,
   steps,
+  generatedAt,
   onFocusRating,
   focusedRating,
   onRun,
@@ -43,20 +54,40 @@ export default function Verdict({
   const red = stats.ratings.Red ?? 0;
 
   const custom = picked.length > 0;
-  const runCount = custom ? picked.length : green;
-  const hasYellow = picked.some((s) => s.impact === "Yellow");
+  // What the button would actually run: the ticked steps, or the Green ones.
+  const willRun = custom ? picked : steps.filter((s) => s.impact === "Green");
+  const runCount = willRun.length;
+  const hasYellow = willRun.some((s) => s.impact === "Yellow");
+  const podsMoving = willRun.reduce((n, s) => n + s.moves.length, 0);
+  const nodeNames = willRun.map((s) => s.targetNode).filter(Boolean) as string[];
+  const laterCount = steps.length - runCount;
 
   return (
     <header className="verdict">
       <div className="verdict-main">
-        <p className="verdict-eyebrow mono">consolidation plan</p>
+        <p className="verdict-eyebrow mono">
+          consolidation plan <PlanAge generatedAt={generatedAt} />
+        </p>
         <h1 className="verdict-line">
           Reclaim <span className="verdict-figure num">{stats.reclaimed}</span> of{" "}
           <span className="num">{stats.nodesBefore}</span> nodes
         </h1>
-        <p className="verdict-sub">
-          {describe(green, yellow, red)}
-        </p>
+        {/* The nodes, named. "Run the 5 safe steps" is abstract; a list of
+            machines is something an operator can picture and sanity-check
+            against what they know about their own cluster. */}
+        {nodeNames.length > 0 ? (
+          <p className="verdict-sub">
+            Next: drain{" "}
+            <span className="verdict-nodes mono">{nodeNames.slice(0, 4).join(", ")}</span>
+            {nodeNames.length > 4 && (
+              <span className="verdict-nodes-more"> +{nodeNames.length - 4} more</span>
+            )}
+            . <span className="verdict-cost">{podsMoving} pods move</span>
+            {laterCount > 0 && `, ${laterCount} step${laterCount === 1 ? "" : "s"} left after this`}.
+          </p>
+        ) : (
+          <p className="verdict-sub">{describe(green, yellow, red)}</p>
+        )}
       </div>
 
       <div className="verdict-breakdown">
@@ -126,6 +157,40 @@ export default function Verdict({
       </div>
     </header>
   );
+}
+
+/**
+ * How old the plan is.
+ *
+ * The honest uncertainty signal. Measured plan stability is 95–100% after a
+ * step runs, so dimming later steps would misrepresent them — what actually
+ * ages a plan is the cluster changing underneath it, and age is the only
+ * proxy for that the UI has. Ticks on its own so the number stays true
+ * without waiting for a re-fetch.
+ */
+function PlanAge({ generatedAt }: { generatedAt: string }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => tick((n) => n + 1), 15_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const seconds = Math.max(0, (Date.now() - new Date(generatedAt).getTime()) / 1000);
+  const stale = seconds > 300;
+  return (
+    <span className={stale ? "verdict-age verdict-age-stale" : "verdict-age"}>
+      · confirmed {describeAge(seconds)}
+      {stale && " — the cluster may have moved on"}
+    </span>
+  );
+}
+
+function describeAge(seconds: number): string {
+  if (seconds < 45) return "just now";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.round(minutes / 60);
+  return `${hours} hour${hours === 1 ? "" : "s"} ago`;
 }
 
 function Tally({
