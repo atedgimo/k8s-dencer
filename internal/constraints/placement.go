@@ -18,6 +18,9 @@ import (
 type Placement struct {
 	nodes     map[string]*nodeState
 	nodeOrder []string
+	// spread memoises per-domain pod counts for topology spread checks. See
+	// spreadindex.go — recomputing them per candidate node was the cubic term.
+	spread *spreadIndex
 }
 
 type nodeState struct {
@@ -29,6 +32,7 @@ type nodeState struct {
 // NewPlacement builds a working assignment from a snapshot's current state.
 func NewPlacement(snap *model.ClusterSnapshot) *Placement {
 	p := &Placement{
+		spread:    newSpreadIndex(),
 		nodes:     make(map[string]*nodeState, len(snap.Nodes)),
 		nodeOrder: make([]string, 0, len(snap.Nodes)),
 	}
@@ -56,6 +60,9 @@ func (p *Placement) Clone() *Placement {
 	out := &Placement{
 		nodes:     make(map[string]*nodeState, len(p.nodes)),
 		nodeOrder: append([]string(nil), p.nodeOrder...),
+		// Cloned rather than shared: a trial placement must not write its
+		// speculative counts back into the placement it branched from.
+		spread: p.spread.clone(),
 	}
 	for name, ns := range p.nodes {
 		out.nodes[name] = &nodeState{
@@ -108,6 +115,7 @@ func (p *Placement) Place(pod model.Pod, nodeName string) {
 	pod.NodeName = nodeName
 	ns.occupants = append(ns.occupants, pod)
 	ns.free = ns.free.Sub(pod.Requests.Add(model.Resources{Pods: 1}))
+	p.adjustSpread(pod, nodeName, +1)
 }
 
 // Remove unassigns a pod from its current node, returning its freed resources.
@@ -118,8 +126,14 @@ func (p *Placement) Remove(pod model.Pod) {
 	}
 	for i, occupant := range ns.occupants {
 		if occupant.Namespace == pod.Namespace && occupant.Name == pod.Name {
+			node := pod.NodeName
 			ns.occupants = append(ns.occupants[:i], ns.occupants[i+1:]...)
 			ns.free = ns.free.Add(pod.Requests).Add(model.Resources{Pods: 1})
+			// Matched on the occupant's own labels, not the caller's copy:
+			// Place stores the pod as given, and a caller passing a
+			// differently-labelled copy to Remove would otherwise leave the
+			// index counting a pod that is no longer there.
+			p.adjustSpread(occupant, node, -1)
 			return
 		}
 	}
@@ -378,23 +392,31 @@ func (p *Placement) fitsTopologySpread(pod model.Pod, nodeName string) (bool, st
 // domainCounts tallies matching pods per topology domain, excluding the pod
 // being placed. Every domain present in the cluster is seeded at zero so an
 // empty domain still counts toward the skew calculation.
+//
+// Served from the memoised index rather than by walking the cluster. The pod
+// under consideration is subtracted here rather than skipped during counting:
+// the index is shared across candidate nodes, and which pod is excluded is the
+// only part that varies per call.
 func (p *Placement) domainCounts(pod model.Pod, tsc model.TopologySpreadConstraint) map[string]int {
-	counts := map[string]int{}
-	for _, name := range p.nodeOrder {
-		ns := p.nodes[name]
-		domain, ok := ns.node.Labels[tsc.TopologyKey]
-		if !ok {
-			continue
-		}
-		if _, seen := counts[domain]; !seen {
-			counts[domain] = 0
-		}
-		for _, occupant := range ns.occupants {
-			if sameKey(pod, occupant) {
-				continue
-			}
-			if tsc.LabelSelector.Matches(occupant.Labels) && occupant.Namespace == pod.Namespace {
-				counts[domain]++
+	cached := p.spreadCounts(pod.Namespace, tsc)
+
+	// Copied because the caller increments the candidate domain, and the index
+	// must not absorb a speculative placement.
+	counts := make(map[string]int, len(cached))
+	for d, c := range cached {
+		counts[d] = c
+	}
+
+	// If the pod is currently placed and matches its own selector, the index
+	// counted it. It must not count toward the spread it is being moved out of.
+	if ns, ok := p.nodes[pod.NodeName]; ok {
+		if domain, ok := ns.node.Labels[tsc.TopologyKey]; ok {
+			for _, occupant := range ns.occupants {
+				if sameKey(pod, occupant) && tsc.LabelSelector.Matches(occupant.Labels) &&
+					occupant.Namespace == pod.Namespace {
+					counts[domain]--
+					break
+				}
 			}
 		}
 	}

@@ -9,6 +9,25 @@ measured at thousands of pods without standing anything up.
 Apple M-series laptop, Go 1.26, `-benchtime 1x`. Absolute numbers will differ on
 other hardware; **the growth curves are the point.**
 
+## After M18 — the spread index
+
+`Placement.domainCounts` is memoised and maintained incrementally
+([spreadindex.go](../internal/constraints/spreadindex.go)).
+
+| Stage | 119 | 916 | 2,526 | 5,026 | Speedup at 5k |
+|---|---|---|---|---|---|
+| `constraints.Analyze` | 0.5 ms | 16 ms | **90 ms** | **298 ms** | **112×** |
+| `planner.Greedy.Plan` | 0.16 ms | 17 ms | **110 ms** | **466 ms** | — |
+
+**The growth curve is the real result.** Doubling from 2,526 to 5,026 pods used
+to cost 7.6× the time; it now costs 3.3×. Cubic became roughly quadratic.
+
+A full analyse-and-plan cycle at 2,526 pods went from **5.9 s to 0.2 s**, which
+moves the usable ceiling from ~1–2k pods to comfortably past 5k against a
+30-second resync.
+
+Golden planner tests unchanged — byte-identical plans from the same fixture.
+
 ## Baseline — before any Phase 4 optimisation
 
 | Stage | 119 pods | 916 pods | 2,526 pods | 5,026 pods | Growth |
