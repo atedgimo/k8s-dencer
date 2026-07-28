@@ -70,13 +70,31 @@ green() { printf '\033[32m%s\033[0m\n' "$*"; }
 bold()  { printf '\033[1m%s\033[0m\n' "$*"; }
 fail()  { red "FAIL: $*"; exit 1; }
 
+# Runs on success, on failure, and on Ctrl-C alike.
+cleanup_on_exit() { restore_context; }
+
+# Whatever context the operator was on before this ran. k3d switches the
+# current context on create and never switches back, so without this the script
+# silently leaves every later kubectl and `make` pointed at a throwaway cluster
+# — which surfaces much later as "namespaces k8s-dencer not found".
+PRIOR_CONTEXT="$(kubectl config current-context 2>/dev/null || true)"
+
+restore_context() {
+  [[ -n "$PRIOR_CONTEXT" ]] || return 0
+  kubectl config get-contexts -o name 2>/dev/null | grep -qx "$PRIOR_CONTEXT" || return 0
+  kubectl config use-context "$PRIOR_CONTEXT" >/dev/null 2>&1 || true
+}
+
 teardown() {
   k3d cluster delete "$CLUSTER" >/dev/null 2>&1 || true
   docker rm -f dencer-dex dencer-keycloak >/dev/null 2>&1 || true
+  restore_context
   green "torn down"
 }
 
 if [[ "${1:-}" == "clean" ]]; then teardown; exit 0; fi
+
+trap cleanup_on_exit EXIT
 
 for tool in k3d docker openssl htpasswd helm kubectl; do
   command -v "$tool" >/dev/null || fail "$tool is required"
@@ -262,7 +280,7 @@ green "  installed on a second, differently-provisioned cluster"
 
 kubectl --context "$CTX" port-forward -n k8s-dencer svc/k8s-dencer-ui-backend 8092:8080 >/dev/null 2>&1 &
 PF=$!
-trap 'kill $PF 2>/dev/null || true' EXIT
+trap 'kill $PF 2>/dev/null || true; cleanup_on_exit' EXIT
 sleep 4
 
 bold "==> the authorization matrix, with a real IdP token"
@@ -301,6 +319,8 @@ EXEC="$(code -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: applica
 green "  execute permission      -> $EXEC (not 403)"
 
 echo
+restore_context
+green "Your kubectl context is back on ${PRIOR_CONTEXT:-its previous cluster}."
 green "Tier-1 single sign-on verified against ${IDP}: an ID token from the
 cluster's own issuer is a Kubernetes credential, and access is one RoleBinding
 against ${SUBJECT_FLAG#--}. Run '$0 clean' to tear it all down."
