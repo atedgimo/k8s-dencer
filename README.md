@@ -7,7 +7,8 @@ k8s-dencer continuously analyzes your Kubernetes cluster's constraints (PDBs, to
 
 **Execution is opt-in, gated, and off by default.** Set `executor.enabled=true` and a separate workload — its own image, its own ServiceAccount, no inbound network surface — becomes able to cordon and evict. Everything else stays read-only: `make lint` fails the build if `pods/eviction` appears on any role but the executor's, or in any profile that did not ask for one.
 
-Full design: [docs/k8s-consolidation-agent-architecture.md](docs/k8s-consolidation-agent-architecture.md)
+Open source under the [MIT License](LICENSE). Full design:
+[docs/k8s-consolidation-agent-architecture.md](docs/k8s-consolidation-agent-architecture.md)
 
 ---
 
@@ -957,4 +958,9 @@ make demo CLUSTER_PROVIDER=k3d
 
 ## License
 
-[MIT](LICENSE).
+[MIT](LICENSE) — Copyright (c) 2026 Moti Atedgi.
+
+Use it, fork it, ship it commercially; keep the copyright notice. No warranty,
+which is worth reading literally for a tool that can evict pods: the safety
+rails here are real and tested, but you are the one accountable for what runs
+against your cluster.

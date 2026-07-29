@@ -14,7 +14,7 @@
       "enabled": true,
       "firstName": "Alice",
       "lastName": "Operator",
-      "credentials": [{ "type": "password", "value": "dencer", "temporary": false }],
+      "credentials": [{ "type": "password", "value": "__USER_PASSWORD__", "temporary": false }],
       "groups": ["/platform-sre"]
     },
     {
@@ -24,7 +24,7 @@
       "enabled": true,
       "firstName": "Bob",
       "lastName": "Viewer",
-      "credentials": [{ "type": "password", "value": "dencer", "temporary": false }],
+      "credentials": [{ "type": "password", "value": "__USER_PASSWORD__", "temporary": false }],
       "groups": ["/read-only"]
     }
   ],
