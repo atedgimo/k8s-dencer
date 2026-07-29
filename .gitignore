@@ -12,3 +12,8 @@ ui/dist/
 *.db
 *.sqlite
 .DS_Store
+
+# Stray binaries from `go build ./cmd/<x>` without -o.
+/planner
+/executor
+/ui-backend

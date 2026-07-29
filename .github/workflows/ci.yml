@@ -1,0 +1,109 @@
+# Every gate this repo relies on, run by a machine instead of by whoever
+# remembered.
+#
+# Most of the project's safety story is "there is a test that fails if you
+# break it": the palette guards that keep the risk scale colour-blind-safe, the
+# ast check that no API route escapes authorization, the assertion that the
+# executor alone holds pods/eviction, the transform test that the informer
+# cache cannot drop a field the planner reads. None of those protected anything
+# until this file existed, because nothing ran them.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # So a scheduled run catches breakage from the outside world — a new
+  # Kubernetes schema, a yanked dependency — rather than the next contributor.
+  schedule:
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go:
+    name: go test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: vet
+        run: go vet ./...
+
+      - name: test
+        # -race because the planner, executor and HTTP servers all run
+        # concurrently in production and the tests exercise that.
+        run: go test -race -count=1 ./...
+
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l . | grep -v '^ui/' || true)"
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt would change these files:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+  chart:
+    name: chart contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: azure/setup-helm@v4
+
+      # hack/lint-chart.sh reads telemetry.MetricsPath out of the Go source and
+      # asserts the rendered templates agree, so this job needs the whole repo,
+      # not just charts/.
+      - name: lint
+        run: make lint
+
+  ui:
+    name: ui typecheck and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - run: npm ci
+      - run: npm run typecheck
+      # A build failure is a real failure: the frontend ships as a static
+      # bundle, so anything tsc lets through still has to survive Vite.
+      - run: npm run build
+
+  bench:
+    name: benchmarks compile and run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # Not a performance gate. A shared runner's timings are far too noisy to
+      # assert against, and a flaky red build teaches people to ignore CI.
+      # What this catches is the benchmarks silently rotting — the numbers in
+      # docs/benchmarks.md are load-bearing for Phase 4 decisions, and they are
+      # worthless if nobody can reproduce them.
+      - name: run benchmarks once
+        run: go test ./internal/planner/ -run '^$' -bench . -benchtime 1x -timeout 20m

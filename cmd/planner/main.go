@@ -100,8 +100,10 @@ func run(ctx context.Context, log *slog.Logger) error {
 	})
 
 	health := &httpserver.Health{}
+	metrics := telemetry.NewMetrics(telemetry.ComponentPlanner)
 	mux := http.NewServeMux()
 	health.Register(mux)
+	metrics.Register(mux)
 	mux.HandleFunc("GET /debug/snapshot", yamlHandler(func() any {
 		if v := latest.Load(); v != nil {
 			return v
@@ -143,7 +145,7 @@ func run(ctx context.Context, log *slog.Logger) error {
 	ticker := time.NewTicker(resync)
 	defer ticker.Stop()
 
-	collect(ctx, log, collector, &latest, &latestAnalysis, &latestPlan, strategy, planOpts, classifier, db, retain)
+	collect(ctx, log, collector, &latest, &latestAnalysis, &latestPlan, strategy, planOpts, classifier, db, retain, metrics)
 
 	for {
 		select {
@@ -154,7 +156,7 @@ func run(ctx context.Context, log *slog.Logger) error {
 		case err := <-serveErr:
 			return err
 		case <-ticker.C:
-			collect(ctx, log, collector, &latest, &latestAnalysis, &latestPlan, strategy, planOpts, classifier, db, retain)
+			collect(ctx, log, collector, &latest, &latestAnalysis, &latestPlan, strategy, planOpts, classifier, db, retain, metrics)
 		}
 	}
 }
@@ -171,10 +173,14 @@ func collect(
 	classifier impact.Classifier,
 	db store.Store,
 	retain int,
+	m *telemetry.Metrics,
 ) {
+	cycleStart := time.Now()
+
 	snap, err := c.Snapshot(ctx)
 	if err != nil {
 		log.Error("snapshot failed", "error", err)
+		m.SnapshotFailure.Inc()
 		return
 	}
 	latest.Store(snap)
@@ -207,6 +213,8 @@ func collect(
 		"podSlotsUsedPct", pct(pods),
 		"usageData", snap.HasUsageData,
 	)
+	m.SnapshotNodes.Set(float64(len(snap.Nodes)))
+	m.SnapshotPods.Set(float64(len(snap.Pods)))
 
 	analysis := constraints.Analyze(snap)
 	latestAnalysis.Store(analysis)
@@ -252,6 +260,17 @@ func collect(
 		"yellow", byRating[model.ImpactYellow],
 		"red", byRating[model.ImpactRed],
 	)
+
+	// Set every rating explicitly, including the zeroes. Leaving a label unset
+	// makes the series vanish from the scrape, and a missing series reads as a
+	// gap in a graph rather than as "no Red steps" — the opposite of the
+	// reassurance it should give.
+	for _, r := range []model.ImpactRating{model.ImpactGreen, model.ImpactYellow, model.ImpactRed} {
+		m.PlanSteps.WithLabelValues(string(r)).Set(float64(byRating[r]))
+	}
+	m.NodesReclaimed.Set(float64(plan.ReclaimedNodes()))
+	m.PlanProduced(time.Now())
+	m.PlanCycleTime.Observe(time.Since(cycleStart).Seconds())
 
 	stored, err := db.Save(ctx, store.Record{
 		Plan:     plan,

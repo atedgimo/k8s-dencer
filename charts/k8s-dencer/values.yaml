@@ -437,12 +437,39 @@ auth:
   # a fifth ever appears.
   mcpRequireToken: false
 
+# Observability. Every component serves Prometheus metrics on its existing HTTP
+# port at a fixed path — see telemetry.MetricsPath in the Go source, which
+# hack/lint-chart.sh asserts is the same string used below. A monitor pointing
+# at a path the code does not serve is worse than no monitor: it reports a
+# healthy scrape target that returns 404s.
 serviceMonitor:
+  # Scrapes ui-backend, the only component with a Service.
   # Requires the Prometheus Operator CRDs.
   enabled: false
   interval: 30s
   scrapeTimeout: 10s
   labels: {}
+
+podMonitor:
+  # Scrapes planner and executor.
+  #
+  # A PodMonitor rather than a Service, deliberately. The privilege split holds
+  # that the component reachable over the network cannot evict, and the one
+  # that can evict has no Service at all. Giving the executor a Service so
+  # Prometheus could find it would trade that property for a scrape target;
+  # a PodMonitor addresses pods directly and costs nothing.
+  enabled: false
+  interval: 30s
+  scrapeTimeout: 10s
+  labels: {}
+
+# Namespace Prometheus runs in.
+#
+# Load-bearing when networkPolicy.enabled and serviceMonitor.enabled are both
+# on: the ui-backend policy admits only the frontend and Kagent, so without
+# this the scrape is dropped at the network layer and the target simply reads
+# as down. Ignored when either is off.
+monitoringNamespace: monitoring
 
 # Kagent integration. Off by default so the chart installs on clusters that do
 # not have the kagent.dev CRDs.
