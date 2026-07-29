@@ -107,10 +107,19 @@ jobs:
           go-version-file: go.mod
           cache: true
       - uses: azure/setup-helm@v4
-      - uses: AbsaOSS/k3d-action@v2
-        with:
-          cluster-name: noop
-          command: version
+
+      # Installed directly rather than through a marketplace action. The one
+      # tried first was pinned to a k3d release that no longer exists, and it
+      # created a cluster of its own that hack/e2e.sh does not want — the
+      # script builds and tears down its own. Pinned so a k3d release cannot
+      # change what this job tests without a commit.
+      - name: install k3d
+        env:
+          K3D_VERSION: v5.9.0
+        run: |
+          curl -sfL https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh \
+            | TAG="$K3D_VERSION" bash
+          k3d version
 
       - name: e2e
         run: ./hack/e2e.sh
