@@ -1,5 +1,8 @@
 # k8s-dencer
 
+[![ci](https://github.com/atedgimo/k8s-dencer/actions/workflows/ci.yml/badge.svg)](https://github.com/atedgimo/k8s-dencer/actions/workflows/ci.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 k8s-dencer continuously analyzes your Kubernetes cluster's constraints (PDBs, topology spread, affinity, taints) and builds a node consolidation plan — broken into discrete, impact-rated steps you can inspect and run on your own terms, on request or during a maintenance window. Nothing executes without explicit approval.
 
 **Execution is opt-in, gated, and off by default.** Set `executor.enabled=true` and a separate workload — its own image, its own ServiceAccount, no inbound network surface — becomes able to cordon and evict. Everything else stays read-only: `make lint` fails the build if `pods/eviction` appears on any role but the executor's, or in any profile that did not ask for one.
@@ -55,7 +58,7 @@ estimated — every milestone here starts from a number in
 | **M17** | Data volume — gzipped plan blobs (23.8× at 5k pods), informer cache transform (−30% heap), paginated reads | **done** |
 | **M18** | Planner cost — memoised topology-spread counts, **112×** faster analysis at 5k pods | **done** |
 | **M19** | UI at scale — density rendering, virtualised field, aggregated graph payload | planned |
-| **M20** | `/metrics` on all three components; honest `serviceMonitor`; published images | planned |
+| **M20** | `/metrics` on all three components; monitors that scrape a real path; CI; published images | **done** |
 | **M21** | Multi-node k3d, PodSecurity enforcing, real ingress and StorageClass | planned |
 
 High availability and a Postgres store were **dropped, not deferred**: a
@@ -74,12 +77,25 @@ The planner watches the cluster through informers and publishes an immutable
 `ClusterSnapshot` every resync period:
 
 ```
-snapshot:    nodes=31 nodesOccupied=29 pods=121 pdbs=0 pdbsBlocking=0
+snapshot:    nodes=31 nodesOccupied=28 pods=121 pdbs=0 pdbsBlocking=0
              cpuRequestedPct=38.6% memRequestedPct=19.6% usageData=false
 constraints: movable=120 blocked=1 stuck=26 antiAffinity=0 spreadBound=1
              controllerPinned=1 nodesUndrainable=1
-plan:        id=283ba43a9d15 steps=16 nodesBefore=29 nodesAfter=13 reclaims=16
-             green=12 yellow=1 red=3
+plan:        id=754f04015304 steps=15 nodesBefore=28 nodesAfter=13 reclaims=15
+             green=12 yellow=0 red=3
+```
+
+The same numbers are on `/metrics`, which is the point of it — nothing is
+derived twice:
+
+```
+dencer_plan_age_seconds 4.181680473
+dencer_plan_nodes_reclaimable 15
+dencer_plan_steps{impact="Green"} 12
+dencer_plan_steps{impact="Yellow"} 0
+dencer_plan_steps{impact="Red"} 3
+dencer_snapshot_nodes 31
+dencer_snapshot_pods 121
 ```
 
 Plans are rated, explained, persisted, visualised, and answerable in natural
@@ -126,12 +142,14 @@ internal/
   executor/        the ONLY package that mutates a cluster: cordon, evict, verify, abort
   store/           Store interface + SQLite implementation and migrations
   auth/            TokenReview authn + SubjectAccessReview authz; no credential store of our own
+  telemetry/       structured logger + the Prometheus series each component publishes
   api/             rest/ (+ SSE events), graph/ (Cytoscape payload), agenttools/ (MCP)
 ui/                React + Vite; packing field in plain DOM, bundled typefaces
 charts/k8s-dencer/ THE product deliverable — see Chart below
 demo/              POC only: KWOK values + the synthetic topology chart
 build/             Dockerfile.go (parameterised by COMPONENT) + Dockerfile.ui
 hack/              lint-chart.sh — the portability gate
+.github/workflows/ ci.yml (every gate, on every PR) + release.yml (images and chart)
 test/fixtures/     ClusterSnapshots captured from a live cluster for golden tests
 test/palette/      guards the CVD mitigation: glyph+word per rating, chroma only for risk
 test/ui/           guards that every request carries the token, and the token never leaves the tab
@@ -188,6 +206,10 @@ Runs `helm lint` and `kubeconform --strict` across every profile, then asserts t
 15. the consolidation-operator ClusterRole ships **unbound**
 16. a NetworkPolicy is present by default, and restricts ingress only
 17. `auth.oidc.enabled=true` without an issuer and client ID is rejected
+18. the monitors scrape **the path the code actually serves** — read out of `telemetry.MetricsPath`, not repeated in the chart
+19. every component the chart scrapes **registers the metrics handler** in its `main.go`
+20. scraping **does not give the executor a Service** — planner and executor stay reachable only as pods
+21. enabling `serviceMonitor` makes the NetworkPolicy **admit the monitoring namespace**, or the scrape is silently dropped
 
 ### Known constraints
 
@@ -806,11 +828,112 @@ Verified end to end: the agent calls the tool, receives the classifier's exact w
 
 ---
 
+## Observability
+
+Every component serves Prometheus metrics at `/metrics` on the port it already
+listens on. The path is a Go constant, `telemetry.MetricsPath`, and `make lint`
+reads it out of the source and fails if the chart's monitors disagree.
+
+That assertion exists because the chart used to ship a `ServiceMonitor`
+scraping `/metrics` when **no component served `/metrics` at all**. A monitor
+aimed at a 404 is worse than no monitor: it presents as a configured target
+that is merely failing.
+
+```bash
+helm upgrade --install ... --set serviceMonitor.enabled=true --set podMonitor.enabled=true
+```
+
+**A `PodMonitor` for planner and executor, a `ServiceMonitor` for ui-backend.**
+Not an inconsistency — the executor holds `pods/eviction` and deliberately has
+no Service, so that the component able to evict is unreachable over the
+network. Giving it one so Prometheus could discover it would spend a security
+property on a scrape target. A `PodMonitor` addresses pods directly and costs
+nothing. `make lint` asserts no Service is ever rendered for either.
+
+If `networkPolicy.enabled` and `serviceMonitor.enabled` are both on, the policy
+admits `monitoringNamespace` (default `monitoring`). Without that the scrape is
+dropped at the network layer and the target simply reads as down, with nothing
+in the chart to explain why — so that is asserted too.
+
+### What is published
+
+Each component registers only the series it actually writes. The planner does
+not publish eviction metrics: a permanent zero would read as "evictions are
+fast" when the truth is that the process has never performed one. A missing
+series is a question; a series pinned at zero is a wrong answer.
+
+**Planner** — `dencer_plan_age_seconds`, `dencer_plan_steps{impact}`,
+`dencer_plan_nodes_reclaimable`, `dencer_snapshot_nodes`,
+`dencer_snapshot_pods`, `dencer_plan_cycle_seconds`,
+`dencer_snapshot_failures_total`
+
+**Executor** — `dencer_runs_total{status}`, `dencer_guard_refusals_total{rule}`,
+`dencer_eviction_duration_seconds`, `dencer_evictions_total{outcome}`,
+`dencer_nodes_drained_total`, `dencer_recovery_wait_seconds`
+
+**ui-backend** — Go runtime and process series only. It holds the SQLite writer,
+so heap and file descriptors are what an operator would look at; request
+counters are not there because no one has asked a question that needs them.
+
+Three properties are worth calling out, because each is a way this could have
+been quietly useless:
+
+- **Plan age is computed when scraped, not written by the planning loop.** A
+  gauge the loop sets would freeze at its last value if the loop died —
+  reporting a fresh plan at exactly the moment there is none. It reads `-1`
+  before the first plan, so a startup gap is distinguishable from a stall.
+- **Every impact rating is set explicitly, including the zeroes.** An unset
+  label vanishes from the scrape, and a missing series graphs as a gap rather
+  than as "no Red steps".
+- **A test parses the `Metrics` struct and fails on any field nothing writes.**
+  A metric with no writer scrapes as zero, and zero is indistinguishable from
+  healthy.
+
+---
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every push and pull request: `go vet`,
+`go test -race`, `gofmt`, `make lint`, the UI typecheck and build, and the
+benchmarks once through.
+
+Worth being blunt about why this arrived at M20 rather than M0. Much of this
+project's safety story is "there is a test that fails if you break it" — the
+palette guards that keep the risk scale colour-blind-safe, the ast check that no
+API route escapes authorization, the assertion that only the executor holds
+`pods/eviction`, the transform test that the informer cache cannot drop a field
+the planner reads. **None of those protected anything until CI existed**, because
+nothing ran them except whoever remembered to.
+
+The benchmark job is not a performance gate. A shared runner's timings are far
+too noisy to assert against, and a flaky red build teaches people to ignore CI.
+It catches the benchmarks rotting: the numbers in
+[docs/benchmarks.md](docs/benchmarks.md) drive Phase 4 decisions and are
+worthless if nobody can reproduce them.
+
+## Releases
+
+`.github/workflows/release.yml` publishes on a `v*` tag: four multi-arch images
+(`linux/amd64,linux/arm64`, with provenance and SBOM) to
+`ghcr.io/atedgimo/k8s-dencer-*`, then the packaged chart to
+`oci://ghcr.io/atedgimo/charts`.
+
+Until this existed the chart defaulted to those image references and nothing had
+ever pushed to them, so `helm install` could not work for anyone. The release
+job refuses to publish if `Chart.yaml`'s `version` and `appVersion` do not match
+the tag — `appVersion` selects the image tag, so a stale one would install a
+previous release's images without saying so.
+
+arm64 is not optional: the project is developed on Apple silicon, and an
+amd64-only image would fail to run on the machine that built it.
+
+---
+
 ## Development
 
 ```bash
 make build          # compile Go
-make test           # go vet + go test + UI typecheck
+make test           # go vet + go test + UI typecheck (CI adds -race)
 make images         # native-arch images for the local cluster
 make images-release # multi-arch linux/amd64,linux/arm64
 make deploy         # helm upgrade --install with the provider overlay
@@ -829,3 +952,9 @@ make logs           # tail the planner
 ```bash
 make demo CLUSTER_PROVIDER=k3d
 ```
+
+---
+
+## License
+
+[MIT](LICENSE).

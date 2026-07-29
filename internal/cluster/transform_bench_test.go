@@ -15,6 +15,9 @@ func TestTransformHeapSaving(t *testing.T) {
 	if testing.Short() {
 		t.Skip("allocates ~100k pods")
 	}
+	if raceEnabled {
+		t.Skip("heap measurement is meaningless under the race detector")
+	}
 	const n = 50000
 
 	measure := func(transform bool) uint64 {

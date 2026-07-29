@@ -1,8 +1,9 @@
 {{- if .Values.networkPolicy.enabled }}
 {{/*
 Restricts who may reach ui-backend. The frontend always may; Kagent may when
-the integration is on, since the agent calls the MCP endpoint directly.
-Anything else must be listed in networkPolicy.extraIngressFrom.
+the integration is on, since the agent calls the MCP endpoint directly, and
+Prometheus may when serviceMonitor is on. Anything else must be listed in
+networkPolicy.extraIngressFrom.
 */}}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -26,6 +27,15 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: {{ include "k8s-dencer.kagentNamespace" . }}
+        {{- end }}
+        {{- if .Values.serviceMonitor.enabled }}
+        {{/*
+        Prometheus must be admitted explicitly or the scrape is dropped here
+        and the target reads as down, with nothing in the chart to explain why.
+        */}}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.monitoringNamespace }}
         {{- end }}
         {{- with .Values.networkPolicy.extraIngressFrom }}
         {{- toYaml . | nindent 8 }}

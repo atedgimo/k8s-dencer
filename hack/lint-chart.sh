@@ -282,5 +282,78 @@ if tar -tzf "$tmp"/*.tgz | grep -q '/ci/'; then
 fi
 green "  ci/ excluded from the package"
 
+bold "==> contract: monitors scrape a path the code actually serves"
+# The original sin this replaces: the chart shipped a ServiceMonitor pointing
+# at /metrics when no component served /metrics at all. A monitor aimed at a
+# 404 is worse than none — it presents as a configured, failing target.
+#
+# So the path is taken from the Go source rather than repeated here, and the
+# rendered templates are required to agree with it.
+go_path="$(grep -oE 'MetricsPath = "[^"]+"' internal/telemetry/metrics.go | head -1 | sed 's/.*"\(.*\)"/\1/')"
+if [ -z "$go_path" ]; then
+  fail "could not read telemetry.MetricsPath from the Go source"
+fi
+for kind in serviceMonitor podMonitor; do
+  # Scoped to the monitor documents: the Ingress also has a "path:" key, and
+  # matching it would compare the chart's code against the wrong object.
+  rendered="$(helm template dencer "$CHART" --set "$kind.enabled=true" 2>/dev/null \
+    | awk '/^kind: (ServiceMonitor|PodMonitor)$/,/^---$/' \
+    | grep -E '^\s+path: ' | awk '{print $2}' | sort -u)"
+  if [ -z "$rendered" ]; then
+    fail "$kind rendered no scrape path"
+  fi
+  for p in $rendered; do
+    if [ "$p" != "$go_path" ]; then
+      fail "$kind scrapes '$p' but the code serves '$go_path'"
+    fi
+  done
+done
+green "  chart and code agree on $go_path"
+
+bold "==> contract: every component that is scraped serves metrics"
+# A monitor for a component whose binary never registers the endpoint would be
+# the same lie in a new place.
+for c in planner executor ui-backend; do
+  dir="cmd/${c}"
+  # Comment lines are stripped first: grep alone happily matches a
+  # commented-out registration, so the check would survive the very change it
+  # exists to catch.
+  # Must name metrics specifically: every component also calls
+  # health.Register(mux), and a looser pattern matches that instead and can
+  # never fail. Comments are stripped first for the same reason — grep alone
+  # is satisfied by a commented-out registration.
+  if ! sed 's|//.*||' "$dir/main.go" | grep -qE '[Mm]etrics(\([^)]*\))?\.Register\(mux\)'; then
+    fail "$c is scraped by the chart but never registers the metrics handler"
+  fi
+done
+green "  planner, executor and ui-backend all register it"
+
+bold "==> contract: scraping does not give the executor a Service"
+# The privilege split says the component holding pods/eviction is unreachable
+# through a Service. Observability is exactly the kind of good reason someone
+# would break that for, so it is asserted rather than trusted.
+svc_docs="$(helm template dencer "$CHART" --namespace k8s-dencer \
+  --set podMonitor.enabled=true --set serviceMonitor.enabled=true \
+  | awk '/^kind: Service$/,/^---/')"
+# Guard the guard: render errors would make the grep below pass on empty input,
+# which is how a check ends up unable to fail. ui-backend has a Service, so
+# finding none means the render broke.
+if ! grep -q 'component: ui-backend' <<<"$svc_docs"; then
+  fail "no Services rendered at all; the check would have passed vacuously"
+fi
+if grep -qE 'component: (executor|planner)' <<<"$svc_docs"; then
+  fail "a Service was rendered for the executor or planner; use a PodMonitor instead"
+fi
+green "  planner and executor stay Service-less"
+
+bold "==> contract: NetworkPolicy admits the scraper it expects"
+# Enabling the ServiceMonitor while the policy blocks Prometheus produces a
+# target that is down for a reason nothing in the chart explains.
+if ! helm template dencer "$CHART" --set serviceMonitor.enabled=true \
+     | awk '/kind: NetworkPolicy/,/^---/' | grep -q 'kubernetes.io/metadata.name: monitoring'; then
+  fail "serviceMonitor is on but the NetworkPolicy does not admit monitoringNamespace"
+fi
+green "  monitoring namespace admitted when scraped"
+
 green "
 All chart contract checks passed."

@@ -29,3 +29,13 @@ keywords:
 maintainers:
   - name: Moti Atedgi
     email: atedgimo@gmail.com
+
+annotations:
+  # Artifact Hub reads these. The licence is declared here as well as in
+  # LICENSE so it survives `helm pull` of the packaged chart.
+  artifacthub.io/license: MIT
+  artifacthub.io/links: |
+    - name: source
+      url: https://github.com/atedgimo/k8s-dencer
+    - name: benchmarks
+      url: https://github.com/atedgimo/k8s-dencer/blob/main/docs/benchmarks.md

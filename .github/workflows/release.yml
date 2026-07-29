@@ -1,0 +1,113 @@
+# Publishes the four images and the chart.
+#
+# Until this existed the chart defaulted to ghcr.io/atedgimo/k8s-dencer-* and
+# nothing had ever pushed there, so `helm install` could not work for anyone —
+# the chart advertised images that did not exist. `make images-release` builds
+# multi-arch but deliberately does not push, because credentials belong here
+# rather than on a laptop.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  # Publishing is destructive in the sense that a tag's images should never
+  # change under it, so this is never automatic on a branch.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to publish (e.g. v0.1.0). Must already exist."
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  images:
+    name: build and push images
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - component: planner
+            dockerfile: build/go.Dockerfile
+          - component: ui-backend
+            dockerfile: build/go.Dockerfile
+          - component: executor
+            dockerfile: build/go.Dockerfile
+          - component: ui-frontend
+            dockerfile: build/ui.Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: derive version
+        id: v
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          # arm64 is not optional: the whole project is developed on Apple
+          # silicon, and an amd64-only image would fail to run on the machine
+          # it was built for.
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            COMPONENT=${{ matrix.component }}
+            VERSION=${{ steps.v.outputs.version }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/k8s-dencer-${{ matrix.component }}:${{ steps.v.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/k8s-dencer-${{ matrix.component }}:latest
+          provenance: true
+          sbom: true
+
+  chart:
+    name: publish chart
+    needs: images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: azure/setup-helm@v4
+
+      - name: derive version
+        id: v
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      # The chart's appVersion is what selects the image tag, so a chart
+      # published with a stale appVersion would install images from a previous
+      # release without saying so.
+      - name: chart version matches the tag
+        run: |
+          chart_app="$(grep '^appVersion:' charts/k8s-dencer/Chart.yaml | tr -d '"' | awk '{print $2}')"
+          chart_ver="$(grep '^version:' charts/k8s-dencer/Chart.yaml | awk '{print $2}')"
+          want="${{ steps.v.outputs.version }}"
+          if [ "$chart_app" != "$want" ] || [ "$chart_ver" != "$want" ]; then
+            echo "::error::tag is $want but Chart.yaml has version=$chart_ver appVersion=$chart_app"
+            exit 1
+          fi
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: package and push
+        run: |
+          helm package charts/k8s-dencer -d dist
+          helm push dist/k8s-dencer-${{ steps.v.outputs.version }}.tgz \
+            oci://ghcr.io/${{ github.repository_owner }}/charts

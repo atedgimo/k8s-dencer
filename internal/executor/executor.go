@@ -29,6 +29,7 @@ import (
 	"github.com/atedgimo/k8s-dencer/internal/model"
 	"github.com/atedgimo/k8s-dencer/internal/safety"
 	"github.com/atedgimo/k8s-dencer/internal/store"
+	"github.com/atedgimo/k8s-dencer/internal/telemetry"
 )
 
 // Options configure an executor.
@@ -39,6 +40,11 @@ type Options struct {
 
 	// Limits are the Safety Guard's rails.
 	Limits safety.Limits
+
+	// Metrics receives run outcomes, guard refusals and eviction timings.
+	// Defaults to a private set, so tests and callers that do not care can
+	// leave it nil.
+	Metrics *telemetry.Metrics
 
 	// StepTimeout bounds a single step end to end. Exceeding it aborts.
 	StepTimeout time.Duration
@@ -60,6 +66,12 @@ type Options struct {
 
 // withDefaults fills unset values with conservative ones.
 func (o Options) withDefaults() Options {
+	if o.Metrics == nil {
+		// A private set rather than nil checks at every call site. Tests get
+		// working counters they can assert on, and production always passes
+		// the real one.
+		o.Metrics = telemetry.NewMetrics(telemetry.ComponentExecutor)
+	}
 	if o.Worker == "" {
 		o.Worker = "executor"
 	}
@@ -88,6 +100,7 @@ type Executor struct {
 	guard   *safety.Guard
 	log     *slog.Logger
 	opts    Options
+	metrics *telemetry.Metrics
 }
 
 // New builds an executor.
@@ -104,6 +117,7 @@ func New(cluster Cluster, runs store.ExecutionStore, plans store.Store, log *slo
 		guard:   guard,
 		log:     log,
 		opts:    opts,
+		metrics: opts.Metrics,
 	}
 }
 
@@ -300,6 +314,7 @@ func (e *Executor) drain(ctx context.Context, run store.Run, step model.PlanStep
 			return err
 		}
 
+		evictStart := time.Now()
 		if err := e.cluster.Evict(ctx, pod.Namespace, pod.Name); err != nil {
 			// The API server can refuse on PDB grounds even when the
 			// pre-flight check passed — state can change between the two, and
@@ -307,9 +322,11 @@ func (e *Executor) drain(ctx context.Context, run store.Run, step model.PlanStep
 			// not a fault, so it is audited as one.
 			var blocked *safety.Blocked
 			if errors.As(err, &blocked) {
+				e.metrics.EvictionsTotal.WithLabelValues("blocked").Inc()
 				e.blocked(ctx, run, step, blocked)
 				return blocked
 			}
+			e.metrics.EvictionsTotal.WithLabelValues("error").Inc()
 			return fmt.Errorf("evict %s: %w", pod.Key(), err)
 		}
 		if k := ownerKey(pod); k != "" {
@@ -322,11 +339,24 @@ func (e *Executor) drain(ctx context.Context, run store.Run, step model.PlanStep
 		})
 
 		if err := e.waitGone(ctx, pod); err != nil {
+			e.metrics.EvictionsTotal.WithLabelValues("timeout").Inc()
 			return err
 		}
+		// Measured to the pod actually being gone, not to the API call
+		// returning. The call returns as soon as the eviction is accepted; the
+		// wait afterwards is where a long grace period or a slow shutdown
+		// shows up, and that is the part that stretches a drain.
+		e.metrics.EvictionDuration.Observe(time.Since(evictStart).Seconds())
+		e.metrics.EvictionsTotal.WithLabelValues("evicted").Inc()
 	}
 
-	return e.verifyRecovered(ctx, run, step, before, affected)
+	recoverStart := time.Now()
+	if err := e.verifyRecovered(ctx, run, step, before, affected); err != nil {
+		return err
+	}
+	e.metrics.RecoveryWaitSeconds.Observe(time.Since(recoverStart).Seconds())
+	e.metrics.NodesDrainedTotal.Inc()
+	return nil
 }
 
 // waitGone blocks until the pod has left the API server's view.
@@ -430,6 +460,7 @@ func (e *Executor) blocked(ctx context.Context, run store.Run, step model.PlanSt
 	if !errors.As(err, &b) {
 		return
 	}
+	e.metrics.GuardRefusalsTotal.WithLabelValues(string(b.Rule)).Inc()
 	e.event(ctx, run, store.RunEvent{
 		Step: step.SequenceNumber, Node: step.TargetNode, Level: store.EventBlocked,
 		Action: "Guard", Rule: string(b.Rule), Message: b.Reason,
@@ -443,6 +474,7 @@ func (e *Executor) fail(ctx context.Context, run store.Run, msg string) {
 
 func (e *Executor) finish(ctx context.Context, run store.Run, status store.RunStatus, summary string) {
 	e.log.Info("run finished", "run", run.ID, "status", status, "summary", summary)
+	e.metrics.RunsTotal.WithLabelValues(string(status)).Inc()
 	// Detached: a cancelled context must not leave a run stuck Running forever.
 	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 	defer cancel()

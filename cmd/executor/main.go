@@ -88,6 +88,7 @@ func run(ctx context.Context, log *slog.Logger) error {
 	}
 	go windows.Run(ctx, duration(log, "WINDOW_SYNC_INTERVAL", 30*time.Second))
 
+	metrics := telemetry.NewMetrics(telemetry.ComponentExecutor)
 	exec := executor.New(executor.NewK8sCluster(reader), db, db, log, executor.Options{
 		Worker:        env("POD_NAME", "executor"),
 		Limits:        limits,
@@ -96,11 +97,13 @@ func run(ctx context.Context, log *slog.Logger) error {
 		PollInterval:  duration(log, "CLUSTER_POLL_INTERVAL", 2*time.Second),
 		Windows:       windows,
 		Readiness:     executor.Readiness(env("EXECUTOR_READINESS", string(executor.ReadinessReady))),
+		Metrics:       metrics,
 	})
 
 	health := &httpserver.Health{}
 	mux := http.NewServeMux()
 	health.Register(mux)
+	metrics.Register(mux)
 	health.SetReady(true)
 
 	log.Info("starting", "version", version, "worker", env("POD_NAME", "executor"),

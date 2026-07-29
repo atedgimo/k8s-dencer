@@ -93,6 +93,7 @@ func run(ctx context.Context, log *slog.Logger) error {
 	health := &httpserver.Health{}
 	mux := http.NewServeMux()
 	health.Register(mux)
+	telemetry.NewMetrics(telemetry.ComponentUIBackend).Register(mux)
 	api.Routes(mux)
 
 	// The Kagent agent reaches the same plan store over MCP. It is mounted on
