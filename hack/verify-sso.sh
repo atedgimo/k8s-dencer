@@ -41,7 +41,13 @@ CTX="k3d-${CLUSTER}"
 IDP_PORT=5556
 CLIENT_ID="k8s-dencer"
 USER_EMAIL="alice@example.com"
-USER_PASS="dencer"
+# Generated per run rather than committed. These IdPs are throwaway containers
+# on a throwaway k3d cluster, so a fixed password was harmless in practice —
+# but a credential literal sitting in a public repo trains the wrong reflex,
+# and someone will eventually copy this file somewhere it is not harmless.
+# Override by exporting USER_PASS / KC_ADMIN_PASS if you want to log in by hand.
+USER_PASS="${USER_PASS:-$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24)}"
+KC_ADMIN_PASS="${KC_ADMIN_PASS:-$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24)}"
 GROUP="platform-sre"
 
 case "$IDP" in
@@ -115,11 +121,14 @@ green "  CA and server certificate for host.k3d.internal"
 
 bold "==> $IDP"
 if [[ "$IDP" == "keycloak" ]]; then
+  # The committed realm carries a placeholder, not a password. Rendering into
+  # $WORK keeps the generated one off disk anywhere permanent.
+  sed "s|__USER_PASSWORD__|${USER_PASS}|g" "$REPO/hack/keycloak-realm.json" > "$WORK/realm.json"
   docker rm -f "$IDP_CONTAINER" >/dev/null 2>&1 || true
   docker run -d --name "$IDP_CONTAINER" -p "${IDP_PORT}:8443" \
     -v "$WORK/certs:/certs:ro" \
-    -v "$REPO/hack/keycloak-realm.json:/opt/keycloak/data/import/realm.json:ro" \
-    -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
+    -v "$WORK/realm.json:/opt/keycloak/data/import/realm.json:ro" \
+    -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e "KC_BOOTSTRAP_ADMIN_PASSWORD=${KC_ADMIN_PASS}" \
     -e KC_HTTPS_CERTIFICATE_FILE=/certs/dex.crt \
     -e KC_HTTPS_CERTIFICATE_KEY_FILE=/certs/dex.key \
     -e "KC_HOSTNAME=https://host.k3d.internal:${IDP_PORT}" \
