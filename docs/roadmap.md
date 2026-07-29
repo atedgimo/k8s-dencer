@@ -47,7 +47,7 @@ estimated — every milestone here starts from a number in
 | **M16** | Measured ceiling — synthesised clusters, `make bench` | **done** |
 | **M17** | Data volume — gzipped plan blobs (23.8× at 5k pods), informer cache transform (−30% heap), paginated reads | **done** |
 | **M18** | Planner cost — memoised topology-spread counts, **112×** faster analysis at 5k pods | **done** |
-| **M19** | UI at scale — density rendering, virtualised field, aggregated graph payload | planned |
+| **M19** | UI at scale — aggregated payload (**44×** smaller at 5k pods), density rendering, virtualised field | **done** |
 | **M20** | `/metrics` on all three components; monitors that scrape a real path; CI; published images | **done** |
 | **M21** | Multi-node k3d, PodSecurity enforcing, real ingress and StorageClass | planned |
 

@@ -1434,3 +1434,46 @@
 .ledger-more-hint {
   color: var(--graphite-dim);
 }
+
+/* Density mode.
+   Above the graph endpoint's detail limit the server sends occupancy instead
+   of pods, so a box has no blocks inside it. The count becomes the content:
+   large enough to read at a glance across a field of hundreds, with the fill
+   bar still carrying utilisation. Colour stays out of it — the risk scale owns
+   colour, and a node's fullness is not a risk rating. */
+.box-density {
+  display: flex;
+  align-items: baseline;
+  gap: 0.28rem;
+  padding: 0.35rem 0.5rem 0;
+  flex-wrap: wrap;
+}
+
+.box-density-count {
+  font-size: 1.35rem;
+  line-height: 1;
+  color: var(--chalk);
+  font-variant-numeric: tabular-nums;
+}
+
+.box-density-unit {
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+/* Blocked pods get the same filled-circle glyph the risk scale uses, so the
+   mark means the same thing here as everywhere else. Never colour alone. */
+.box-density-blocked {
+  margin-left: auto;
+  font-size: 0.62rem;
+  color: var(--risk-yellow);
+  white-space: nowrap;
+}
+
+/* A drained node keeps its place in the grid rather than vanishing, so the
+   operator can see what was reclaimed; the count going to zero is the whole
+   animation in this mode. */
+.box-reclaimed .box-density-count {
+  color: var(--muted);
+}

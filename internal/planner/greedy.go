@@ -137,10 +137,12 @@ func tryDrain(
 		trial.Remove(p)
 		trial.Place(p, target)
 		moves = append(moves, model.Move{
-			Namespace: p.Namespace,
-			Pod:       p.Name,
-			FromNode:  node.Name,
-			ToNode:    target,
+			Namespace:   p.Namespace,
+			Pod:         p.Name,
+			FromNode:    node.Name,
+			ToNode:      target,
+			CPUMilli:    p.Requests.MilliCPU,
+			MemoryBytes: p.Requests.MemoryBytes,
 		})
 	}
 	return moves, true

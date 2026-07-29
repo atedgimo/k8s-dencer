@@ -172,14 +172,16 @@ cluster rather than taking this page's word for it, in
 
 Measured, not estimated — on synthesised clusters, with no cluster running:
 
-| Pods | Constraint analysis | Planning | Stored per plan |
-|---|---|---|---|
-| 916 | 16 ms | 17 ms | 54 KB |
-| 2,526 | 90 ms | 110 ms | 197 KB |
-| 5,026 | 298 ms | 466 ms | 609 KB |
+| Pods | Constraint analysis | Planning | Stored per plan | UI payload |
+|---|---|---|---|---|
+| 916 | 16 ms | 17 ms | 54 KB | 0.24 MB |
+| 2,526 | 90 ms | 110 ms | 197 KB | 0.03 MB |
+| 5,026 | 298 ms | 466 ms | 609 KB | 0.05 MB |
 
-Comfortably past 5,000 pods against a 30-second resync. Method, growth curves and
-the known ceiling in **[docs/benchmarks.md](docs/benchmarks.md)**.
+The UI payload falls rather than rises past 2,526 pods because that is where it
+stops sending an element per pod and starts sending occupancy per node — an
+individual 6px block conveys nothing at that density anyway. Method, growth
+curves and the known ceiling in **[docs/benchmarks.md](docs/benchmarks.md)**.
 
 ## Documentation
 

@@ -44,18 +44,33 @@ type Server struct {
 	events   *Broker
 	guard    Guard
 	authInfo auth.Info
+
+	// graphOpts caps how much per-pod detail the graph endpoint sends. Exposed
+	// as a knob because the right threshold depends on the operator's machine
+	// as much as on the cluster.
+	graphOpts graph.Options
+}
+
+// WithGraphPodDetailLimit overrides the pod count above which the graph
+// endpoint summarises pods onto their nodes. Zero or negative disables
+// aggregation entirely, which is a reasonable choice on a small cluster and a
+// poor one on a large.
+func (s *Server) WithGraphPodDetailLimit(limit int) *Server {
+	s.graphOpts.PodDetailLimit = limit
+	return s
 }
 
 // New builds a server. guard authorizes every route; authInfo is published
 // unauthenticated so a client knows how to sign in.
 func New(s store.Store, log *slog.Logger, version string, guard Guard, authInfo auth.Info) *Server {
 	return &Server{
-		store:    s,
-		log:      log,
-		version:  version,
-		events:   NewBroker(log),
-		guard:    guard,
-		authInfo: authInfo,
+		store:     s,
+		log:       log,
+		version:   version,
+		events:    NewBroker(log),
+		guard:     guard,
+		authInfo:  authInfo,
+		graphOpts: graph.DefaultOptions(),
 	}
 }
 
@@ -219,7 +234,7 @@ func (s *Server) handleGraph(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, graph.Build(rec.Plan, rec.Snapshot, rec.Analysis))
+	writeJSON(w, http.StatusOK, graph.BuildWith(rec.Plan, rec.Snapshot, rec.Analysis, s.graphOpts))
 }
 
 func (s *Server) handleSnapshot(w http.ResponseWriter, r *http.Request) {

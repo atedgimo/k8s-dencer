@@ -8,6 +8,13 @@ export interface Move {
   pod: string;
   fromNode: string;
   toNode: string;
+  /**
+   * What the pod takes with it. Present so the density view can show receiving
+   * nodes filling as the scrubber advances — above the graph endpoint's detail
+   * limit there is no per-pod data to look this up in.
+   */
+  cpuMilli?: number;
+  memoryBytes?: number;
 }
 
 export interface ImpactReason {
@@ -44,12 +51,18 @@ export interface PlanResponse {
   readOnly: boolean;
 }
 
+// Mirrors graph.Data in internal/api/graph. Kept exactly in step with it by
+// graph_contract_test.go, which fails both ways: on a Go field the UI never
+// reads, and on a field declared here that the payload no longer sends. The
+// second half matters because every field is optional, so a stale declaration
+// reads as undefined at runtime rather than failing to compile.
+//
+// Where a pod moves and which step moves it are deliberately not here. Both
+// come from the plan's steps, which the UI already holds.
 export interface GraphData {
   id: string;
   parent?: string;
-  source?: string;
-  target?: string;
-  kind: "node" | "pod" | "edge";
+  kind: "node" | "pod";
   label: string;
 
   zone?: string;
@@ -59,9 +72,10 @@ export interface GraphData {
   cpuRequested?: number;
   memAllocatable?: number;
   memRequested?: number;
-  utilization?: number;
-  drained?: boolean;
   drainStep?: number;
+  podCount?: number;
+  blockedCount?: number;
+  pinnedCount?: number;
 
   namespace?: string;
   cpuRequest?: number;
@@ -69,16 +83,10 @@ export interface GraphData {
   ownerKind?: string;
   ownerName?: string;
   movable?: boolean;
-  targetNode?: string;
-  moveStep?: number;
   blocked?: boolean;
-
-  relation?: "move" | "pdb" | "anti-affinity";
-  impact?: string;
 }
 
 export interface GraphElement {
-  group: "nodes" | "edges";
   data: GraphData;
 }
 
@@ -97,6 +105,11 @@ export interface GraphPayload {
   planId: string;
   elements: GraphElement[];
   stats: GraphStats;
+  /**
+   * The server summarised pods onto their nodes rather than sending one
+   * element each, because there were more than it will draw individually.
+   */
+  aggregated?: boolean;
 }
 
 export interface PodConstraint {

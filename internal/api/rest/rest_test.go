@@ -186,7 +186,7 @@ func TestGraphPayloadShape(t *testing.T) {
 		t.Fatal("graph has no elements")
 	}
 
-	var nodes, pods, moveEdges int
+	var nodes, pods, other int
 	for _, raw := range elements {
 		el := raw.(map[string]any)
 		data := el["data"].(map[string]any)
@@ -195,15 +195,14 @@ func TestGraphPayloadShape(t *testing.T) {
 			nodes++
 		case "pod":
 			pods++
-			// Compound nesting is how Cytoscape draws "this node holds these
-			// pods" — without a parent the pod floats free.
+			// A pod names the node it sits inside. Without a parent the
+			// packing field has nowhere to draw it.
 			if data["parent"] == nil || data["parent"] == "" {
 				t.Errorf("pod %v has no parent node", data["id"])
 			}
-		case "edge":
-			if data["relation"] == "move" {
-				moveEdges++
-			}
+		default:
+			other++
+			t.Errorf("unexpected element kind %v", data["kind"])
 		}
 	}
 	if nodes != 2 {
@@ -212,8 +211,10 @@ func TestGraphPayloadShape(t *testing.T) {
 	if pods != 1 {
 		t.Errorf("pod elements = %d, want 1", pods)
 	}
-	if moveEdges != 1 {
-		t.Errorf("move edges = %d, want 1", moveEdges)
+	// Edges were dropped in M19. Nothing has read one since the packing field
+	// replaced the node-link graph, and they were 45% of the payload.
+	if other != 0 {
+		t.Errorf("payload carries %d elements that are neither node nor pod", other)
 	}
 
 	stats, _ := body["stats"].(map[string]any)
