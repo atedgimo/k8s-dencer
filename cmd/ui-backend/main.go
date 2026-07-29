@@ -9,6 +9,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -94,6 +95,12 @@ func run(ctx context.Context, log *slog.Logger) error {
 	mux := http.NewServeMux()
 	health.Register(mux)
 	telemetry.NewMetrics(telemetry.ComponentUIBackend).Register(mux)
+	// A machine that struggles at 4,000 pod elements should be able to say so
+	// without redeploying a different build.
+	if lim := intEnv("GRAPH_POD_DETAIL_LIMIT", 0); lim != 0 {
+		api = api.WithGraphPodDetailLimit(lim)
+		log.Info("graph detail limit overridden", "podDetailLimit", lim)
+	}
 	api.Routes(mux)
 
 	// The Kagent agent reaches the same plan store over MCP. It is mounted on
@@ -212,6 +219,21 @@ func env(key, fallback string) string {
 // boolEnv reads a boolean setting. An unparseable value takes the fallback,
 // which for security settings is the safe end: a typo in AUTH_ENABLED leaves
 // authentication on rather than silently opening the API.
+// intEnv reads an integer setting. A malformed value is refused rather than
+// silently defaulted: a typo'd limit that quietly reverts is worse than one
+// that fails loudly at startup.
+func intEnv(key string, fallback int) int {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil {
+		panic(fmt.Sprintf("%s must be an integer, got %q", key, raw))
+	}
+	return n
+}
+
 func boolEnv(key string, fallback bool) bool {
 	raw, ok := os.LookupEnv(key)
 	if !ok || raw == "" {

@@ -86,6 +86,9 @@ jobs:
 
       - run: npm ci
       - run: npm run typecheck
+      # Density mode reads optional fields; a field that stops arriving renders
+      # as zero rather than failing, so the arithmetic is asserted directly.
+      - run: npm run test:density
       # A build failure is a real failure: the frontend ships as a static
       # bundle, so anything tsc lets through still has to survive Vite.
       - run: npm run build

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { GraphPayload, PlanStep } from "../api";
 import {
   NODE_GAP_X,
@@ -6,6 +6,7 @@ import {
   POD_SIZE,
   Model,
   computeLayout,
+  densityCounts,
   gridColumns,
   peakOccupancy,
   placementAtStep,
@@ -30,6 +31,17 @@ import {
  * property, because ~300 blocks reflowing at once would drop frames on a
  * laptop, which is exactly the machine this runs on.
  */
+
+/**
+ * Above this many node boxes, only the visible band is mounted. Below it the
+ * whole field stays in the DOM: virtualising a few dozen boxes costs more in
+ * scroll bookkeeping than it saves, and the reveal and drain animations both
+ * read better when nothing is being added and removed underneath them.
+ */
+const VIRTUALISE_ABOVE = 150;
+
+/** Rows kept mounted beyond the viewport, so a fast scroll shows boxes, not gaps. */
+const OVERSCAN_ROWS = 3;
 
 interface Props {
   graph: GraphPayload;
@@ -65,9 +77,47 @@ export default function PackingField({
     [model, steps, step],
   );
   const layout = useMemo(
-    () => computeLayout(model, placement, peak, columns),
-    [model, placement, peak, columns],
+    () => computeLayout(model, placement, peak, columns, steps, step),
+    [model, placement, peak, columns, steps, step],
   );
+
+  // Virtualisation.
+  //
+  // The field is absolutely positioned on a computed grid, so which boxes are
+  // on screen is arithmetic rather than measurement: no observer per element,
+  // no layout thrash. Only the visible band is mounted, plus a margin so a
+  // scroll does not expose blank space before React catches up.
+  //
+  // Below the threshold everything mounts. Virtualising 30 boxes costs more in
+  // scroll handlers than it saves, and the drain animation reads better when
+  // every box is present.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [viewport, setViewport] = useState({ top: 0, height: 0 });
+  const virtualise = model.nodes.length > VIRTUALISE_ABOVE;
+
+  useEffect(() => {
+    if (!virtualise) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      setViewport({ top: el.scrollTop, height: el.clientHeight });
+    };
+    const onScroll = () => {
+      // Coalesce to one update per frame; a scroll fires far faster than a
+      // render can usefully follow.
+      if (!frame) frame = requestAnimationFrame(measure);
+    };
+    measure();
+    el.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      el.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [virtualise, model.nodes.length]);
 
   // Nodes this plan drains at or before the current step. They stay on the
   // field rather than vanishing: an operator wants to see what was reclaimed,
@@ -108,6 +158,18 @@ export default function PackingField({
   const rows = Math.ceil(model.nodes.length / columns);
   const height = rows * (layout.nodeHeight + NODE_GAP_Y);
 
+  const rowHeight = layout.nodeHeight + NODE_GAP_Y;
+  const visible = useMemo(() => {
+    if (!virtualise || viewport.height === 0) return null;
+    const first = Math.max(0, Math.floor(viewport.top / rowHeight) - OVERSCAN_ROWS);
+    const last =
+      Math.ceil((viewport.top + viewport.height) / rowHeight) + OVERSCAN_ROWS;
+    return { from: first * columns, to: last * columns };
+  }, [virtualise, viewport, rowHeight, columns]);
+
+  const inView = (index: number) =>
+    !visible || (index >= visible.from && index < visible.to);
+
   // How many nodes the plan drains in total. The tray counts progress against
   // the plan, not against the cluster: showing "of 31" beside a header reading
   // "Reclaim 1 of 14" put two different denominators on one screen.
@@ -117,17 +179,21 @@ export default function PackingField({
   );
 
   const podsByNode = useMemo(() => {
+    // In density mode there are no pod elements to count, so occupancy comes
+    // from the server's tally with the plan's moves applied. Counting the
+    // empty pod list here would report every node as holding nothing.
+    if (model.aggregated) return densityCounts(model, steps, step);
     const out = new Map<string, number>();
     for (const pod of model.pods) {
       const host = placement.get(pod.key) ?? pod.homeNode;
       out.set(host, (out.get(host) ?? 0) + 1);
     }
     return out;
-  }, [model, placement]);
+  }, [model, placement, steps, step]);
 
   return (
     <div className="field-wrap">
-      <div className="field-scroll">
+      <div className="field-scroll" ref={scrollRef}>
         <div
           className="field"
           style={{ width, height }}
@@ -136,9 +202,10 @@ export default function PackingField({
             onSelectPod(null);
           }}
         >
-          {model.nodes.map((node) => {
+          {model.nodes.map((node, index) => {
             const pos = layout.nodes.get(node.id);
             if (!pos) return null;
+            if (!inView(index)) return null;
             const fill = layout.nodeFill.get(node.name) ?? 0;
             const gone = reclaimed.has(node.name);
             const count = podsByNode.get(node.name) ?? 0;
@@ -195,11 +262,31 @@ export default function PackingField({
                     }}
                   />
                 </div>
+                {/* Density mode: the pod count *is* the content. At this size
+                  an individual block conveys nothing, so the box states its
+                  occupancy and the story becomes nodes emptying rather than
+                  pods flying — the same story at the right zoom. */}
+                {model.aggregated && (
+                  <div className="box-density">
+                    <span className="box-density-count num">
+                      {gone ? 0 : count}
+                    </span>
+                    <span className="box-density-unit mono">pods</span>
+                    {!gone && node.blockedCount > 0 && (
+                      <span
+                        className="box-density-blocked mono"
+                        title={`${node.blockedCount} pods cannot move`}
+                      >
+                        ● {node.blockedCount}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
 
-          {model.pods.map((pod) => {
+          {!model.aggregated && model.pods.map((pod) => {
             const pos = layout.pods.get(pod.id);
             if (!pos) return null;
             const host = placement.get(pod.key) ?? pod.homeNode;

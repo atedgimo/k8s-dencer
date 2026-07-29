@@ -9,6 +9,50 @@ measured at thousands of pods without standing anything up.
 Apple M-series laptop, Go 1.26, `-benchtime 1x`. Absolute numbers will differ on
 other hardware; **the growth curves are the point.**
 
+## After M19 — what reaches the browser
+
+The graph endpoint is the last thing between a 50,000-pod cluster and an
+unusable UI. Two changes, in that order, because the first made the second
+smaller.
+
+**Stop sending what nothing reads.** The payload carried an edge per proposed
+move, per anti-affinity relation and per PDB membership — **45% of all elements
+at 2,526 pods** — and nothing had read an edge since M11 replaced the node-link
+graph with the packing field. It also carried `utilization`, `drained`,
+`targetNode` and `moveStep`, which no code ever read. Building the PDB edges
+walked every pod for every PDB, so removing them also removed a quadratic term.
+
+**Summarise pods above a threshold.** Past `PodDetailLimit` (default 4,000) the
+payload sends occupancy per node instead of an element per pod. At that density
+an individual 6px block conveys nothing, so this is less a degraded view than
+the right zoom level.
+
+| Pods | Before M19 | After the cut | Aggregated | vs. before |
+|---|---|---|---|---|
+| 916 | 0.46 MB | 0.24 MB | — | 1.9× |
+| 2,526 | 1.22 MB | 0.65 MB | **0.027 MB** | **44×** |
+| 5,026 | 2.41 MB | 1.29 MB | **0.054 MB** | **44×** |
+
+Per pod: 480 B → 256 B → **11 B**. Extrapolated to the 50,000-pod target, the
+payload goes from ~24 MB to well under 1 MB, and DOM elements from ~95,000 to
+roughly one per node.
+
+Two supporting changes were needed to make the aggregated view honest rather
+than merely small:
+
+- `model.Move` now carries the pod's CPU and memory. Without it the density
+  view could show a drained node emptying but not the receiving nodes filling,
+  understating exactly the number an operator judges a plan on. Verified: the
+  golden planner tests still produce byte-identical step lists.
+- The node element always carries `podCount`, in both modes. Counting pod
+  elements locally would give a second answer to "how full is this node", and
+  two answers is worse than either.
+
+The field also virtualises above 150 node boxes, mounting only the visible band
+plus three rows of overscan. Which boxes are on screen is arithmetic over the
+computed grid rather than measurement, so there is no observer per element and
+no layout thrash.
+
 ## After M17 — memory and stored bytes
 
 M18 made the planner fast enough; M17 addresses what it costs to *hold* and

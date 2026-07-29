@@ -31,6 +31,13 @@ export const POD_COLS = 4;
  */
 const MAX_POD_COLS = 10;
 
+/**
+ * Side of a node box in density mode, where nothing is drawn inside it but a
+ * count and a fill bar. Small enough that a thousand nodes fit a scroll or two,
+ * large enough for the count to stay readable.
+ */
+const DENSITY_BOX = 92;
+
 /** Columns for a box that must hold `peak` pods without becoming a tower. */
 export function podColumns(peak: number): number {
   if (peak <= POD_COLS * 2) return POD_COLS;
@@ -60,10 +67,23 @@ export interface NodeInfo {
   name: string;
   zone?: string;
   cpuAllocatable: number;
+  cpuRequestedMilli: number;
   memAllocatable: number;
   cordoned: boolean;
   ready: boolean;
   drainStep: number;
+
+  /**
+   * Occupancy as the server counted it.
+   *
+   * The single source in both modes. In density mode there are no pod elements
+   * to count; in detail mode counting them locally would give a second answer
+   * that could disagree with this one, and two numbers for "how full is this
+   * node" is worse than either.
+   */
+  podCount: number;
+  blockedCount: number;
+  pinnedCount: number;
 }
 
 export interface Positioned {
@@ -88,6 +108,15 @@ export interface Positioned {
 export interface Model {
   nodes: NodeInfo[];
   pods: PodInfo[];
+  /**
+   * True when the server summarised pods onto their nodes instead of sending
+   * them, because there were too many to draw individually.
+   *
+   * Read from the payload rather than inferred from an empty pod list: a
+   * fully-drained cluster has no pods either, and rendering that as "too big
+   * to show" would be a lie in the one case an operator most wants confirmed.
+   */
+  aggregated: boolean;
 }
 
 /** Extracts the domain model from the graph payload. */
@@ -103,10 +132,14 @@ export function toModel(graph: GraphPayload): Model {
         name: d.label,
         zone: d.zone,
         cpuAllocatable: d.cpuAllocatable ?? 0,
+        cpuRequestedMilli: d.cpuRequested ?? 0,
         memAllocatable: d.memAllocatable ?? 0,
         cordoned: d.cordoned ?? false,
         ready: d.ready ?? false,
         drainStep: d.drainStep ?? 0,
+        podCount: d.podCount ?? 0,
+        blockedCount: d.blockedCount ?? 0,
+        pinnedCount: d.pinnedCount ?? 0,
       });
     } else if (d.kind === "pod" && d.parent) {
       pods.push({
@@ -127,7 +160,7 @@ export function toModel(graph: GraphPayload): Model {
 
   nodes.sort((a, b) => collate(a.name, b.name));
   pods.sort((a, b) => collate(a.key, b.key));
-  return { nodes, pods };
+  return { nodes, pods, aggregated: graph.aggregated ?? false };
 }
 
 /**
@@ -162,7 +195,12 @@ export function computeLayout(
   placement: Map<string, string>,
   maxPodsPerNode: number,
   columns: number,
+  steps: PlanStep[] = [],
+  step = 0,
 ): Positioned {
+  if (model.aggregated) {
+    return densityLayout(model, columns, steps, step);
+  }
   const cols = podColumns(maxPodsPerNode);
   const rows = Math.max(2, Math.ceil(maxPodsPerNode / cols));
   const innerWidth = cols * POD_SIZE + (cols - 1) * POD_GAP;
@@ -238,4 +276,84 @@ export function gridColumns(nodeCount: number): number {
 /** Sorts names so node-2 comes before node-10. */
 function collate(a: string, b: string): number {
   return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+}
+
+
+/**
+ * Layout when the server summarised pods onto their nodes.
+ *
+ * There are no pod elements to place, so the box is compact and its fill comes
+ * from the counts and requests the server sent. The scrubber still works: the
+ * plan's moves carry what each pod takes with it, so applying steps 1..n gives
+ * the exact occupancy and load at that step, not an estimate.
+ */
+function densityLayout(
+  model: Model,
+  columns: number,
+  steps: PlanStep[],
+  step: number,
+): Positioned {
+  const nodeWidth = DENSITY_BOX;
+  const nodeHeight = DENSITY_BOX;
+
+  const nodes = new Map<string, { x: number; y: number }>();
+  const nodeLoad = new Map<string, number>();
+  const nodeFill = new Map<string, number>();
+  const emptied = new Set<string>();
+
+  // Start from what the server counted, then apply the moves up to this step.
+  const count = new Map<string, number>();
+  const load = new Map<string, number>();
+  for (const n of model.nodes) {
+    count.set(n.name, n.podCount);
+    load.set(n.name, n.cpuRequestedMilli);
+  }
+  for (const s of steps) {
+    if (s.sequenceNumber > step) break;
+    for (const m of s.moves) {
+      count.set(m.fromNode, (count.get(m.fromNode) ?? 0) - 1);
+      count.set(m.toNode, (count.get(m.toNode) ?? 0) + 1);
+      load.set(m.fromNode, (load.get(m.fromNode) ?? 0) - (m.cpuMilli ?? 0));
+      load.set(m.toNode, (load.get(m.toNode) ?? 0) + (m.cpuMilli ?? 0));
+    }
+  }
+
+  model.nodes.forEach((node, i) => {
+    const col = i % columns;
+    const row = Math.floor(i / columns);
+    nodes.set(node.id, {
+      x: col * (nodeWidth + NODE_GAP_X),
+      y: row * (nodeHeight + NODE_GAP_Y),
+    });
+
+    const cpu = Math.max(0, load.get(node.name) ?? 0);
+    nodeLoad.set(node.name, cpu);
+    nodeFill.set(
+      node.name,
+      node.cpuAllocatable > 0 ? cpu / node.cpuAllocatable : 0,
+    );
+    // Pinned pods never move, so a node holding only pinned pods is never
+    // emptied however far the scrubber runs.
+    if ((count.get(node.name) ?? 0) <= node.pinnedCount) emptied.add(node.name);
+  });
+
+  return { nodes, pods: new Map(), nodeWidth, nodeHeight, nodeLoad, nodeFill, emptied };
+}
+
+/** Occupancy per node at a step, when pods were summarised rather than sent. */
+export function densityCounts(
+  model: Model,
+  steps: PlanStep[],
+  step: number,
+): Map<string, number> {
+  const count = new Map<string, number>();
+  for (const n of model.nodes) count.set(n.name, n.podCount);
+  for (const s of steps) {
+    if (s.sequenceNumber > step) break;
+    for (const m of s.moves) {
+      count.set(m.fromNode, (count.get(m.fromNode) ?? 0) - 1);
+      count.set(m.toNode, (count.get(m.toNode) ?? 0) + 1);
+    }
+  }
+  return count;
 }

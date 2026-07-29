@@ -116,4 +116,14 @@ type Move struct {
 	Pod       string `json:"pod"`
 	FromNode  string `json:"fromNode"`
 	ToNode    string `json:"toNode"`
+
+	// What the pod takes with it.
+	//
+	// Carried on the move rather than looked up, because above the graph
+	// endpoint's detail limit the UI has no per-pod data to look it up in.
+	// Without these the density view could empty a drained node but not show
+	// the receiving nodes filling — understating exactly the number an
+	// operator is judging the plan on.
+	CPUMilli    int64 `json:"cpuMilli,omitempty"`
+	MemoryBytes int64 `json:"memoryBytes,omitempty"`
 }
