@@ -77,6 +77,15 @@ func New(cfg *rest.Config, opts Options) (*Collector, error) {
 		}
 	}
 
+	// Strip what is never read before anything is cached.
+	//
+	// On a pod-heavy cluster the informer cache is the planner's dominant
+	// memory cost, and most of what it holds is managed fields, annotations
+	// and container detail this product never looks at. Transforming on the
+	// way in is the standard remedy, and it applies to every pod for the life
+	// of the process rather than per read.
+	applyTransform(&cacheOpts)
+
 	c, err := cache.New(cfg, cacheOpts)
 	if err != nil {
 		return nil, fmt.Errorf("build informer cache: %w", err)
@@ -215,4 +224,61 @@ func (c *Collector) ownerResolver(ctx context.Context) ownerResolver {
 		}
 		return nil
 	}
+}
+
+// applyTransform installs cache transforms that discard unread fields.
+//
+// Deliberately conservative: anything convert.go reads must survive. That means
+// keeping labels, the owner references, node assignment, the full container
+// list (effective requests are computed from it), conditions, tolerations and
+// affinity. What goes is managed fields — often the largest single part of a
+// pod object — annotations, and the container statuses, which carry image
+// digests and restart history that nothing here consults.
+func applyTransform(opts *cache.Options) {
+	if opts.ByObject == nil {
+		opts.ByObject = map[client.Object]cache.ByObject{}
+	}
+
+	pod := opts.ByObject[&corev1.Pod{}]
+	pod.Transform = func(obj any) (any, error) {
+		p, ok := obj.(*corev1.Pod)
+		if !ok {
+			return obj, nil
+		}
+		p.ManagedFields = nil
+		p.Annotations = nil
+		p.Status.ContainerStatuses = nil
+		p.Status.InitContainerStatuses = nil
+		p.Status.EphemeralContainerStatuses = nil
+		return p, nil
+	}
+	opts.ByObject[&corev1.Pod{}] = pod
+
+	node := opts.ByObject[&corev1.Node{}]
+	node.Transform = func(obj any) (any, error) {
+		n, ok := obj.(*corev1.Node)
+		if !ok {
+			return obj, nil
+		}
+		n.ManagedFields = nil
+		// Node labels and taints are load-bearing for placement, so only the
+		// image inventory goes — which on a busy node is most of the object.
+		n.Status.Images = nil
+		return n, nil
+	}
+	opts.ByObject[&corev1.Node{}] = node
+
+	rs := opts.ByObject[&appsv1.ReplicaSet{}]
+	rs.Transform = func(obj any) (any, error) {
+		r, ok := obj.(*appsv1.ReplicaSet)
+		if !ok {
+			return obj, nil
+		}
+		r.ManagedFields = nil
+		r.Annotations = nil
+		// Only the owner chain is read, to name a pod's real controller.
+		r.Spec.Template = corev1.PodTemplateSpec{}
+		return r, nil
+	}
+	opts.ByObject[&appsv1.ReplicaSet{}] = rs
 }

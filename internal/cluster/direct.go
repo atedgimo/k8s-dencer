@@ -7,6 +7,8 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	policyv1 "k8s.io/api/policy/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -49,44 +51,109 @@ func NewDirectWithClient(client kubernetes.Interface) *Direct {
 // mutations the executor needs without opening a second connection.
 func (d *Direct) Client() kubernetes.Interface { return d.client }
 
+// pageSize bounds a single List response.
+//
+// Without it the API server assembles every pod in the cluster into one reply —
+// tens of megabytes at fifty thousand pods, allocated in full on both sides.
+// Paging trades a few more round trips for a bounded footprint, which is the
+// right trade for a component that reads repeatedly during a drain.
+const pageSize = 500
+
 // Snapshot builds an immutable view of current cluster state.
 func (d *Direct) Snapshot(ctx context.Context) (*model.ClusterSnapshot, error) {
-	nodes, err := d.client.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
-	if err != nil {
+	resolver := d.ownerResolver(ctx)
+	snap := &model.ClusterSnapshot{TakenAt: time.Now().UTC()}
+
+	if err := d.eachNodePage(ctx, func(items []corev1.Node) {
+		for i := range items {
+			snap.Nodes = append(snap.Nodes, convertNode(&items[i]))
+		}
+	}); err != nil {
 		return nil, fmt.Errorf("list nodes: %w", err)
 	}
-	pods, err := d.client.CoreV1().Pods("").List(ctx, metav1.ListOptions{})
-	if err != nil {
+
+	if err := d.eachPodPage(ctx, "", func(items []corev1.Pod) {
+		for i := range items {
+			p := &items[i]
+			// Terminated pods hold no resources and would inflate every node.
+			if p.Status.Phase == corev1.PodSucceeded || p.Status.Phase == corev1.PodFailed {
+				continue
+			}
+			snap.Pods = append(snap.Pods, convertPod(p, resolver))
+		}
+	}); err != nil {
 		return nil, fmt.Errorf("list pods: %w", err)
 	}
-	pdbs, err := d.client.PolicyV1().PodDisruptionBudgets("").List(ctx, metav1.ListOptions{})
-	if err != nil {
+
+	if err := d.eachPDBPage(ctx, func(items []policyv1.PodDisruptionBudget) {
+		for i := range items {
+			snap.PDBs = append(snap.PDBs, convertPDB(&items[i]))
+		}
+	}); err != nil {
 		return nil, fmt.Errorf("list poddisruptionbudgets: %w", err)
 	}
-
-	resolver := d.ownerResolver(ctx)
-	snap := &model.ClusterSnapshot{
-		TakenAt: time.Now().UTC(),
-		Nodes:   make([]model.Node, 0, len(nodes.Items)),
-		Pods:    make([]model.Pod, 0, len(pods.Items)),
-		PDBs:    make([]model.PodDisruptionBudget, 0, len(pdbs.Items)),
-	}
-
-	for i := range nodes.Items {
-		snap.Nodes = append(snap.Nodes, convertNode(&nodes.Items[i]))
-	}
-	for i := range pods.Items {
-		p := &pods.Items[i]
-		// Terminated pods hold no resources and would inflate every node.
-		if p.Status.Phase == corev1.PodSucceeded || p.Status.Phase == corev1.PodFailed {
-			continue
-		}
-		snap.Pods = append(snap.Pods, convertPod(p, resolver))
-	}
-	for i := range pdbs.Items {
-		snap.PDBs = append(snap.PDBs, convertPDB(&pdbs.Items[i]))
-	}
 	return snap, nil
+}
+
+// PodPresent reports whether a pod still exists and is not terminating.
+//
+// A single Get, because the alternative was listing every pod in the cluster
+// every two seconds to answer a question about one of them. On a large cluster
+// that dominated the entire drain.
+func (d *Direct) PodPresent(ctx context.Context, namespace, name string) (bool, error) {
+	pod, err := d.client.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("get pod %s/%s: %w", namespace, name, err)
+	}
+	return pod.DeletionTimestamp == nil, nil
+}
+
+func (d *Direct) eachNodePage(ctx context.Context, fn func([]corev1.Node)) error {
+	opts := metav1.ListOptions{Limit: pageSize}
+	for {
+		page, err := d.client.CoreV1().Nodes().List(ctx, opts)
+		if err != nil {
+			return err
+		}
+		fn(page.Items)
+		if page.Continue == "" {
+			return nil
+		}
+		opts.Continue = page.Continue
+	}
+}
+
+func (d *Direct) eachPodPage(ctx context.Context, namespace string, fn func([]corev1.Pod)) error {
+	opts := metav1.ListOptions{Limit: pageSize}
+	for {
+		page, err := d.client.CoreV1().Pods(namespace).List(ctx, opts)
+		if err != nil {
+			return err
+		}
+		fn(page.Items)
+		if page.Continue == "" {
+			return nil
+		}
+		opts.Continue = page.Continue
+	}
+}
+
+func (d *Direct) eachPDBPage(ctx context.Context, fn func([]policyv1.PodDisruptionBudget)) error {
+	opts := metav1.ListOptions{Limit: pageSize}
+	for {
+		page, err := d.client.PolicyV1().PodDisruptionBudgets("").List(ctx, opts)
+		if err != nil {
+			return err
+		}
+		fn(page.Items)
+		if page.Continue == "" {
+			return nil
+		}
+		opts.Continue = page.Continue
+	}
 }
 
 // ownerResolver mirrors the Collector's, walking ReplicaSet -> Deployment so a

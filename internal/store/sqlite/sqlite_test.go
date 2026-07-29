@@ -2,6 +2,7 @@ package sqlite_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -341,5 +342,75 @@ func TestReconfirmingAPlanRefreshesStoredAt(t *testing.T) {
 	}
 	if age := time.Since(got.StoredAt); age > time.Minute {
 		t.Errorf("storedAt is %s old after re-confirmation; it should be fresh", age.Round(time.Second))
+	}
+}
+
+// Rows written before compression must still be readable.
+//
+// gzip has a two-byte magic number, so the blob format is self-describing and
+// no migration is needed. That matters more here than usual: plan history is
+// an audit trail, and a schema bump would have meant rewriting every
+// historical row to read it back.
+func TestUncompressedRowsAreStillReadable(t *testing.T) {
+	db := openTemp(t)
+	ctx := context.Background()
+
+	rec := record("legacy-plan", step(1, "a", model.ImpactGreen))
+	if _, err := db.Save(ctx, rec); err != nil {
+		t.Fatal(err)
+	}
+
+	// Rewrite the blobs as plain JSON, exactly as a pre-compression build did.
+	snapJSON, err := json.Marshal(rec.Snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	analysisJSON, err := json.Marshal(rec.Analysis)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.ExecForTest(ctx,
+		`UPDATE plans SET snapshot = ?, analysis = ? WHERE id = ?`,
+		snapJSON, analysisJSON, "legacy-plan"); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := db.ByID(ctx, "legacy-plan")
+	if err != nil {
+		t.Fatalf("a plain-JSON row became unreadable: %v", err)
+	}
+	if got.Snapshot == nil || len(got.Snapshot.Nodes) != len(rec.Snapshot.Nodes) {
+		t.Errorf("snapshot did not survive: %+v", got.Snapshot)
+	}
+}
+
+// Compression must not change what a caller sees.
+func TestCompressionRoundTripsExactly(t *testing.T) {
+	db := openTemp(t)
+	ctx := context.Background()
+
+	rec := record("plan-rt", step(1, "a", model.ImpactGreen))
+	if _, err := db.Save(ctx, rec); err != nil {
+		t.Fatal(err)
+	}
+	got, err := db.ByID(ctx, "plan-rt")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want, _ := json.Marshal(rec.Snapshot)
+	back, _ := json.Marshal(got.Snapshot)
+	if string(want) != string(back) {
+		t.Errorf("snapshot changed through storage:\n want %s\n got  %s", want, back)
+	}
+
+	// And the stored bytes really are compressed.
+	var size int
+	if err := db.QueryRowForTest(ctx,
+		`SELECT length(snapshot) FROM plans WHERE id = ?`, "plan-rt").Scan(&size); err != nil {
+		t.Fatal(err)
+	}
+	if size >= len(want) {
+		t.Errorf("stored blob is %d bytes against %d of JSON; it is not compressed", size, len(want))
 	}
 }

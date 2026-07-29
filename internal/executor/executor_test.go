@@ -117,6 +117,17 @@ func (f *fakeCluster) Evict(_ context.Context, namespace, name string) error {
 	return nil
 }
 
+func (f *fakeCluster) PodPresent(_ context.Context, namespace, name string) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, p := range f.snap.Pods {
+		if p.Namespace == namespace && p.Name == name {
+			return !p.Terminating, nil
+		}
+	}
+	return false, nil
+}
+
 func (f *fakeCluster) someOtherSchedulableNode(exclude string) string {
 	for _, n := range f.snap.Nodes {
 		if n.Name != exclude && !n.Unschedulable && n.Ready {
