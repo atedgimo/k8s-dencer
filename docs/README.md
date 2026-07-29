@@ -3,6 +3,7 @@
 | | |
 |---|---|
 | **[Installation and configuration](install.md)** | Installing the chart, values profiles, and the constraints each choice carries |
+| **[CLI](cli.md)** | `dencer` and `kubectl dencer` — inspect and run plans without the UI |
 | **[Architecture](architecture.md)** | Components, the constraint analyzer, the planner, impact ratings, the API and the UI |
 | **[Authentication and authorization](security.md)** | TokenReview and SubjectAccessReview delegation, OIDC/SSO, and how to verify the privilege split yourself |
 | **[Execution and safety](execution.md)** | What the executor does per step, the Safety Guard's rails, maintenance windows, and the audit trail |

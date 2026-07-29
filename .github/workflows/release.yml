@@ -78,6 +78,50 @@ jobs:
           provenance: true
           sbom: true
 
+  cli:
+    name: build and attach CLI binaries
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: derive version
+        id: v
+        run: |
+          ref="${{ inputs.tag || github.ref_name }}"
+          echo "version=${ref#v}" >> "$GITHUB_OUTPUT"
+
+      # Static, cross-compiled, no cgo — the same properties the server images
+      # rely on, for the same reason: a CLI that can drain nodes should not
+      # depend on the libc of whatever machine it lands on.
+      - name: build
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          mkdir -p dist
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+            os="${target%/*}"; arch="${target#*/}"
+            CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build \
+              -trimpath -ldflags="-s -w -X main.version=${VERSION}" \
+              -o "dist/dencer-${os}-${arch}" ./cmd/dencer
+          done
+          cd dist && sha256sum dencer-* > checksums.txt && cat checksums.txt
+
+      - name: attach to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --generate-notes
+          gh release upload "$TAG" dist/dencer-* dist/checksums.txt --clobber
+
   chart:
     name: publish chart
     needs: images
