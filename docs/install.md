@@ -1,0 +1,79 @@
+# Installation and configuration
+
+The Helm chart is the product. This covers installing it, the values profiles, and the constraints you inherit with each choice.
+
+## Quick start
+
+**Prerequisites:** a Kubernetes cluster, Docker, Helm 3.8+, Go 1.26+, Node 22+. Kagent is optional and, if wanted, must be installed separately (see [Kagent](architecture.md#kagent) below).
+
+```bash
+make demo          # KWOK fabric + 30-node topology + build images + install the chart
+make token         # mint an operator token — the UI asks for one
+make ui            # port-forward and print the URLs
+make fabric-reset  # uncordon every KWOK node after an executor run
+make down          # remove all three releases
+```
+
+`make` with no target lists everything.
+
+---
+
+---
+
+## The chart is the product
+
+`charts/k8s-dencer` must install on any conformant cluster (EKS/GKE/AKS/on-prem). Local concerns live in a values overlay under `charts/k8s-dencer/ci/`, never in the defaults.
+
+**Defaults are vendor-neutral:** `ClusterIP` + optional Ingress (never LoadBalancer), restricted-PSS security contexts, per-component `resources`/probes/`nodeSelector`/`tolerations`/`affinity`/`topologySpreadConstraints`, `serviceAccount.annotations` for EKS IRSA and GKE Workload Identity, configurable `persistence` with `storageClass: ""` inheriting the cluster default, and a `kubeVersion: ">=1.27.0-0"` floor.
+
+**Forbidden in chart defaults:** LoadBalancer services, `hostPath`, `imagePullPolicy: Always`, hardcoded storage classes or node names, any reference to OrbStack or KWOK.
+
+### Values profiles
+
+| Profile | Purpose |
+|---|---|
+| `values.yaml` | vendor-neutral production defaults |
+| `ci/minimal-values.yaml` | every optional feature off — must still be a valid restricted-PSS install |
+| `ci/production-values.yaml` | cloud-shaped: Ingress + TLS, PVC, IRSA, PDB, NetworkPolicy, ServiceMonitor |
+| `ci/orbstack-values.yaml` | the local POC overlay — the only place OrbStack assumptions are allowed |
+
+### The portability gate
+
+```bash
+make lint
+```
+
+Runs `helm lint` and `kubeconform --strict` across every profile, then asserts the contract:
+
+1. production renders Ingress, PVC, PDB, NetworkPolicy, ServiceMonitor and an IRSA-annotated ServiceAccount
+2. production greps clean for `orbstack`, `kwok`, `hostPath`, `LoadBalancer`, `imagePullPolicy: Always`
+3. minimal keeps `runAsNonRoot` / `readOnlyRootFilesystem` / `allowPrivilegeEscalation: false` with all optionals off
+4. **no profile grants `pods/eviction`**
+5. `database.type=sqlite` with `uiBackend.replicaCount=2` is rejected by `values.schema.json`
+6. the packaged chart excludes the `ci/` fixtures
+7. an empty plan serialises `steps` as `[]`, never `null`
+8. **`pods/eviction` appears only on the executor's ClusterRole**, and only in a profile that enabled it
+9. planner and ui-backend hold **no write verb on nodes or pods**, ever
+10. the executor renders **no Service** — the component that can evict is unreachable
+11. `executor.enabled=true` is rejected without `auth.enabled` and without `persistence.enabled`
+12. no container declares a **duplicate env key** (valid YAML, rejected by server-side apply)
+13. **no profile disables authentication**
+14. `system:auth-delegator` is bound to ui-backend and to nothing else
+15. the consolidation-operator ClusterRole ships **unbound**
+16. a NetworkPolicy is present by default, and restricts ingress only
+17. `auth.oidc.enabled=true` without an issuer and client ID is rejected
+18. the monitors scrape **the path the code actually serves** — read out of `telemetry.MetricsPath`, not repeated in the chart
+19. every component the chart scrapes **registers the metrics handler** in its `main.go`
+20. scraping **does not give the executor a Service** — planner and executor stay reachable only as pods
+21. enabling `serviceMonitor` makes the NetworkPolicy **admit the monitoring namespace**, or the scrape is silently dropped
+
+### Known constraints
+
+- **SQLite is single-writer.** `uiBackend.replicaCount` is pinned to 1 and enforced by the schema; the planner is co-scheduled with ui-backend via a `requiredDuringScheduling` podAffinity, because a ReadWriteOnce claim only permits multiple pods on the same node. Both constraints disappear when the Postgres store lands.
+- **PDBs use `maxUnavailable`, never `minAvailable`.** A `minAvailable` PDB on a single-replica Deployment makes its own pod undrainable — the exact pathology this product exists to detect.
+
+---
+
+---
+
+[← Documentation index](README.md) · [Project README](../README.md)
