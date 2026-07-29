@@ -44,7 +44,12 @@ jobs:
 
       - name: derive version
         id: v
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        # On a tag push GITHUB_REF_NAME is the tag; on workflow_dispatch it is
+        # the branch the workflow was launched from, which would publish the
+        # wrong version under a correct-looking tag. The input wins when given.
+        run: |
+          ref="${{ inputs.tag || github.ref_name }}"
+          echo "version=${ref#v}" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
@@ -85,7 +90,12 @@ jobs:
 
       - name: derive version
         id: v
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        # On a tag push GITHUB_REF_NAME is the tag; on workflow_dispatch it is
+        # the branch the workflow was launched from, which would publish the
+        # wrong version under a correct-looking tag. The input wins when given.
+        run: |
+          ref="${{ inputs.tag || github.ref_name }}"
+          echo "version=${ref#v}" >> "$GITHUB_OUTPUT"
 
       # The chart's appVersion is what selects the image tag, so a chart
       # published with a stale appVersion would install images from a previous
