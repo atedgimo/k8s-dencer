@@ -168,6 +168,10 @@ endif
 # Lint
 # ---------------------------------------------------------------------------
 
+.PHONY: e2e
+e2e: ## Install on a throwaway multi-node k3d cluster and drain a real node
+	./hack/e2e.sh
+
 .PHONY: lint
 lint: $(KUBECONFORM) ## Chart portability gate: lint, render and assert the contract
 	@KUBECONFORM=$(KUBECONFORM) CHART=$(CHART) ./hack/lint-chart.sh

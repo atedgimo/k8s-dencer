@@ -128,11 +128,6 @@ helm install k8s-dencer oci://ghcr.io/atedgimo/charts/k8s-dencer \
   --set auth.enabled=true
 ```
 
-> **Not published yet.** The release pipeline is in place but no version has been
-> tagged, so the OCI chart and its images do not exist. Until then, install from
-> a checkout with `make deploy`. See
-> [docs/development.md](docs/development.md).
-
 Execution stays off unless you ask for it, and the chart refuses to enable it
 without authentication and persistence:
 
@@ -203,10 +198,18 @@ curves and the known ceiling in **[docs/benchmarks.md](docs/benchmarks.md)**.
 execution, and maintenance windows. Phase 4 — hardening toward 1000 nodes and
 50,000 pods — is in progress, with metrics, CI and the release pipeline landed.
 
-This is young software. It has been exercised end to end against a KWOK fabric
-and a real OIDC provider, and it has never run against a production cluster.
-Treat the read-only path as ready to try, and the executor as something to enable
-deliberately, on something you can afford to be wrong about.
+**v0.1.0 is published** — images and chart on `ghcr.io`, installable by the
+command above.
+
+Every release is verified end to end before it ships: CI stands up a five-node
+k3d cluster with PodSecurity enforcing `restricted`, installs the chart, plans
+against real workloads with real readiness probes, drains a node through the
+eviction API, and asserts the workload came back Ready. That is what
+[`make e2e`](hack/e2e.sh) does, and it runs on every pull request.
+
+It has still never run against a production cluster. Treat the read-only path
+as ready to try, and the executor as something to enable deliberately, on
+something you can afford to be wrong about.
 
 Full milestone history in [docs/roadmap.md](docs/roadmap.md).
 

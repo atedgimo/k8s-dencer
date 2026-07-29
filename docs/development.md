@@ -30,6 +30,43 @@ make demo CLUSTER_PROVIDER=k3d
 
 ---
 
+## End-to-end
+
+```bash
+make e2e            # throwaway 5-node k3d cluster, installs, drains a real node
+KEEP=1 make e2e     # leave the cluster up afterwards
+./hack/e2e.sh clean # tear it down
+```
+
+The only gate that installs anything. Everything else in CI is unit tests,
+rendered templates, or benchmarks over synthesised fixtures — none of which
+evict a pod that is really running.
+
+It closes three gaps that nothing else could:
+
+- **`readiness: Ready` had never run anywhere.** The executor verifies recovery
+  on the PodReady condition, which is what stops it declaring a crash-looping
+  workload healthy and draining the next node. KWOK cannot exercise it — a fake
+  pod reaches Running and never becomes Ready, so the demo overlay sets
+  `readiness: Running`. Here the pods have containers and httpGet probes, and
+  the default is used.
+- **One node.** OrbStack is single-node, so co-scheduling and the ReadWriteOnce
+  claim's node affinity had never met a cluster that could get them wrong.
+- **PodSecurity was a grep.** The chart has claimed restricted-PSS compliance
+  since M0 on the strength of `helm template | grep`. Here the namespace
+  enforces it and the API server decides.
+
+Two things it needs that are worth knowing, because both look like bugs:
+
+- **Five nodes, not three.** The Safety Guard's `MinReadyNodes` floor defaults
+  to 3, so draining anything on a three-node cluster leaves two and the guard
+  refuses. Lowering the floor would test a configuration nobody runs.
+- **`minNodeAge=0s`.** The planner refuses to drain a node younger than ten
+  minutes — the rail that stops it reclaiming a node an autoscaler just added.
+  Sensible in production, fatal to a test that built its cluster seconds
+  earlier. On a genuinely fresh cluster, expect no plan for the first ten
+  minutes.
+
 ## Test fabric (KWOK)
 
 A node-consolidation planner cannot be tested on a single-node cluster. [KWOK](https://kwok.sigs.k8s.io/) provides fake nodes with no kubelet, so a laptop presents a 30-node topology while the **real** scheduler, PDB accounting and eviction API all apply.

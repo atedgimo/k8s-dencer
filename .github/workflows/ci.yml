@@ -93,6 +93,37 @@ jobs:
       # bundle, so anything tsc lets through still has to survive Vite.
       - run: npm run build
 
+  e2e:
+    name: e2e on a multi-node cluster
+    runs-on: ubuntu-latest
+    # The only job that installs anything. Everything else is unit tests,
+    # rendered templates, or benchmarks over synthesised fixtures — none of
+    # which evict a pod that is really running.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: azure/setup-helm@v4
+
+      # Installed directly rather than through a marketplace action. The one
+      # tried first was pinned to a k3d release that no longer exists, and it
+      # created a cluster of its own that hack/e2e.sh does not want — the
+      # script builds and tears down its own. Pinned so a k3d release cannot
+      # change what this job tests without a commit.
+      - name: install k3d
+        env:
+          K3D_VERSION: v5.9.0
+        run: |
+          curl -sfL https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh \
+            | TAG="$K3D_VERSION" bash
+          k3d version
+
+      - name: e2e
+        run: ./hack/e2e.sh
+
   bench:
     name: benchmarks compile and run
     runs-on: ubuntu-latest

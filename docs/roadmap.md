@@ -49,7 +49,8 @@ estimated — every milestone here starts from a number in
 | **M18** | Planner cost — memoised topology-spread counts, **112×** faster analysis at 5k pods | **done** |
 | **M19** | UI at scale — aggregated payload (**44×** smaller at 5k pods), density rendering, virtualised field | **done** |
 | **M20** | `/metrics` on all three components; monitors that scrape a real path; CI; published images | **done** |
-| **M21** | Multi-node k3d, PodSecurity enforcing, real ingress and StorageClass | planned |
+| **M21** | Multi-node k3d e2e in CI, PodSecurity **enforcing**, `readiness: Ready` on real pods | **done** |
+| **M21b** | Real ingress controller and StorageClass | planned |
 
 High availability and a Postgres store were **dropped, not deferred**: a
 consolidation planner is not a serving path. The run queue is already crash-safe
