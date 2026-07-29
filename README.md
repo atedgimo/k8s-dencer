@@ -43,6 +43,9 @@ happens to be able to execute, not an autoscaler with a UI.
   the rule that stopped it.
 - **Answers questions in natural language** through an optional Kagent agent
   that quotes the analyzer rather than re-deriving anything.
+- **Works without the UI.** `dencer` (also a `kubectl` plugin) does everything
+  the UI does from a terminal, with `-o json` for pipelines — see
+  [docs/cli.md](docs/cli.md).
 
 **Execution is off by default.** Until you set `executor.enabled=true`, no
 component in the release can cordon, evict, or write to a node — and `make lint`
@@ -183,6 +186,7 @@ curves and the known ceiling in **[docs/benchmarks.md](docs/benchmarks.md)**.
 | | |
 |---|---|
 | [Installation and configuration](docs/install.md) | Chart values, profiles, and the constraints each choice carries |
+| [CLI](docs/cli.md) | `dencer` and `kubectl dencer`, for operators who don't want the UI |
 | [Architecture](docs/architecture.md) | Components, analyzer, planner, impact ratings, API, UI |
 | [Authentication and authorization](docs/security.md) | Token delegation, OIDC/SSO, verifying the privilege split |
 | [Execution and safety](docs/execution.md) | Per-step behaviour, the guard's rails, maintenance windows, audit |

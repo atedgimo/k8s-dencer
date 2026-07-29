@@ -168,6 +168,19 @@ endif
 # Lint
 # ---------------------------------------------------------------------------
 
+.PHONY: cli
+cli: ## Build the dencer CLI into ./bin
+	@mkdir -p bin
+	go build -trimpath -ldflags="-s -w -X main.version=$(IMAGE_TAG)" -o bin/dencer ./cmd/dencer
+	@echo "built bin/dencer"
+
+.PHONY: cli-install
+cli-install: cli ## Install dencer and kubectl-dencer into $(GOBIN) or ~/go/bin
+	@dest="$${GOBIN:-$$HOME/go/bin}"; mkdir -p "$$dest"; \
+	install -m 0755 bin/dencer "$$dest/dencer"; \
+	ln -sf "$$dest/dencer" "$$dest/kubectl-dencer"; \
+	echo "installed $$dest/dencer and kubectl-dencer (so 'kubectl dencer plan' works)"
+
 .PHONY: e2e
 e2e: ## Install on a throwaway multi-node k3d cluster and drain a real node
 	./hack/e2e.sh

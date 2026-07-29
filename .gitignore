@@ -17,3 +17,4 @@ ui/dist/
 /planner
 /executor
 /ui-backend
+bin/

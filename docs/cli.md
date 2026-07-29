@@ -1,0 +1,127 @@
+# CLI
+
+`dencer` is a client of the REST API, not a second planner. Everything it
+shows was computed by the planner, and everything it asks for is authorised by
+the same SubjectAccessReview the UI goes through.
+
+That is the whole design decision. A CLI that talked to the cluster directly
+would need its own copy of the constraint analyzer and the Safety Guard, and
+the interesting failure would be the two copies disagreeing about whether a
+step is Red.
+
+## Install
+
+Download a binary from the [latest release](https://github.com/atedgimo/k8s-dencer/releases),
+or build from a checkout:
+
+```bash
+make cli-install    # installs dencer and kubectl-dencer into $GOBIN
+```
+
+The symlink is what makes `kubectl dencer plan` work — kubectl treats any
+`kubectl-*` binary on PATH as a plugin. Every global flag is spelled the way
+kubectl spells it, so muscle memory carries over.
+
+## Connecting
+
+With no flags, `dencer` finds the `ui-backend` Service through your kubeconfig
+and port-forwards to it, the same way `kubectl port-forward` would. Nothing to
+set up on a fresh install.
+
+```bash
+dencer plan                                   # port-forward via kubeconfig
+dencer plan --server https://dencer.example   # an Ingress, no port-forward
+dencer plan -n platform --release dencer      # a differently-named release
+```
+
+### Authentication
+
+The backend verifies identity with `TokenReview`, which only understands
+**bearer tokens**. If your kubeconfig authenticates with a client certificate —
+the default on k3d, kind and OrbStack — there is no token to send, and the CLI
+says so rather than letting the server answer "unauthenticated":
+
+```bash
+export DENCER_TOKEN="$(kubectl create token dencer-operator -n k8s-dencer)"
+dencer plan
+```
+
+With OIDC single sign-on the ID token in your kubeconfig is already a
+Kubernetes credential and is used directly.
+
+## Commands
+
+### `dencer plan`
+
+The current plan, one line per step, leading with the next action.
+
+```
+plan 754f04015304  4s old, greedy-first-fit-decreasing
+28 nodes now, 13 after, 15 reclaimable
+
+STEP  IMPACT    DRAINS        PODS  WHY
+1     ■ Red     kwok-node-12  3     Draining kwok-node-12 moves 3 pod(s). Rated Red…
+2     ● Green   kwok-node-16  3     Draining kwok-node-16 moves 3 pod(s). No disrup…
+
+Next: drain kwok-node-16 (● Green)
+  dencer run --steps 2
+
+■ 3 step(s) are Red and need an open MaintenanceWindow.
+```
+
+### `dencer explain <step>`
+
+Why a step is rated as it is, what it moves, and which pods on that node
+cannot.
+
+### `dencer why <namespace>/<pod>`
+
+Whether a pod can move and what is stopping it. Constraint explanations are
+printed **verbatim** — the analyzer's `Explanation` is the single canonical
+wording, and the UI and the Kagent agent quote the same string. If the CLI
+paraphrased, one constraint could be described three ways and an operator would
+have no way to tell which to believe.
+
+### `dencer run --steps 1,3-5`
+
+Executes the selected steps and follows them. Ranges and lists both work.
+
+Before evicting anything it shows what is about to happen and asks. `--yes`
+skips the prompt for scripts; `--dry-run` runs every guard check and emits the
+same events without cordoning or evicting.
+
+```
+run 9d251edd  Succeeded
+  ▲ 14:22:07 Guard    kwok-node-3   refused [PDBHeadroom]
+```
+
+**Exit codes carry the outcome.** A run refused by the Safety Guard exits
+non-zero, because a pipeline must not treat a refused consolidation as a
+completed one. Ctrl-C stops watching but does not stop the run — the executor
+owns it, and the CLI says so on the way out.
+
+### `dencer status`
+
+The run in flight, or a specific one with `--run <id>`, plus its audit trail.
+
+## Scripting
+
+Every command takes `-o json` or `-o yaml`, and colour turns itself off when
+output is not a terminal (`NO_COLOR` is honoured too).
+
+```bash
+# Fail a pipeline if the plan has grown a Red step
+dencer plan -o json | jq -e '[.plan.steps[] | select(.impact=="Red")] | length == 0'
+
+# Run every Green step, unattended
+dencer run --yes --steps "$(dencer plan -o json \
+  | jq -r '[.plan.steps[] | select(.impact=="Green") | .sequenceNumber] | join(",")')"
+```
+
+Risk is never carried by colour alone: each rating prints a glyph (`●` `▲` `■`)
+and its word, so the output survives a pipe, a CI log and a reader who cannot
+distinguish red from green.
+
+---
+
+[← Documentation index](README.md) · [Project README](../README.md)
