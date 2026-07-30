@@ -74,6 +74,31 @@ Runs `helm lint` and `kubeconform --strict` across every profile, then asserts t
 
 ---
 
+## The CLI
+
+The chart installs the server side. The CLI is a separate binary an operator
+puts on their own machine:
+
+```bash
+make cli-install
+```
+
+That also drops a `kubectl-dencer` symlink beside it, which is all
+`kubectl dencer plan` needs.
+
+> **Prebuilt binaries start with the next release.** v0.1.0 published the
+> images and the chart but predates the CLI, so there is nothing to download
+> yet. From the next tag onward, static builds for linux and darwin on both
+> architectures are attached to the GitHub release with checksums:
+>
+> ```bash
+> curl -sSLo dencer \
+>   https://github.com/atedgimo/k8s-dencer/releases/latest/download/dencer-$(uname -s | tr 'A-Z' 'a-z')-$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+> chmod +x dencer && sudo mv dencer /usr/local/bin/
+> ```
+
+Full usage in [cli.md](cli.md).
+
 ---
 
 [← Documentation index](README.md) · [Project README](../README.md)

@@ -109,11 +109,24 @@ No real workloads required — the demo stands up a fabric of fake nodes with
 
 ```bash
 make demo     # fake-node fabric + 30-node topology + build images + install
-make token    # mint an operator token; the UI asks for one
+make token    # mint an operator token
 make ui       # port-forward and print the URL
 ```
 
-Then open the printed URL. To clean up:
+Then open the printed URL.
+
+Or skip the browser entirely:
+
+```bash
+make cli-install                       # installs dencer and kubectl-dencer
+export DENCER_TOKEN="$(make -s token)"
+dencer plan                            # or: kubectl dencer plan
+```
+
+`dencer` finds the backend through your kubeconfig on its own — no
+port-forward, no flags. See **[docs/cli.md](docs/cli.md)**.
+
+To clean up:
 
 ```bash
 make fabric-reset   # uncordon every fake node after an executor run
@@ -216,6 +229,13 @@ as ready to try, and the executor as something to enable deliberately, on
 something you can afford to be wrong about.
 
 Full milestone history in [docs/roadmap.md](docs/roadmap.md).
+
+## Security
+
+Found a vulnerability? Please report it privately through
+[GitHub's private reporting](https://github.com/atedgimo/k8s-dencer/security/advisories/new)
+rather than opening an issue — see [SECURITY.md](SECURITY.md) for scope and
+what to expect.
 
 ## Contributing
 

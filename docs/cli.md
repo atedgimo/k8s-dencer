@@ -11,12 +11,13 @@ step is Red.
 
 ## Install
 
-Download a binary from the [latest release](https://github.com/atedgimo/k8s-dencer/releases),
-or build from a checkout:
-
 ```bash
 make cli-install    # installs dencer and kubectl-dencer into $GOBIN
 ```
+
+Prebuilt binaries are attached to GitHub releases from the first tag after
+v0.1.0 — that release published the images and the chart but predates the CLI,
+so building from a checkout is the only route until then.
 
 The symlink is what makes `kubectl dencer plan` work — kubectl treats any
 `kubectl-*` binary on PATH as a plugin. Every global flag is spelled the way
