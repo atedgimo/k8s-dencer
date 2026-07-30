@@ -202,6 +202,26 @@ and pruning it would leave the log pointing at nothing.
 curl -H "Authorization: Bearer $TOKEN" localhost:8090/api/v1/runs/<runId> | jq .events
 ```
 
+## Running steps from a terminal
+
+Everything below is reachable from the [CLI](cli.md) as well as the UI, through
+the same API and the same authorization:
+
+```bash
+dencer plan                    # what would be reclaimed, and what each step costs
+dencer explain 3               # why step 3 is rated as it is
+dencer run --steps 1,3-5       # execute, with a confirmation prompt
+dencer run --steps 2 --dry-run # every guard check, nothing cordoned or evicted
+dencer status                  # the run in flight, plus its audit trail
+```
+
+`--dry-run` is worth reaching for first on an unfamiliar cluster: it runs the
+full guard chain and emits the same events, so a step that would be refused
+tells you which rail refuses it before anything is disrupted.
+
+A run refused by the Safety Guard exits non-zero, so a pipeline cannot mistake
+a refused consolidation for a completed one.
+
 ---
 
 [← Documentation index](README.md) · [Project README](../README.md)

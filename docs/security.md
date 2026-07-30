@@ -182,6 +182,32 @@ against the group rather than the person.
 
 ---
 
+## Credentials for the CLI
+
+The [CLI](cli.md) authenticates exactly as the UI does — it sends a bearer
+token and the backend resolves it with `TokenReview`. What differs is where the
+token comes from.
+
+**With OIDC single sign-on**, the ID token already in your kubeconfig *is* a
+Kubernetes credential, and the CLI uses it directly. Nothing to mint.
+
+**With a client-certificate kubeconfig** — the default on k3d, kind and
+OrbStack — there is no token at all. A certificate proves who you are to the
+API server and means nothing to a `TokenReview` call, so one has to be minted:
+
+```bash
+export DENCER_TOKEN="$(kubectl create token dencer-operator -n k8s-dencer)"
+```
+
+The CLI detects this case and prints that command rather than letting the
+server answer "unauthenticated", which would send you looking in the wrong
+place.
+
+Whatever the source, the token is only ever an identity. What it may *do* is
+decided by `SubjectAccessReview` against your cluster's RBAC: `get
+plans.dencer.io` to read, `create consolidations.dencer.io` to execute. A 403
+from the CLI names the missing verb.
+
 ---
 
 [← Documentation index](README.md) · [Project README](../README.md)
