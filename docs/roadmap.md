@@ -50,7 +50,7 @@ estimated — every milestone here starts from a number in
 | **M19** | UI at scale — aggregated payload (**44×** smaller at 5k pods), density rendering, virtualised field | **done** |
 | **M20** | `/metrics` on all three components; monitors that scrape a real path; CI; published images | **done** |
 | **M21** | Multi-node k3d e2e in CI, PodSecurity **enforcing**, `readiness: Ready` on real pods | **done** |
-| **M21b** | Real ingress controller and StorageClass | planned |
+| **M21b** | Real ingress controller and StorageClass, exercised in the e2e | **done** |
 | **M22** | Reclamation loop — observe whether a drained node was actually removed | **done** |
 
 High availability and a Postgres store were **dropped, not deferred**: a

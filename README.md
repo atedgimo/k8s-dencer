@@ -222,9 +222,11 @@ execution, and maintenance windows. Phase 4 — hardening toward 1000 nodes and
 command above.
 
 Every release is verified end to end before it ships: CI stands up a five-node
-k3d cluster with PodSecurity enforcing `restricted`, installs the chart, plans
-against real workloads with real readiness probes, drains a node through the
-eviction API, and asserts the workload came back Ready. That is what
+k3d cluster with PodSecurity enforcing `restricted`, installs the chart behind a
+real ingress controller on a named StorageClass, plans against real workloads
+with real readiness probes, drains a node through the eviction API, asserts the
+workload came back Ready, then deletes the node and confirms the reclamation
+was observed. That is what
 [`make e2e`](hack/e2e.sh) does, and it runs on every pull request.
 
 It has still never run against a production cluster. Treat the read-only path

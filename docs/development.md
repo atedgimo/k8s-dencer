@@ -56,6 +56,14 @@ It closes three gaps that nothing else could:
   since M0 on the strength of `helm template | grep`. Here the namespace
   enforces it and the API server decides.
 
+It also exercises the three chart claims that were previously only rendered,
+never run: the PVC binds on a **named** StorageClass rather than whatever the
+cluster defaults to; the planner and ui-backend are asserted onto the **same
+node**, because SQLite is single-writer behind a ReadWriteOnce volume and on a
+single-node cluster that constraint costs nothing to satisfy by accident; and a
+request is routed **through Traefik** to the frontend, which is the difference
+between an Ingress that renders and one that works.
+
 Two things it needs that are worth knowing, because both look like bugs:
 
 - **Five nodes, not three.** The Safety Guard's `MinReadyNodes` floor defaults
