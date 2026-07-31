@@ -209,3 +209,16 @@ func (c *Client) Reclamations(ctx context.Context) (*ReclamationsEnvelope, error
 	}
 	return &out, nil
 }
+
+// Converge queues a closed-loop run and returns the run id. The caller has
+// already confirmed the policy; this just carries it.
+func (c *Client) Converge(ctx context.Context, maxNodes int, maxImpact string, dryRun bool) (string, error) {
+	var out struct {
+		RunID string `json:"runId"`
+	}
+	body := map[string]any{"maxNodes": maxNodes, "maxImpact": maxImpact, "dryRun": dryRun}
+	if err := c.do(ctx, "POST", "/api/v1/converge", body, &out); err != nil {
+		return "", err
+	}
+	return out.RunID, nil
+}

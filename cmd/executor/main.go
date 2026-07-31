@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -23,6 +24,8 @@ import (
 	"github.com/atedgimo/k8s-dencer/internal/cluster"
 	"github.com/atedgimo/k8s-dencer/internal/executor"
 	"github.com/atedgimo/k8s-dencer/internal/httpserver"
+	"github.com/atedgimo/k8s-dencer/internal/impact"
+	"github.com/atedgimo/k8s-dencer/internal/planner"
 	"github.com/atedgimo/k8s-dencer/internal/safety"
 	"github.com/atedgimo/k8s-dencer/internal/store"
 	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlite"
@@ -88,8 +91,22 @@ func run(ctx context.Context, log *slog.Logger) error {
 	}
 	go windows.Run(ctx, duration(log, "WINDOW_SYNC_INTERVAL", 30*time.Second))
 
+	// Converge runs re-plan locally, so the executor carries the same planning
+	// and rating knobs as the planner component — same env names on purpose,
+	// so one values block in the chart configures both and a step is Yellow
+	// here exactly when the operator's screen would have said Yellow.
+	planOpts := planner.DefaultOptions()
+	planOpts.MinNodeAge = duration(log, "MIN_NODE_AGE", planOpts.MinNodeAge)
+	planOpts.ExcludeNamespaces = splitList(os.Getenv("EXCLUDE_NAMESPACES"))
+
 	metrics := telemetry.NewMetrics(telemetry.ComponentExecutor)
 	exec := executor.New(executor.NewK8sCluster(reader), db, db, log, executor.Options{
+		Planner: planOpts,
+		Classifier: impact.New(impact.Thresholds{
+			YellowPodsMoved:  intEnv("YELLOW_PODS_MOVED", 0),
+			RedPodsMoved:     intEnv("RED_PODS_MOVED", 0),
+			TightPDBHeadroom: int32(intEnv("TIGHT_PDB_HEADROOM", 0)),
+		}),
 		Worker:        env("POD_NAME", "executor"),
 		Limits:        limits,
 		StepTimeout:   duration(log, "STEP_TIMEOUT", 10*time.Minute),
@@ -143,6 +160,20 @@ func env(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func splitList(s string) []string {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func intEnv(key string, fallback int) int {

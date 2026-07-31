@@ -136,3 +136,27 @@ distinguish red from green.
 ---
 
 [← Documentation index](README.md) · [Project README](../README.md)
+
+## `dencer converge` — closed-loop consolidation
+
+```
+dencer converge --max-nodes 5 --max-impact Green [--dry-run] [--yes]
+```
+
+Instead of executing a plan's steps, the executor repeats: observe the
+cluster, plan **one** drain against live state, run the full Safety Guard,
+drain, wait for recovery — until nothing worthwhile remains or a bound is hit.
+
+You are approving a **policy, not a list**, and the prompt says so. The
+bounds are the consent:
+
+- `--max-nodes` — the most nodes the run may drain (required, no default)
+- `--max-impact` — `Green` or `Yellow`; nothing rated above it is executed.
+  Red always requires a maintenance window, converge or not.
+
+Two rails hold regardless: every round must actually free a node (measured
+after the drain settles, not predicted) or the run stops, and no node is
+drained twice in one run.
+
+`--dry-run` rehearses exactly one round. A converge rehearsal cannot honestly
+simulate where evicted pods land, so it does not pretend to.

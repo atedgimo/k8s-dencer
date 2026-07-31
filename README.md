@@ -39,6 +39,11 @@ happens to be able to execute, not an autoscaler with a UI.
   risky ones are visible before anyone clicks anything.
 - **Executes only what you pick**, through the Kubernetes eviction API, so the
   API server itself enforces your PodDisruptionBudgets.
+- **Or closes the loop, inside bounds you set.** `dencer converge` re-plans
+  from *observed* state after every drain — one step at a time, full Safety
+  Guard each round — until nothing worthwhile remains or your envelope (max
+  nodes, max impact) is reached. You approve a policy with explicit bounds,
+  never an open-ended "optimize".
 - **Refuses steps that became unsafe** between planning and execution, naming
   the rule that stopped it.
 - **Checks whether draining actually saved anything.** k8s-dencer never deletes

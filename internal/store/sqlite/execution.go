@@ -33,12 +33,21 @@ func (s *Store) Enqueue(ctx context.Context, run store.Run) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// nil marshals to the string "null"; a steps run should store SQL NULL so
+	// "no envelope" and "an envelope" stay distinguishable in the audit row.
+	var envelope []byte
+	if run.Envelope != nil {
+		if envelope, err = json.Marshal(run.Envelope); err != nil {
+			return "", err
+		}
+	}
 
 	_, err = s.db.ExecContext(ctx, `
-		INSERT INTO runs (id, plan_id, steps, dry_run, status, actor, actor_groups, requested_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		INSERT INTO runs (id, plan_id, steps, dry_run, status, actor, actor_groups, requested_at, mode, envelope)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		run.ID, run.PlanID, steps, boolToInt(run.DryRun), string(run.Status),
-		run.Actor, groups, run.RequestedAt.UTC().Format(time.RFC3339Nano))
+		run.Actor, groups, run.RequestedAt.UTC().Format(time.RFC3339Nano),
+		run.Mode, envelope)
 	if err != nil {
 		return "", fmt.Errorf("enqueue run: %w", err)
 	}
@@ -123,7 +132,7 @@ func (s *Store) Finish(ctx context.Context, runID string, status store.RunStatus
 func (s *Store) RunByID(ctx context.Context, runID string) (store.Run, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT id, plan_id, steps, dry_run, status, actor, actor_groups,
-		       requested_at, started_at, finished_at, worker, summary
+		       requested_at, started_at, finished_at, worker, summary, mode, envelope
 		FROM runs WHERE id = ?`, runID)
 	return scanRun(row)
 }
@@ -132,7 +141,7 @@ func (s *Store) RunByID(ctx context.Context, runID string) (store.Run, error) {
 func (s *Store) ActiveRun(ctx context.Context) (store.Run, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT id, plan_id, steps, dry_run, status, actor, actor_groups,
-		       requested_at, started_at, finished_at, worker, summary
+		       requested_at, started_at, finished_at, worker, summary, mode, envelope
 		FROM runs WHERE status IN (?, ?)
 		ORDER BY requested_at LIMIT 1`,
 		string(store.RunPending), string(store.RunRunning))
@@ -146,7 +155,7 @@ func (s *Store) RunsForPlan(ctx context.Context, planID string, limit int) ([]st
 	}
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, plan_id, steps, dry_run, status, actor, actor_groups,
-		       requested_at, started_at, finished_at, worker, summary
+		       requested_at, started_at, finished_at, worker, summary, mode, envelope
 		FROM runs WHERE plan_id = ? ORDER BY requested_at DESC, rowid DESC LIMIT ?`,
 		planID, limit)
 	if err != nil {
@@ -199,13 +208,14 @@ func scanRun(row scanner) (store.Run, error) {
 	var (
 		run                   store.Run
 		steps, groups         []byte
+		envelope              []byte
 		dryRun                int
 		status, requestedAt   string
 		startedAt, finishedAt sql.NullString
 		worker, summary       sql.NullString
 	)
 	err := row.Scan(&run.ID, &run.PlanID, &steps, &dryRun, &status, &run.Actor, &groups,
-		&requestedAt, &startedAt, &finishedAt, &worker, &summary)
+		&requestedAt, &startedAt, &finishedAt, &worker, &summary, &run.Mode, &envelope)
 	if errors.Is(err, sql.ErrNoRows) {
 		return store.Run{}, store.ErrNotFound
 	}
@@ -218,6 +228,15 @@ func scanRun(row scanner) (store.Run, error) {
 	}
 	if len(groups) > 0 {
 		_ = json.Unmarshal(groups, &run.ActorGroups)
+	}
+	if len(envelope) > 0 {
+		var env store.Envelope
+		if err := json.Unmarshal(envelope, &env); err != nil {
+			// An unreadable consent record must fail loudly, not degrade into
+			// an unbounded run.
+			return store.Run{}, fmt.Errorf("decode run envelope: %w", err)
+		}
+		run.Envelope = &env
 	}
 	run.DryRun = dryRun != 0
 	run.Status = store.RunStatus(status)
