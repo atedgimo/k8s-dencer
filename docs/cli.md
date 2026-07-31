@@ -175,3 +175,27 @@ blocking pod — the same engine that plans consolidations, asked a different
 question, so the preflight always agrees with the plan beside it.
 
 State changes; re-run immediately before upgrading.
+
+## `dencer audit` — what cannot survive a node loss
+
+```
+dencer audit [-o json]
+```
+
+The consolidation analysis read in the opposite mood: the PDB that blocks a
+voluntary drain is the same PDB a dying node violates, and the pod with no
+controller that eviction would delete permanently is deleted just as
+permanently by hardware. Findings are grouped by kind, each quoting the
+analyzer's own explanation.
+
+## `dencer drain <node>` — kubectl drain, with the rails
+
+```
+dencer drain worker-3 [--dry-run] [--yes]
+```
+
+The drain everyone does with kubectl, but guarded: the step is **rated with
+the same impact thresholds as a planned step** (a Red drain needs a
+maintenance window — naming the node is not a side-channel), every eviction
+passes the PDB pre-check against fresh state, recovery is verified on
+readiness, aborting uncordons, and the whole thing lands in the audit trail.

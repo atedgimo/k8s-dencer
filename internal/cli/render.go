@@ -506,3 +506,32 @@ func PrintPreflight(w io.Writer, env *PreflightEnvelope) {
 	fmt.Fprintf(w, "\nA rotation will stall at %d node(s) unless the blockers above are resolved first.\n", blocked)
 	fmt.Fprintln(w, "State changes; re-run this immediately before upgrading.")
 }
+
+// PrintResilience renders the availability audit: what cannot survive a node
+// loss. The same analysis consolidation runs on, read in the opposite mood —
+// the PDB that blocks a voluntary drain is the PDB a dying node violates.
+func PrintResilience(w io.Writer, env *ResilienceEnvelope) {
+	if len(env.Findings) == 0 {
+		fmt.Fprintf(w, "%s\n", bold("No availability findings."))
+		fmt.Fprintf(w, "Every pod can be evicted and every PodDisruptionBudget has headroom (%d pods analysed).\n", env.Pods)
+		return
+	}
+
+	fmt.Fprintf(w, "%s  %s\n\n",
+		bold(fmt.Sprintf("%d availability finding(s)", len(env.Findings))),
+		dim(fmt.Sprintf("across %d pods, as of %s ago", env.Pods, humanDuration(time.Since(env.TakenAt)))))
+
+	kind := ""
+	for _, f := range env.Findings {
+		if f.Kind != kind {
+			kind = f.Kind
+			fmt.Fprintf(w, "%s\n", bold(kind))
+		}
+		where := f.Pod
+		if f.Node != "" {
+			where += dim(" on " + f.Node)
+		}
+		fmt.Fprintf(w, "  %s %s\n    %s\n", yellow("▲"), where, f.Explanation)
+	}
+	fmt.Fprintln(w, "\nEach finding names a pod a node loss would hurt — voluntarily drained or not.")
+}

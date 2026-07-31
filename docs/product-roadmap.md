@@ -10,6 +10,9 @@ deciding what to build next and telling users what they get.
 ## Shipped
 
 ### Analysis and planning
+- **Resilience audit** — `dencer audit`: the never-evictable list read as an
+  availability report; the PDB that blocks a drain is the PDB a dying node
+  violates. Findings quote the analyzer's own explanations
 - **Upgrade preflight** — `dencer preflight`: will a node-pool rotation
   wedge, on which node, because of which pod, and why — answered before
   anything is touched, by the same analyzer that plans consolidations
@@ -34,6 +37,10 @@ deciding what to build next and telling users what they get.
   every drain, inside an explicit envelope (max nodes, impact ceiling), with
   three mutation-tested termination rails. Consent is to a policy, and both
   surfaces say so in those words
+- **Guarded drain** — `dencer drain <node>`: kubectl drain with the rails.
+  Rated with the same impact thresholds as a planned step (Red still needs a
+  window — naming the node is not a side-channel), per-eviction PDB checks
+  against fresh state, recovery verified, audited
 - **Off by default**, and the chart refuses to enable it without
   authentication and persistence
 - **Runs only the steps a human picked**, through the eviction API — the API
@@ -110,13 +117,6 @@ consolidation's.
    no kubelets, so the feature could not be verified here, and shipping an
    unverifiable feature is how confident wrong numbers happen. First
    verifiable on k3d with metrics-server or the GCP run.*
-5. **Resilience audit** — the analyzer's never-evictable list, re-sorted into
-   an availability risk report: zero-headroom PDBs, single replicas,
-   controller-less pods — the cluster's inability to survive a node loss,
-   named before the incident.
-6. **Guarded drain** — `dencer drain <node>`: the drain everyone does with
-   kubectl, but with the PDB pre-check, readiness verification and audit
-   trail the executor already has.
 7. **Cost awareness** — instance type and capacity type (spot/on-demand) in
    the model, so "better plan" can mean "cheaper estate", not "fewer nodes".
 8. **What-if simulation** — the planner against a modified snapshot: "can I

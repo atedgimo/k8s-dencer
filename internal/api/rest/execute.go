@@ -319,3 +319,89 @@ func (s *Server) handleConverge(w http.ResponseWriter, r *http.Request) {
 		"dryRun": req.DryRun, "status": store.RunPending,
 	})
 }
+
+// drainRequest is the body of POST /api/v1/drain.
+type drainRequest struct {
+	Node   string `json:"node"`
+	DryRun bool   `json:"dryRun"`
+}
+
+// handleDrain queues a guarded drain of one named node — kubectl drain with
+// the rails. Same shape as every execution route: authorize, validate, write
+// a row; only the unreachable executor touches the cluster.
+func (s *Server) handleDrain(w http.ResponseWriter, r *http.Request) {
+	if s.runs == nil {
+		writeError(w, http.StatusNotImplemented,
+			"this deployment has no executor; install with executor.enabled=true")
+		return
+	}
+
+	var req drainRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "request body is not valid JSON")
+		return
+	}
+	if req.Node == "" {
+		writeError(w, http.StatusBadRequest, "which node? a drain names exactly one")
+		return
+	}
+
+	// Validated against the latest snapshot so a typo fails here with a clear
+	// message, not in the executor with an audit row. The executor re-checks
+	// against live state regardless; this is courtesy, not the guard.
+	if rec, err := s.store.Latest(r.Context()); err == nil {
+		known := false
+		for _, n := range rec.Snapshot.Nodes {
+			if n.Name == req.Node {
+				known = true
+				break
+			}
+		}
+		if !known {
+			writeError(w, http.StatusBadRequest,
+				fmt.Sprintf("node %q is not in the latest snapshot", req.Node))
+			return
+		}
+	}
+
+	if active, err := s.runs.ActiveRun(r.Context()); err == nil {
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error": fmt.Sprintf("run %s is already %s", active.ID, active.Status),
+			"code":  "run_in_progress", "runId": active.ID, "status": active.Status,
+		})
+		return
+	} else if !errors.Is(err, store.ErrNotFound) {
+		s.fail(w, err)
+		return
+	}
+
+	actor := auth.Identity{Username: "auth-disabled", Source: auth.SourceAnonymous}
+	if id, ok := auth.IdentityFrom(r.Context()); ok {
+		actor = id
+	}
+
+	planID := ""
+	if rec, err := s.store.Latest(r.Context()); err == nil {
+		planID = rec.Plan.ID
+	}
+
+	runID, err := s.runs.Enqueue(r.Context(), store.Run{
+		PlanID: planID, Mode: store.RunModeDrain, Node: req.Node, DryRun: req.DryRun,
+		Actor: actor.Username, ActorGroups: actor.Groups,
+	})
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+
+	s.log.Info("drain requested", "run", runID, "node", req.Node,
+		"dryRun", req.DryRun, "actor", actor.Username)
+	s.events.Publish(Event{Type: "run", Data: map[string]any{
+		"runId": runID, "status": store.RunPending, "mode": store.RunModeDrain,
+		"node": req.Node, "dryRun": req.DryRun,
+	}})
+	writeJSON(w, http.StatusAccepted, map[string]any{
+		"runId": runID, "mode": store.RunModeDrain, "node": req.Node,
+		"dryRun": req.DryRun, "status": store.RunPending,
+	})
+}

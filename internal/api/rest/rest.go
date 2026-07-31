@@ -119,6 +119,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	read("/api/v1/version", s.handleVersion)
 	read("/api/v1/reclamations", s.handleReclamations)
 	read("/api/v1/preflight", s.handlePreflight)
+	read("/api/v1/resilience", s.handleResilience)
 	read("/api/v1/plans", s.handleListPlans)
 	read("/api/v1/plans/latest", s.handleLatestPlan)
 	read("/api/v1/plans/{id}", s.handlePlan)
@@ -145,6 +146,9 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	// Converge is consent to a policy rather than a list, but it is the same
 	// grant: the ability to have nodes drained. One permission, two shapes.
 	route("POST /api/v1/converge", auth.ExecuteConsolidations, s.handleConverge)
+	// A named drain is the same grant again: the ability to have nodes
+	// drained, in its third shape.
+	route("POST /api/v1/drain", auth.ExecuteConsolidations, s.handleDrain)
 }
 
 func (s *Server) handleAuthInfo(w http.ResponseWriter, _ *http.Request) {

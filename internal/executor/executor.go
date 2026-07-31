@@ -171,9 +171,12 @@ func (e *Executor) Poll(ctx context.Context) (bool, error) {
 
 	e.log.Info("claimed run", "run", run.ID, "plan", run.PlanID,
 		"steps", run.Steps, "mode", run.Mode, "dryRun", run.DryRun, "actor", run.Actor)
-	if run.Mode == store.RunModeConverge {
+	switch run.Mode {
+	case store.RunModeConverge:
 		e.converge(ctx, run)
-	} else {
+	case store.RunModeDrain:
+		e.drainNode(ctx, run)
+	default:
 		e.perform(ctx, run)
 	}
 	return true, nil

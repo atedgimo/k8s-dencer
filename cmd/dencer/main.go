@@ -40,6 +40,8 @@ Commands:
   status                the run in flight, or the last one
   reclamations          what actually became of the nodes you drained
   preflight             will every node drain? run before a node-pool rotation
+  audit                 what cannot survive a node loss, and why
+  drain <node>          guarded drain of one node: the rails, not bare kubectl
   version
 
 Global flags:
@@ -114,6 +116,10 @@ func run() error {
 		return cmdStatus(ctx, args)
 	case "preflight":
 		return cmdPreflight(ctx, os.Args[2:])
+	case "audit", "resilience":
+		return cmdAudit(ctx, os.Args[2:])
+	case "drain":
+		return cmdDrain(ctx, os.Args[2:])
 	case "reclamations", "reclaim":
 		return cmdReclamations(ctx, args)
 	default:
@@ -316,6 +322,91 @@ func cmdConverge(ctx context.Context, args []string) error {
 		return err
 	}
 
+	fmt.Println()
+	switch final.Status {
+	case store.RunSucceeded:
+		fmt.Printf("Succeeded. %s\n", final.Summary)
+		return nil
+	case store.RunBlocked:
+		return fmt.Errorf("blocked by the Safety Guard: %s", final.Summary)
+	default:
+		return fmt.Errorf("run %s: %s", final.Status, final.Summary)
+	}
+}
+
+func cmdAudit(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("audit", flag.ExitOnError)
+	g := bind(fs)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	c, err := connect(ctx, g)
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+	env, err := c.Resilience(ctx)
+	if err != nil {
+		return err
+	}
+	if g.format != cli.FormatText {
+		return cli.Encode(os.Stdout, g.format, env)
+	}
+	cli.PrintResilience(os.Stdout, env)
+	return nil
+}
+
+func cmdDrain(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("drain", flag.ExitOnError)
+	g := bind(fs)
+	dryRun := fs.Bool("dry-run", false, "run every guard check and emit the same events without touching the node")
+	watch := fs.Bool("watch", true, "follow the drain until it finishes")
+	yes := fs.Bool("yes", false, "skip the confirmation prompt")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return errors.New("which node? e.g. dencer drain worker-3")
+	}
+	node := fs.Arg(0)
+
+	c, err := connect(ctx, g)
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+
+	if !*dryRun && !*yes {
+		fmt.Printf("Drain %s through the guard chain? Evicted pods are not restored if this aborts. [y/N] ", node)
+		var answer string
+		_, _ = fmt.Scanln(&answer)
+		answer = strings.ToLower(strings.TrimSpace(answer))
+		if answer != "y" && answer != "yes" {
+			fmt.Println("Nothing was drained.")
+			return nil
+		}
+	}
+
+	runID, err := c.Drain(ctx, node, *dryRun)
+	if err != nil {
+		return err
+	}
+	suffix := ""
+	if *dryRun {
+		suffix = " (dry run)"
+	}
+	fmt.Printf("drain of %s queued as run %s%s\n", node, runID, suffix)
+
+	if !*watch {
+		fmt.Printf("Follow it with: dencer status --run %s\n", runID)
+		return nil
+	}
+	final, err := c.Wait(ctx, runID, func(ev store.RunEvent) {
+		cli.PrintEvent(os.Stdout, ev)
+	})
+	if err != nil {
+		return err
+	}
 	fmt.Println()
 	switch final.Status {
 	case store.RunSucceeded:

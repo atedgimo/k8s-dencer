@@ -43,11 +43,11 @@ func (s *Store) Enqueue(ctx context.Context, run store.Run) (string, error) {
 	}
 
 	_, err = s.db.ExecContext(ctx, `
-		INSERT INTO runs (id, plan_id, steps, dry_run, status, actor, actor_groups, requested_at, mode, envelope)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		INSERT INTO runs (id, plan_id, steps, dry_run, status, actor, actor_groups, requested_at, mode, envelope, node)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		run.ID, run.PlanID, steps, boolToInt(run.DryRun), string(run.Status),
 		run.Actor, groups, run.RequestedAt.UTC().Format(time.RFC3339Nano),
-		run.Mode, envelope)
+		run.Mode, envelope, run.Node)
 	if err != nil {
 		return "", fmt.Errorf("enqueue run: %w", err)
 	}
@@ -132,7 +132,7 @@ func (s *Store) Finish(ctx context.Context, runID string, status store.RunStatus
 func (s *Store) RunByID(ctx context.Context, runID string) (store.Run, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT id, plan_id, steps, dry_run, status, actor, actor_groups,
-		       requested_at, started_at, finished_at, worker, summary, mode, envelope
+		       requested_at, started_at, finished_at, worker, summary, mode, envelope, node
 		FROM runs WHERE id = ?`, runID)
 	return scanRun(row)
 }
@@ -141,7 +141,7 @@ func (s *Store) RunByID(ctx context.Context, runID string) (store.Run, error) {
 func (s *Store) ActiveRun(ctx context.Context) (store.Run, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT id, plan_id, steps, dry_run, status, actor, actor_groups,
-		       requested_at, started_at, finished_at, worker, summary, mode, envelope
+		       requested_at, started_at, finished_at, worker, summary, mode, envelope, node
 		FROM runs WHERE status IN (?, ?)
 		ORDER BY requested_at LIMIT 1`,
 		string(store.RunPending), string(store.RunRunning))
@@ -155,7 +155,7 @@ func (s *Store) RunsForPlan(ctx context.Context, planID string, limit int) ([]st
 	}
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, plan_id, steps, dry_run, status, actor, actor_groups,
-		       requested_at, started_at, finished_at, worker, summary, mode, envelope
+		       requested_at, started_at, finished_at, worker, summary, mode, envelope, node
 		FROM runs WHERE plan_id = ? ORDER BY requested_at DESC, rowid DESC LIMIT ?`,
 		planID, limit)
 	if err != nil {
@@ -215,7 +215,7 @@ func scanRun(row scanner) (store.Run, error) {
 		worker, summary       sql.NullString
 	)
 	err := row.Scan(&run.ID, &run.PlanID, &steps, &dryRun, &status, &run.Actor, &groups,
-		&requestedAt, &startedAt, &finishedAt, &worker, &summary, &run.Mode, &envelope)
+		&requestedAt, &startedAt, &finishedAt, &worker, &summary, &run.Mode, &envelope, &run.Node)
 	if errors.Is(err, sql.ErrNoRows) {
 		return store.Run{}, store.ErrNotFound
 	}

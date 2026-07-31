@@ -56,7 +56,7 @@ func Open(path string) (*Store, error) {
 // Close releases the database handle.
 func (s *Store) Close() error { return s.db.Close() }
 
-const schemaVersion = 5
+const schemaVersion = 6
 
 // Migrate creates or upgrades the schema.
 func (s *Store) Migrate(ctx context.Context) error {
@@ -97,6 +97,11 @@ func (s *Store) Migrate(ctx context.Context) error {
 	if current < 5 {
 		if _, err := tx.ExecContext(ctx, schemaV5); err != nil {
 			return fmt.Errorf("apply schema v5: %w", err)
+		}
+	}
+	if current < 6 {
+		if _, err := tx.ExecContext(ctx, schemaV6); err != nil {
+			return fmt.Errorf("apply schema v6: %w", err)
 		}
 	}
 
@@ -230,6 +235,11 @@ ALTER TABLE runs ADD COLUMN envelope BLOB;
 const schemaV5 = `
 ALTER TABLE reclamations ADD COLUMN cpu_milli INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE reclamations ADD COLUMN mem_bytes INTEGER NOT NULL DEFAULT 0;
+`
+
+// Schema v6 — guarded drain: a run can target one named node.
+const schemaV6 = `
+ALTER TABLE runs ADD COLUMN node TEXT NOT NULL DEFAULT '';
 `
 
 // Save persists a record unless it duplicates the latest plan.
