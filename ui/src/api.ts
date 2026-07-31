@@ -279,7 +279,26 @@ export interface ReclamationsResponse {
   };
 }
 
+/**
+ * Who the API server says you are, and which cluster you are looking at.
+ *
+ * identity is what TokenReview verified — not a claim this page decoded from a
+ * token it happens to be holding. clusterLabel is operator-set and absent
+ * unless someone configured it, because a guessed environment name is worse
+ * than none.
+ */
+export interface VersionResponse {
+  version: string;
+  readOnly: boolean;
+  latestPlanId?: string;
+  planGeneratedAt?: string;
+  identity?: string;
+  clusterLabel?: string;
+}
+
 export const api = {
+  version: (signal?: AbortSignal) => get<VersionResponse>("/api/v1/version", signal),
+
   latestPlan: (signal?: AbortSignal) => get<PlanResponse>("/api/v1/plans/latest", signal),
 
   reclamations: (signal?: AbortSignal) =>

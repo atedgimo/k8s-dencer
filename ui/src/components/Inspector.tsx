@@ -14,6 +14,8 @@ interface Props {
   selection: Selection;
   onClose: () => void;
   onSelectStep: (seq: number) => void;
+  onSelectPod: (key: string) => void;
+  onSelectNode: (name: string) => void;
 }
 
 /**
@@ -31,8 +33,20 @@ export default function Inspector({
   selection,
   onClose,
   onSelectStep,
+  onSelectPod,
+  onSelectNode,
 }: Props) {
   if (!selection) return null;
+
+  // Where a pod lives, so a pod opened from a node offers a way back up. The
+  // graph carries it as the parent; in density mode there are no pod elements
+  // and the answer is simply unavailable, which is why this is optional.
+  const parentNode =
+    selection.kind === "pod"
+      ? graph.elements
+          .find((e) => e.data.kind === "pod" && `${e.data.namespace}/${e.data.label}` === selection.key)
+          ?.data.parent?.replace(/^node:/, "")
+      : undefined;
 
   return (
     <section className="inspector" aria-label="Constraint inspector">
@@ -42,11 +56,30 @@ export default function Inspector({
           ✕
         </button>
       </header>
-      {selection.kind === "pod" ? (
-        <PodPanel planId={planId} podKey={selection.key} />
-      ) : (
-        <NodePanel graph={graph} steps={steps} name={selection.name} onSelectStep={onSelectStep} />
+
+      {/* Drilling down without a way back is a trapdoor. */}
+      {parentNode && (
+        <button type="button" className="inspector-up mono" onClick={() => onSelectNode(parentNode)}>
+          ← {parentNode}
+        </button>
       )}
+
+      {/* Keyed so React remounts on every change: the panel animates in, and
+          without a key the content would swap silently inside a box that never
+          moved, which reads as nothing having happened. */}
+      <div className="inspector-swap" key={selection.kind === "pod" ? selection.key : selection.name}>
+        {selection.kind === "pod" ? (
+          <PodPanel planId={planId} podKey={selection.key} />
+        ) : (
+          <NodePanel
+            graph={graph}
+            steps={steps}
+            name={selection.name}
+            onSelectStep={onSelectStep}
+            onSelectPod={onSelectPod}
+          />
+        )}
+      </div>
     </section>
   );
 }
@@ -127,11 +160,13 @@ function NodePanel({
   steps,
   name,
   onSelectStep,
+  onSelectPod,
 }: {
   graph: GraphPayload;
   steps: PlanStep[];
   name: string;
   onSelectStep: (seq: number) => void;
+  onSelectPod: (key: string) => void;
 }) {
   const node = graph.elements.find((e) => e.data.kind === "node" && e.data.label === name)?.data;
   const pods = graph.elements.filter(
@@ -140,6 +175,13 @@ function NodePanel({
   const drainStep = node?.drainStep ?? 0;
   const step = steps.find((s) => s.sequenceNumber === drainStep);
   const blocked = pods.filter((p) => p.data.blocked);
+
+  // Above the graph endpoint's detail limit there are no pod elements at all,
+  // so counting them would report every node as empty — a node holding 40 pods
+  // rendering as "0 pods" reads as a successful drain rather than a missing
+  // payload. The server sends the tallies for exactly this case.
+  const podCount = graph.aggregated ? (node?.podCount ?? 0) : pods.length;
+  const blockedCount = graph.aggregated ? (node?.blockedCount ?? 0) : blocked.length;
 
   if (!node) return <div className="inspector-body muted">Node not found in this plan.</div>;
 
@@ -162,8 +204,52 @@ function NodePanel({
           {formatBytes(node.memRequested ?? 0)} / {formatBytes(node.memAllocatable ?? 0)}
         </dd>
         <dt>Pods</dt>
-        <dd>{pods.length}</dd>
+        <dd>{podCount}</dd>
       </dl>
+
+      {/* The list, not just the count. Without it a node is a dead end: you can
+          see that four pods are here and have no way to ask about any of them,
+          which is the question the count immediately provokes. */}
+      {pods.length > 0 && (
+        <div className="podlist">
+          <h3 className="eyebrow podlist-head">Pods on this node</h3>
+          <ul className="podlist-items">
+            {pods.map((p, i) => {
+              const key = `${p.data.namespace}/${p.data.label}`;
+              return (
+                <li key={key}>
+                  <button
+                    type="button"
+                    className="podlist-row"
+                    /* Staggered so the list assembles rather than appearing,
+                       which makes it read as a consequence of the click. */
+                    style={{ "--i": i } as React.CSSProperties}
+                    onClick={() => onSelectPod(key)}
+                  >
+                    <span className="podlist-name mono">{p.data.label}</span>
+                    <span className="podlist-ns mono">{p.data.namespace}</span>
+                    {p.data.blocked ? (
+                      <span className="podlist-flag podlist-flag-blocked mono">■ blocked</span>
+                    ) : p.data.movable === false ? (
+                      <span className="podlist-flag mono">pinned</span>
+                    ) : (
+                      <span className="podlist-flag podlist-flag-ok mono">movable</span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      {graph.aggregated && podCount > 0 && (
+        <p className="podlist-elided">
+          {podCount} pods on this node. Individual pods are not listed above the
+          graph endpoint&rsquo;s detail limit — at that size the payload would be
+          tens of megabytes.
+        </p>
+      )}
 
       {drainStep > 0 && step ? (
         <div className="inspector-callout">
@@ -182,8 +268,8 @@ function NodePanel({
             <span>Not drained by this plan</span>
           </div>
           <p className="constraint-text">
-            {blocked.length > 0
-              ? `${blocked.length} pod(s) here cannot be evicted, so the node cannot be emptied. Select a pod to see why.`
+            {blockedCount > 0
+              ? `${blockedCount} pod(s) here cannot be evicted, so the node cannot be emptied. Select one above to see why.`
               : "This node is either a destination for other pods, excluded by policy, or already reclaimable."}
           </p>
         </div>

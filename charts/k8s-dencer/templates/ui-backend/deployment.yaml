@@ -127,6 +127,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            {{- with .Values.uiBackend.clusterLabel }}
+            - name: CLUSTER_LABEL
+              value: {{ . | quote }}
+            {{- end }}
             {{- with .Values.uiBackend.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

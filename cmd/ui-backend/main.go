@@ -101,6 +101,10 @@ func run(ctx context.Context, log *slog.Logger) error {
 		api = api.WithGraphPodDetailLimit(lim)
 		log.Info("graph detail limit overridden", "podDetailLimit", lim)
 	}
+	if label := env("CLUSTER_LABEL", ""); label != "" {
+		api = api.WithClusterLabel(label)
+		log.Info("cluster label set", "label", label)
+	}
 	api.Routes(mux)
 
 	// The Kagent agent reaches the same plan store over MCP. It is mounted on

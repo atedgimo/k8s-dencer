@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, Impact, PlanStep } from "./api";
+import { api, Impact, PlanStep, VersionResponse } from "./api";
 import Inspector, { Selection } from "./components/Inspector";
 import PackingField from "./components/PackingField";
 import { ConfirmRun, RunTrail } from "./components/RunPanel";
@@ -7,6 +7,7 @@ import Scrubber from "./components/Scrubber";
 import { SignIn } from "./components/SignIn";
 import StepLedger from "./components/StepLedger";
 import Verdict from "./components/Verdict";
+import AppBar from "./components/AppBar";
 import { authInfo, token as tokenStore } from "./auth";
 import { onRenewed } from "./oidc";
 import { runtimeConfig } from "./runtime-config";
@@ -29,6 +30,41 @@ export default function App() {
   // rather than pushed: it changes on the planner's resync, which is tens of
   // seconds, and it is never the reason someone is watching the screen.
   const [reclaimed, setReclaimed] = useState({ awaiting: 0, reclaimed: 0 });
+
+  // Identity and cluster, for the header. Fetched once — neither changes
+  // within a session, and re-polling them would be noise.
+  const [server, setServer] = useState<VersionResponse | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .version()
+      .then((v) => {
+        if (!cancelled) setServer(v);
+      })
+      .catch(() => {
+        // The header simply shows less. Failing to learn the cluster name is
+        // not a reason to withhold the plan.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Sign out clears the credential this tab is carrying, and asks the OIDC
+  // provider to forget the session too when there is one. Without the second
+  // half, "sign out" would silently re-authenticate on the next page load.
+  const handleSignOut = useCallback(async () => {
+    try {
+      const info = await authInfo();
+      if (info.oidc.enabled) {
+        const { signOut } = await import("./oidc");
+        await signOut(info);
+      }
+    } catch {
+      // Clearing the local token is the part that must happen regardless.
+    }
+    tokenStore.clear();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -160,12 +196,23 @@ export default function App() {
 
   return (
     <div className="shell">
+      <AppBar
+        clusterLabel={server?.clusterLabel}
+        identity={server?.identity}
+        onSignOut={handleSignOut}
+      />
       {state.status === "loading" && <Placeholder title="Reading the cluster…" />}
 
       {state.status === "empty" && (
         <Placeholder
           title="No plan yet"
-          detail="The planner publishes one once it has read the cluster. This takes a few seconds after install."
+          detail="The planner publishes one once it has read the cluster."
+          /* The cause an operator hits and cannot otherwise guess: the planner
+             refuses to touch a node younger than minNodeAge, ten minutes by
+             default, so a freshly built cluster shows nothing and looks
+             broken. Naming it here is the difference between waiting and
+             filing a bug. */
+          hint="On a cluster built in the last few minutes this is expected — the planner will not consider a node younger than 10 minutes."
         />
       )}
 
@@ -234,6 +281,8 @@ export default function App() {
                 onToggle={toggleStep}
               />
               <Inspector
+                onSelectPod={(key) => setSelection({ kind: "pod", key })}
+                onSelectNode={(name) => setSelection({ kind: "node", name })}
                 planId={planId ?? ""}
                 graph={state.graph}
                 steps={steps}
@@ -278,19 +327,31 @@ export default function App() {
   );
 }
 
+/**
+ * An empty screen is an invitation to act, and an error is a thing to fix.
+ *
+ * Both used to be a heading and a sentence. Neither said what to do next, in a
+ * product where "no plan yet" almost always has a cause the operator can
+ * either fix or wait out — if someone tells them which.
+ */
 function Placeholder({
   title,
   detail,
+  hint,
   tone = "muted",
 }: {
   title: string;
   detail?: string;
+  /** The cause, or the next action. Quieter than detail, and often the only
+   *  part that actually helps. */
+  hint?: string;
   tone?: "muted" | "error";
 }) {
   return (
     <div className={`placeholder placeholder-${tone}`}>
       <h2>{title}</h2>
       {detail && <p>{detail}</p>}
+      {hint && <p className="placeholder-hint">{hint}</p>}
     </div>
   );
 }

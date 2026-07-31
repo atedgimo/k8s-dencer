@@ -151,6 +151,14 @@ planner:
 uiBackend:
   # Pinned to 1 while database.type is sqlite. Enforced by values.schema.json.
   replicaCount: 1
+
+  # Shown in the UI header so an operator can see which cluster they are about
+  # to act on. Empty renders nothing — a guessed environment name is worse than
+  # none, because the entire value of this field is being believed when it says
+  # "prod".
+  #
+  #   clusterLabel: prod-eu-west-1
+  clusterLabel: ""
   # How often to check the store for a new plan, to push over the event stream.
   # The planner is a separate process reached only through the shared volume,
   # so there is no event feed to subscribe to.

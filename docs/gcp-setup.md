@@ -1,0 +1,174 @@
+# Running the cloud test on GCP
+
+Everything you need to do by hand, once. About fifteen minutes, most of it
+waiting for GCP.
+
+The end result is `make cloud-e2e`: a throwaway GKE cluster that installs the
+published chart, drains a real node, and waits for **GKE's own cluster
+autoscaler** to remove it. That last part is the reason this exists — on k3d the
+only thing that has ever removed a drained node is our own test script.
+
+---
+
+## What it will cost
+
+**Nothing, on a new account.** The $300 / 90-day free trial covers it many
+thousand times over.
+
+| | |
+|---|---|
+| GKE control plane | **free** — the GKE free tier credit covers one *zonal* cluster |
+| 5 × `e2-medium` Spot | ~$0.04/hr |
+| 5 × 20GB `pd-standard` | ~$0.01/hr |
+| **A ~25 minute run** | **about 2–3 cents** |
+
+Two things worth knowing before you start:
+
+- **The free trial does not auto-charge.** When the credit runs out or expires,
+  GCP pauses resources and asks you to upgrade. It will not quietly start
+  billing your card.
+- **The only real risk is a cluster left running.** Five idle nodes is roughly
+  $100/month. The script deletes the cluster on every exit path including
+  `Ctrl-C`, and shouts if deletion fails — but if a run is ever killed hard
+  enough to skip that, see [If something goes wrong](#if-something-goes-wrong).
+
+---
+
+## 1. Create the account
+
+1. Go to **<https://cloud.google.com/free>** and click *Get started for free*.
+2. Sign in with a Google account.
+3. Accept the **$300 / 90-day** trial.
+
+You will be asked for a **credit card**. This is an identity check —
+Google states the trial does not charge it, and does not begin charging when
+the credit runs out unless you explicitly upgrade to a paid account.
+
+## 2. Create a project
+
+In the console, top bar, the project dropdown → **New project**.
+
+- **Name**: anything. `dencer-e2e` is fine.
+- Note the **project ID** it generates — it may differ from the name, and the
+  ID is what you need below.
+
+## 3. Link billing
+
+New projects are not always linked to the trial billing account automatically,
+and GKE will not start without one — even though the free-tier credit covers
+the cluster fee.
+
+**<https://console.cloud.google.com/billing/linkedaccount>** → select your
+project → link the trial billing account.
+
+`make gke-setup` checks this and tells you if it is missing.
+
+## 4. Install the gcloud CLI
+
+```bash
+brew install --cask google-cloud-sdk     # macOS
+```
+
+Anything else: <https://cloud.google.com/sdk/docs/install>
+
+## 5. Log in and select the project
+
+```bash
+gcloud auth login
+gcloud config set project YOUR_PROJECT_ID
+```
+
+## 6. Bootstrap
+
+```bash
+make gke-setup
+```
+
+Idempotent, and safe to re-run. It:
+
+- confirms you are logged in and billing is linked
+- enables `container.googleapis.com` and `compute.googleapis.com`
+- **checks your preemptible-CPU quota** — a brand-new project can have zero,
+  and without this check the failure arrives several minutes into cluster
+  creation with a message that reads like a bug in our script
+- offers to create a **$1 budget alert**
+- prints what a run costs
+
+## 7. Run it
+
+```bash
+make cloud-e2e
+```
+
+About 25 minutes. Most of that is one wait: GKE's `scale-down-unneeded-time`
+defaults to ten minutes, so after the drain the script sits watching for the
+autoscaler to act. That is the real behaviour of the thing being tested.
+
+Expect roughly:
+
+```
+==> multi-node cluster (gke)                5 nodes
+==> namespace with PodSecurity enforcing
+==> images                                  using published ghcr.io/... :latest
+==> real workloads                          6 replicas Ready with httpGet probes
+==> install                                 executor readiness=Ready
+==> storage, on a named StorageClass        Bound on standard-rwo
+==> the ReadWriteOnce claim keeps its two readers together
+==> a plan against real state               plan with N steps
+==> execute it                              run Succeeded
+==> the drain was recorded as awaiting reclamation
+==> GKE's own cluster autoscaler removes it
+      observed as reclaimed after 11m — by a reclaimer we did not write
+```
+
+**Send me the output either way.** If it fails I would rather see the real
+message than guess.
+
+---
+
+## If something goes wrong
+
+**Check nothing is left running.** This is the only step that costs money if
+skipped:
+
+```bash
+gcloud container clusters list      # should be empty
+make cloud-e2e-clean                # if it is not
+```
+
+### Failures I would expect first
+
+**`PREEMPTIBLE_CPUS` quota exceeded.** New projects often start at zero. Either
+request an increase at
+<https://console.cloud.google.com/iam-admin/quotas>, or run smaller:
+
+```bash
+AGENTS=2 GCP_MACHINE=e2-small make cloud-e2e
+```
+
+**The node is never reclaimed, and it times out after 15 minutes.** Most likely
+a `kube-system` pod with no PodDisruptionBudget is pinned to that node, and the
+autoscaler is correctly refusing to remove it. The failure output lists the pods
+still on the node so you can see which. This is a limitation of the test setup,
+not of the product.
+
+**`Spot` capacity unavailable in the zone.** Try another:
+
+```bash
+GCP_ZONE=us-east1-b make cloud-e2e
+```
+
+### Cleaning up entirely
+
+When you are finished with the whole experiment:
+
+```bash
+gcloud projects delete YOUR_PROJECT_ID
+```
+
+Deleting the project is the only way to be certain nothing is left behind
+anywhere in it.
+
+---
+
+[← Documentation index](README.md) · [Project README](../README.md)

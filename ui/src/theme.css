@@ -13,23 +13,52 @@
  * Fullness is carried by BRIGHTNESS on a neutral ramp instead. That is not a
  * consolation prize: it means the picture literally gets brighter and smaller
  * as a plan executes, which is the story this product exists to tell.
+ *
+ * Everything below is a token. Nothing in index.css should contain a raw hex,
+ * a bare pixel size or an arbitrary padding: the surface had 21 distinct font
+ * sizes and 32 distinct padding values before this file grew a scale, each of
+ * them sensible alone and improvised together, which is what made a carefully
+ * built instrument read as homemade.
  */
 
 :root {
   color-scheme: dark;
 
-  /* Ground and material. Neutral rather than blue-black, so the fixed green
-     and red below sit on it without a cast. */
-  --ink: #0b0d10;
-  --panel: #14171b;
-  --panel-raised: #1b1f25;
-  --panel-sunken: #08090b;
-  --edge: #262b33;
-  --edge-soft: rgba(233, 236, 239, 0.08);
+  /* ---------------------------------------------------------- surfaces
+     An elevation ladder rather than a set of named slabs. Steps are small —
+     three or four percent of lightness — and most of the separation between
+     panels is carried by a hairline and by space. Heavy contrasting fills are
+     what make a dense tool look like a wireframe of itself.
+
+     True black at the base. On an OLED panel the ground switches off entirely,
+     which makes a single saturated rating the only lit thing in that region of
+     the screen — the strongest possible reading of "colour means risk".
+
+     The raised steps are near-neutral rather than blue-tinted: against pure
+     black a cool cast reads as a colour, and this palette cannot afford a
+     fourth hue. test/palette allows 0.15 chroma on any non-risk token; the
+     highest of these spends 0.02. */
+  --surface-0: #000000;
+  --surface-1: #0b0c0e;
+  --surface-2: #121316;
+  --surface-3: #1a1c20;
+  --surface-sunken: #000000;
+
+  --border: rgba(233, 236, 239, 0.09);
+  --border-strong: rgba(233, 236, 239, 0.16);
+
+  /* Kept as aliases: index.css refers to these in a hundred places and
+     renaming them all buys nothing. New work should use the ladder. */
+  --ink: var(--surface-0);
+  --panel: var(--surface-1);
+  --panel-raised: var(--surface-2);
+  --panel-sunken: var(--surface-sunken);
+  --edge: var(--border);
+  --edge-soft: var(--border);
 
   --chalk: #e9ecef;
-  --graphite: #7a828e;
-  --graphite-dim: #4d545e;
+  --graphite: #8b939f;
+  --graphite-dim: #5d6672;
 
   /* Occupancy ramp — neutral, low to high. The only "scale" on the page that
      is not about risk, and it is deliberately achromatic so it cannot be
@@ -58,8 +87,35 @@
      here: operators compare utilisation down a column. */
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 
-  --radius: 3px;
-  --radius-sm: 2px;
+  /* ------------------------------------------------------------- type
+     Seven steps. Anything that does not land on one of these is a mistake
+     rather than a nuance — the previous 21 sizes were the mechanical reason
+     the hierarchy read as approximate. */
+  --text-2xs: 0.6875rem; /* 11px — uppercase eyebrows */
+  --text-xs: 0.75rem; /* 12px — labels, chips */
+  --text-sm: 0.8125rem; /* 13px — dense table rows */
+  --text-md: 0.875rem; /* 14px — body, the base */
+  --text-lg: 1rem; /* 16px — panel titles */
+  --text-xl: 1.25rem; /* 20px — section headings */
+  --text-2xl: 1.75rem; /* 28px — the verdict line, and nothing else */
+
+  --tracking-label: 0.14em;
+  --tracking-display: -0.03em;
+
+  /* ---------------------------------------------------------- spacing
+     An 8px grid with two half-steps. Six values replacing thirty-two. */
+  --space-1: 0.25rem; /* 4 */
+  --space-2: 0.5rem; /* 8 */
+  --space-3: 0.75rem; /* 12 */
+  --space-4: 1rem; /* 16 */
+  --space-6: 1.5rem; /* 24 */
+  --space-8: 2rem; /* 32 */
+
+  /* 3px read as a rounding error rather than a decision. 6 is the smallest
+     radius that reads as intentional at this density. */
+  --radius: 6px;
+  --radius-sm: 4px;
+  --radius-lg: 8px;
 
   --step-fast: 120ms;
   --step-base: 260ms;
@@ -70,45 +126,56 @@
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/*
+ * Light theme.
+ *
+ * Designed rather than inverted. On a light face the occupancy ramp has to run
+ * the other way — fuller means darker — or a nearly full node would render as
+ * a pale, empty-looking box and the whole picture would read backwards.
+ *
+ * The safety scale is deliberately absent from both blocks below. It is fixed
+ * across themes, and test/palette fails the build if a theme redefines it.
+ */
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     color-scheme: light;
-    --ink: #dfe3e8;
-    --panel: #f4f6f8;
-    --panel-raised: #ffffff;
-    --panel-sunken: #cfd5dd;
-    --edge: #c2c9d2;
-    --edge-soft: rgba(11, 13, 16, 0.1);
-    --chalk: #10141a;
+    --surface-0: #fbfcfd;
+    --surface-1: #f4f6f8;
+    --surface-2: #ffffff;
+    --surface-3: #eef1f4;
+    --surface-sunken: #e6eaee;
+    --border: rgba(13, 17, 23, 0.1);
+    --border-strong: rgba(13, 17, 23, 0.18);
+    --chalk: #0d1117;
     --graphite: #5b636e;
-    --graphite-dim: #8d949e;
-    /* Ramp inverts: on a light face, fuller means darker. */
-    --fill-05: #e7eaee;
-    --fill-25: #c3cad3;
-    --fill-50: #909aa7;
-    --fill-75: #5c6673;
+    --graphite-dim: #838b96;
+    --fill-05: #eaedf1;
+    --fill-25: #c7ced7;
+    --fill-50: #939dab;
+    --fill-75: #5e6875;
     --fill-95: #232a33;
-    --focus: #10141a;
+    --focus: #0d1117;
   }
 }
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --ink: #dfe3e8;
-  --panel: #f4f6f8;
-  --panel-raised: #ffffff;
-  --panel-sunken: #cfd5dd;
-  --edge: #c2c9d2;
-  --edge-soft: rgba(11, 13, 16, 0.1);
-  --chalk: #10141a;
+  --surface-0: #fbfcfd;
+  --surface-1: #f4f6f8;
+  --surface-2: #ffffff;
+  --surface-3: #eef1f4;
+  --surface-sunken: #e6eaee;
+  --border: rgba(13, 17, 23, 0.1);
+  --border-strong: rgba(13, 17, 23, 0.18);
+  --chalk: #0d1117;
   --graphite: #5b636e;
-  --graphite-dim: #8d949e;
-  --fill-05: #e7eaee;
-  --fill-25: #c3cad3;
-  --fill-50: #909aa7;
-  --fill-75: #5c6673;
+  --graphite-dim: #838b96;
+  --fill-05: #eaedf1;
+  --fill-25: #c7ced7;
+  --fill-50: #939dab;
+  --fill-75: #5e6875;
   --fill-95: #232a33;
-  --focus: #10141a;
+  --focus: #0d1117;
 }
 
 * {
@@ -123,12 +190,13 @@ body,
 
 body {
   margin: 0;
-  background: var(--ink);
+  background: var(--surface-0);
   color: var(--chalk);
   font-family: var(--font-body);
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--text-md);
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 /* Every figure on the page is tabular. Comparing 38.6% against 94.1% down a
@@ -137,6 +205,15 @@ body {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
+}
+
+/* Uppercase micro-labels appear in every panel header. Tracking is not
+   decorative at this size — set solid, 11px caps are close to unreadable. */
+.eyebrow {
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--graphite-dim);
 }
 
 button {
@@ -148,6 +225,7 @@ button {
 :where(a, button, input, [tabindex]):focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
 /*
