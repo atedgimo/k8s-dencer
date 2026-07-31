@@ -334,12 +334,17 @@ func planResponse(rec store.Record) map[string]any {
 	if rec.Plan.Steps == nil {
 		rec.Plan.Steps = []model.PlanStep{}
 	}
+	// The same figure the UI's verdict shows, so the CLI does not state a
+	// bare node count the web page qualifies.
+	cpu, mem := model.ReclaimableCapacity(rec.Plan, rec.Snapshot)
 	return map[string]any{
-		"plan":     rec.Plan,
-		"strategy": rec.Strategy,
-		"storedAt": rec.StoredAt,
-		"ratings":  rec.Plan.CountByRating(),
-		"readOnly": true,
+		"plan":                rec.Plan,
+		"strategy":            rec.Strategy,
+		"storedAt":            rec.StoredAt,
+		"ratings":             rec.Plan.CountByRating(),
+		"cpuReclaimableMilli": cpu,
+		"memReclaimableBytes": mem,
+		"readOnly":            true,
 	}
 }
 

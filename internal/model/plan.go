@@ -127,3 +127,25 @@ type Move struct {
 	CPUMilli    int64 `json:"cpuMilli,omitempty"`
 	MemoryBytes int64 `json:"memoryBytes,omitempty"`
 }
+
+// ReclaimableCapacity sums the allocatable of every node the plan drains —
+// what the plan's node count is actually worth. Nodes are not fungible:
+// "reclaim 15 nodes" may be a rack of 96-core machines or a drawer of 2-core
+// ones, and the count alone cannot say whether the plan matters.
+//
+// Computed from the snapshot rather than stored on the plan, because the plan
+// persists in columns the schema would have to grow, while every consumer that
+// wants this figure already holds the snapshot the plan was made from.
+func ReclaimableCapacity(plan *Plan, snap *ClusterSnapshot) (cpuMilli, memBytes int64) {
+	byName := make(map[string]*Node, len(snap.Nodes))
+	for i := range snap.Nodes {
+		byName[snap.Nodes[i].Name] = &snap.Nodes[i]
+	}
+	for _, step := range plan.Steps {
+		if n, ok := byName[step.TargetNode]; ok {
+			cpuMilli += n.Allocatable.MilliCPU
+			memBytes += n.Allocatable.MemoryBytes
+		}
+	}
+	return cpuMilli, memBytes
+}
