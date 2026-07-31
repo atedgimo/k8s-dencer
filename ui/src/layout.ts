@@ -69,6 +69,7 @@ export interface NodeInfo {
   cpuAllocatable: number;
   cpuRequestedMilli: number;
   memAllocatable: number;
+  memRequestedBytes: number;
   cordoned: boolean;
   ready: boolean;
   drainStep: number;
@@ -86,6 +87,35 @@ export interface NodeInfo {
   pinnedCount: number;
 }
 
+/**
+ * How full a node is, per dimension.
+ *
+ * Kubernetes packs on requests in three dimensions and a pod fits only if it
+ * fits in all of them, so the one that limits consolidation is the *worst* of
+ * them — which is exactly what the planner ranks nodes by (`DominantRatio` in
+ * internal/model/resources.go). Drawing CPU alone made the field disagree with
+ * the planner it is drawing: a memory-bound node looked half empty on a screen
+ * whose own engine would refuse to pack it.
+ *
+ * Pod slots are the third dimension and are deliberately left out here. The
+ * server sends no per-node slot capacity, and inventing the usual 110 would be
+ * a guess rendered as a measurement.
+ */
+export interface Fullness {
+  cpu: number;
+  mem: number;
+  /** The larger of the two: what actually limits packing on this node. */
+  dominant: number;
+  /** Which dimension that is, so the view can name it rather than imply it. */
+  bound: "cpu" | "mem";
+}
+
+function fullness(cpuUsed: number, cpuCap: number, memUsed: number, memCap: number): Fullness {
+  const cpu = cpuCap > 0 ? Math.max(0, cpuUsed) / cpuCap : 0;
+  const mem = memCap > 0 ? Math.max(0, memUsed) / memCap : 0;
+  return { cpu, mem, dominant: Math.max(cpu, mem), bound: mem > cpu ? "mem" : "cpu" };
+}
+
 export interface Positioned {
   nodes: Map<string, { x: number; y: number }>;
   pods: Map<string, { x: number; y: number }>;
@@ -94,13 +124,13 @@ export interface Positioned {
   /** Requested milliCPU per node at this step, for the utilisation fill. */
   nodeLoad: Map<string, number>;
   /**
-   * Requested / allocatable per node, 0..1.
+   * How full each node is, 0..1, on every dimension that limits packing.
    *
    * Drives the brightness ramp, which is how fullness is encoded now that
    * colour is reserved for risk. A node at 0.94 is nearly white; one at 0.12
    * barely lifts off the ground.
    */
-  nodeFill: Map<string, number>;
+  nodeFill: Map<string, Fullness>;
   /** Nodes that are empty of movable pods at this step. */
   emptied: Set<string>;
 }
@@ -134,6 +164,7 @@ export function toModel(graph: GraphPayload): Model {
         cpuAllocatable: d.cpuAllocatable ?? 0,
         cpuRequestedMilli: d.cpuRequested ?? 0,
         memAllocatable: d.memAllocatable ?? 0,
+        memRequestedBytes: d.memRequested ?? 0,
         cordoned: d.cordoned ?? false,
         ready: d.ready ?? false,
         drainStep: d.drainStep ?? 0,
@@ -211,7 +242,7 @@ export function computeLayout(
   const nodes = new Map<string, { x: number; y: number }>();
   const pods = new Map<string, { x: number; y: number }>();
   const nodeLoad = new Map<string, number>();
-  const nodeFill = new Map<string, number>();
+  const nodeFill = new Map<string, Fullness>();
   const emptied = new Set<string>();
 
   const occupants = new Map<string, PodInfo[]>();
@@ -231,9 +262,11 @@ export function computeLayout(
 
     const here = occupants.get(node.name) ?? [];
     let load = 0;
+    let mem = 0;
     let movable = 0;
     here.forEach((pod, j) => {
       load += pod.cpuRequest;
+      mem += pod.memRequest;
       if (pod.movable) movable++;
       const pc = j % cols;
       const pr = Math.floor(j / cols);
@@ -246,7 +279,7 @@ export function computeLayout(
       });
     });
     nodeLoad.set(node.name, load);
-    nodeFill.set(node.name, node.cpuAllocatable > 0 ? load / node.cpuAllocatable : 0);
+    nodeFill.set(node.name, fullness(load, node.cpuAllocatable, mem, node.memAllocatable));
     if (movable === 0) emptied.add(node.name);
   });
 
@@ -298,15 +331,17 @@ function densityLayout(
 
   const nodes = new Map<string, { x: number; y: number }>();
   const nodeLoad = new Map<string, number>();
-  const nodeFill = new Map<string, number>();
+  const nodeFill = new Map<string, Fullness>();
   const emptied = new Set<string>();
 
   // Start from what the server counted, then apply the moves up to this step.
   const count = new Map<string, number>();
   const load = new Map<string, number>();
+  const mem = new Map<string, number>();
   for (const n of model.nodes) {
     count.set(n.name, n.podCount);
     load.set(n.name, n.cpuRequestedMilli);
+    mem.set(n.name, n.memRequestedBytes);
   }
   for (const s of steps) {
     if (s.sequenceNumber > step) break;
@@ -315,6 +350,8 @@ function densityLayout(
       count.set(m.toNode, (count.get(m.toNode) ?? 0) + 1);
       load.set(m.fromNode, (load.get(m.fromNode) ?? 0) - (m.cpuMilli ?? 0));
       load.set(m.toNode, (load.get(m.toNode) ?? 0) + (m.cpuMilli ?? 0));
+      mem.set(m.fromNode, (mem.get(m.fromNode) ?? 0) - (m.memoryBytes ?? 0));
+      mem.set(m.toNode, (mem.get(m.toNode) ?? 0) + (m.memoryBytes ?? 0));
     }
   }
 
@@ -330,7 +367,7 @@ function densityLayout(
     nodeLoad.set(node.name, cpu);
     nodeFill.set(
       node.name,
-      node.cpuAllocatable > 0 ? cpu / node.cpuAllocatable : 0,
+      fullness(cpu, node.cpuAllocatable, mem.get(node.name) ?? 0, node.memAllocatable),
     );
     // Pinned pods never move, so a node holding only pinned pods is never
     // emptied however far the scrubber runs.

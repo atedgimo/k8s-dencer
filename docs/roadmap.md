@@ -54,6 +54,7 @@ estimated — every milestone here starts from a number in
 | **M22** | Reclamation loop — observe whether a drained node was actually removed | **done** |
 | **M23** | Cloud test on GKE — GKE's autoscaler reclaimed a drained node in **11m9s**, observed | **done** |
 | **M24** | The field shows what *is*, not only what *would be* — live cluster state beside the plan | in progress |
+| **M25** | Closed-loop consolidation — re-plan from observed state after every step, instead of executing a forecast | planned |
 
 High availability and a Postgres store were **dropped, not deferred**: a
 consolidation planner is not a serving path. The run queue is already crash-safe
@@ -80,7 +81,8 @@ loop existed to remove, surviving one layer up in the view.
 | **Node conditions** | a node going `NotReady` mid-drain is invisible |
 | **Where pods actually are** | the field draws the plan's placement; during a run the two diverge |
 | **Reclamation per node** | only a tray tally; the node that is awaiting is not marked |
-| **Freshness** | the snapshot is as old as the last plan, and nothing says so |
+| **Freshness** | the snapshot is as old as the last plan, and the warning fires backwards — see below |
+| **One dimension of three** | the headline fullness figure is CPU alone, while the planner packs on the worst of CPU, memory and pod slots |
 
 The shape, not yet the design: the field's step 0 should be *live state* rather
 than the plan's snapshot of it, with the plan drawn over it as an overlay that
@@ -90,7 +92,106 @@ means risk and nothing else.
 
 First slice shipped: cordoned nodes render as cordoned, hatched and labelled.
 
+#### The staleness warning fires backwards
+
+Past five minutes the verdict line reads *"confirmed 5 minutes ago — the cluster
+may have moved on."* It is not a cosmetic complaint that this looks unfinished:
+**the warning appears precisely when the cluster has not moved on.**
+
+`collect()` returns early when `db.Save` reports the same content hash as the
+previous cycle — the correct thing to do for storage, but it also skips the
+publish, so SSE subscribers hear nothing. On a stable cluster the planner keeps
+snapshotting every 30 seconds and confirming the plan still holds, and says so
+to no one. The UI ticks a clock against `generatedAt`, watches it climb, and
+eventually apologises. Stability is rendered as doubt.
+
+The fix is to stop conflating two different facts:
+
+| Fact | Ages when |
+|---|---|
+| `generatedAt` — when this plan was computed | a new plan is produced |
+| `confirmedAt` — when the cluster was last observed to still match it | **every successful cycle**, published whether or not the plan changed |
+
+The age line reads `confirmedAt`. On a stable cluster it says *confirmed just
+now*, indefinitely, which is true. It only warns when confirmations actually
+stop — the planner wedged, snapshots failing, SSE dropped — which is the one
+case where the operator genuinely should not trust the screen, and the one case
+that is invisible today.
+
+#### Fullness is three dimensions, and the field shows one
+
+`Resources.Fits` checks CPU, memory **and** pod slots; the planner ranks nodes
+by `DominantRatio`, the worst of the three, because that is the dimension that
+actually limits packing. The agent tool reports that number. The planner logs
+`cpuRequestedPct` and `memRequestedPct` side by side. The Inspector shows both
+when a node is opened.
+
+The field's headline figure — the box gauge, the well level, the panel bar, the
+number an operator actually scans — is CPU alone. A memory-bound node reads as
+half empty on a screen whose own planner will refuse to pack it. The two
+surfaces of the same product disagree about how full a node is.
+
+The data is already on the wire (`memAllocatable`, `memRequested`) and already
+in the client model. What changes is which number is drawn: the dominant ratio,
+with the binding dimension named.
+
 Deferred: scheduled automatic execution and multi-agent orchestration.
+
+### M25 — closed-loop consolidation
+
+Today a plan is computed once against one snapshot, and steps 2..N assume steps
+1..N-1 landed exactly as predicted. They may not have, because **the plan does
+not tell the scheduler anything.**
+
+That is worth stating precisely, because the code is already more honest than
+the interface. Every consumer of `step.Moves` was checked: the planner writes
+it, the CLI, graph API and impact classifier read it, and the **executor never
+reads it at all.** It cordons `step.TargetNode` and evicts whatever movable pods
+are genuinely there; where they land is kube-scheduler's decision. Destinations
+are advisory in the engine and drawn as fact in the UI.
+
+The sequence is the real gap. The executor is careful — it re-runs the safety
+guard against freshly-read state before every step, waits for evicted pods to
+recover, and verifies they landed — but its answer to divergence is **abort,
+not re-plan**. So a run that a fresh plan would happily continue is thrown away,
+and a better target appearing mid-run is never noticed.
+
+The loop this replaces the forecast with:
+
+```
+observe → plan one step → gate → execute → settle → observe → …
+```
+
+Two things decide whether this is sound, and both are design, not plumbing:
+
+**Termination.** Re-planning after every step can oscillate: drain A, the
+scheduler fills B, now B looks drainable. Three rails together — each round must
+*strictly reduce the node count* or the loop stops; a node returned to service
+during a run is never re-targeted by that run; and a hard round cap above both,
+so a bug costs a bounded number of evictions rather than a walk across the
+estate.
+
+**What the operator approved.** Today they approve a concrete list of nodes.
+Under continuous re-planning they would be approving a *policy* — "keep going
+until optimum" — and for a product whose entire pitch is *a human approves
+before pods are evicted*, that cannot change silently. The consent becomes an
+explicit envelope: up to N nodes, inside this window, at or below a stated
+impact rating. Re-plan freely within it; anything outside needs a new approval.
+
+The UI follows from that. Step 1 is a commitment and the rest is a projection
+with a shrinking horizon, and the two must not be drawn the same way — which is
+the same rule M24 is already establishing for observed versus predicted.
+
+Verification, in the order that matters:
+
+- an oscillation fixture — draining A makes B drainable and vice versa — that
+  asserts the loop **terminates**, because a plausible-looking implementation
+  that never halts is the failure mode here
+- monotonic decrease asserted per round, and the envelope asserted never
+  exceeded, including when a re-plan wants to
+- KWOK end-to-end: run to fixpoint and compare the result against what the
+  one-shot plan predicted, which finally measures the gap this milestone exists
+  to close
 
 ## What actually runs today
 

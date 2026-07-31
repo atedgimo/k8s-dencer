@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FieldPanel, FieldWells, NodeDrawState } from "./FieldViews";
+import { FieldPanel, FieldWells, FILL_TITLE, NodeDrawState, spreadFill } from "./FieldViews";
 import { FieldView } from "../view";
 import { GraphPayload, PlanStep } from "../api";
 import {
@@ -155,8 +155,8 @@ export default function PackingField({
     [...model.nodes]
       .sort(
         (a, b) =>
-          (layout.nodeFill.get(b.name) ?? 0) -
-          (layout.nodeFill.get(a.name) ?? 0),
+          (layout.nodeFill.get(b.name)?.dominant ?? 0) -
+          (layout.nodeFill.get(a.name)?.dominant ?? 0),
       )
       .forEach((n, i) => order.set(n.name, i));
     return order;
@@ -206,7 +206,7 @@ export default function PackingField({
     () =>
       model.nodes.map((n) => ({
         name: n.name,
-        fill: layout.nodeFill.get(n.name) ?? 0,
+        ...spreadFill(layout.nodeFill.get(n.name)),
         pods: podsByNode.get(n.name) ?? 0,
         cordoned: n.cordoned,
         drained: reclaimed.has(n.name),
@@ -248,7 +248,7 @@ export default function PackingField({
             const pos = layout.nodes.get(node.id);
             if (!pos) return null;
             if (!inView(index)) return null;
-            const fill = layout.nodeFill.get(node.name) ?? 0;
+            const fill = layout.nodeFill.get(node.name)?.dominant ?? 0;
             const gone = reclaimed.has(node.name);
             const count = podsByNode.get(node.name) ?? 0;
 
@@ -304,7 +304,7 @@ export default function PackingField({
                       cordoned
                     </span>
                   )}
-                  <span className="box-pct num">
+                  <span className="box-pct num" title={FILL_TITLE}>
                     {gone ? "—" : `${Math.round(fill * 100)}`}
                   </span>
                 </div>
