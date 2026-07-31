@@ -60,9 +60,19 @@ PROVIDER="${PROVIDER:-k3d}"
 GCP_ZONE="${GCP_ZONE:-us-central1-a}"
 GCP_MACHINE="${GCP_MACHINE:-e2-medium}"
 # Published tags, not a local build: on GKE this doubles as the first proof
-# that what we ship to ghcr actually installs. Overridable so a release
-# candidate can be tested before it is tagged latest.
-GHCR_TAG="${GHCR_TAG:-latest}"
+# that what we ship to ghcr actually installs.
+#
+# Defaults to the chart's own appVersion rather than "latest" — the chart's
+# values.schema.json refuses a tag of "latest" outright, and it is right to:
+# deploying a floating tag makes a cluster unreproducible and a rollback
+# meaningless. Testing the version the chart declares is also simply the more
+# useful thing to test.
+GHCR_TAG="${GHCR_TAG:-$(awk '/^appVersion:/ {gsub(/"/,"",$2); print $2}' "$REPO/charts/k8s-dencer/Chart.yaml")}"
+# Spot is ~70% cheaper and interruption is fine for a 25-minute test, but a new
+# GCP project's PREEMPTIBLE_CPUS quota starts at zero and has to be requested.
+# Rather than fail the run on that, detect it and use on-demand — the
+# difference over 25 minutes is about five cents.
+GCP_SPOT="${GCP_SPOT:-auto}"
 
 case "$PROVIDER" in
   k3d) CTX="k3d-${CLUSTER}" ;;
@@ -95,14 +105,32 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if [[ "${1:-}" == "clean" ]]; then
-  cluster_delete
-  restore_context
-  green "removed"
-  exit 0
-fi
-
 # ------------------------------------------------------------- provider
+
+# kubectl cannot talk to GKE without gke-gcloud-auth-plugin, and Homebrew
+# installs it into the SDK's own bin directory rather than linking it alongside
+# gcloud — so it is present, installed, and invisible.
+#
+# The failure it produces is genuinely misleading: the first few kubectl calls
+# succeed on the token get-credentials leaves behind, and only later ones fail,
+# so it looks like something broke mid-run rather than a prerequisite never
+# having been met.
+ensure_gke_auth_plugin() {
+  command -v gke-gcloud-auth-plugin >/dev/null && return 0
+  local d
+  for d in \
+    "$(dirname "$(command -v gcloud 2>/dev/null || echo /nonexistent)")" \
+    "$(brew --prefix 2>/dev/null)/share/google-cloud-sdk/bin" \
+    "/opt/homebrew/share/google-cloud-sdk/bin" \
+    "/usr/local/share/google-cloud-sdk/bin" \
+    "$HOME/google-cloud-sdk/bin"; do
+    if [[ -x "$d/gke-gcloud-auth-plugin" ]]; then
+      PATH="$d:$PATH"; export PATH
+      return 0
+    fi
+  done
+  return 1
+}
 
 cluster_create() {
   if [[ "$PROVIDER" == "k3d" ]]; then
@@ -115,10 +143,34 @@ cluster_create() {
     return
   fi
 
+  ensure_gke_auth_plugin \
+    || fail "gke-gcloud-auth-plugin not found. kubectl cannot authenticate to GKE without it.
+  Install:  gcloud components install gke-gcloud-auth-plugin
+  Homebrew: it ships with the SDK at \$(brew --prefix)/share/google-cloud-sdk/bin — add that to PATH"
+
   local project
   project="$(gcloud config get-value project 2>/dev/null)"
   [[ -n "$project" && "$project" != "(unset)" ]] \
     || fail "no gcloud project set. Run 'make gke-setup' first"
+
+  local spot_flag=()
+  case "$GCP_SPOT" in
+    auto)
+      local limit
+      limit="$(gcloud compute regions describe "${GCP_ZONE%-*}" --format=json 2>/dev/null \
+        | python3 -c 'import json,sys
+try: print(int({x["metric"]: x["limit"] for x in json.load(sys.stdin).get("quotas",[])}.get("PREEMPTIBLE_CPUS",0)))
+except Exception: print(0)')"
+      if [[ "${limit:-0}" -ge $(( (AGENTS + 1) * 2 )) ]]; then
+        spot_flag=(--spot)
+        green "  using Spot nodes (${limit} preemptible vCPUs available)"
+      else
+        green "  using on-demand nodes: preemptible quota in ${GCP_ZONE%-*} is ${limit:-0}"
+      fi
+      ;;
+    1|true|yes) spot_flag=(--spot) ;;
+    *) ;;
+  esac
 
   # Zonal, not regional: the GKE free tier credit covers one zonal cluster's
   # management fee, and a regional control plane buys nothing for a cluster
@@ -134,7 +186,7 @@ cluster_create() {
     --zone "$GCP_ZONE" \
     --num-nodes "$((AGENTS + 1))" \
     --machine-type "$GCP_MACHINE" \
-    --spot \
+    "${spot_flag[@]}" \
     --disk-type pd-standard --disk-size 20 \
     --enable-autoscaling --min-nodes 1 --max-nodes "$((AGENTS + 2))" \
     --no-enable-autoupgrade --no-enable-autorepair \
@@ -144,6 +196,16 @@ cluster_create() {
 
   gcloud container clusters get-credentials "$CLUSTER" --zone "$GCP_ZONE" --quiet 2>/dev/null
   kubectl config rename-context "$(kubectl config current-context)" "$CTX" >/dev/null 2>&1 || true
+
+  # Hand the current context straight back.
+  #
+  # get-credentials does not just write a context, it makes it current — which
+  # silently redirects every kubectl and helm command in every other terminal
+  # on the machine for as long as this runs. Restoring only on exit is too
+  # late: a 25-minute run is 25 minutes of the operator's own commands landing
+  # on a throwaway cloud cluster. This script addresses the cluster by
+  # --context everywhere, so it needs no help from the global setting.
+  restore_context
 }
 
 cluster_delete() {
@@ -155,8 +217,17 @@ cluster_delete() {
   # this script can cost real money, so a failure to delete must be seen rather
   # than swallowed into /dev/null like the k3d case.
   echo "  deleting the GKE cluster (this takes a few minutes)…"
-  gcloud container clusters delete "$CLUSTER" --zone "$GCP_ZONE" --quiet \
-    || red "COULD NOT DELETE CLUSTER ${CLUSTER} in ${GCP_ZONE} — delete it by hand, it is costing money"
+  if ! gcloud container clusters delete "$CLUSTER" --zone "$GCP_ZONE" --quiet 2>/tmp/dencer-del.err; then
+    # A delete already in flight, or a cluster that is simply gone, is not the
+    # failure this warning exists for. Shouting about those trains people to
+    # ignore the one case that matters: a cluster still running and billing.
+    if grep -qiE "not found|already being deleted|is currently being (deleted|repaired)" /tmp/dencer-del.err; then
+      green "  already gone"
+    else
+      red "COULD NOT DELETE CLUSTER ${CLUSTER} in ${GCP_ZONE} — delete it by hand, it is costing money"
+      sed 's/^/    /' /tmp/dencer-del.err
+    fi
+  fi
   kubectl config delete-context "$CTX" >/dev/null 2>&1 || true
 }
 
@@ -169,6 +240,16 @@ if [[ "$PROVIDER" == "k3d" ]]; then
   done
 else
   command -v gcloud >/dev/null || fail "gcloud is required for PROVIDER=gke"
+fi
+
+# `clean` lives here, not at the top of the file: it calls cluster_delete, and
+# a subcommand placed before its own function is defined fails with "command
+# not found" — which is exactly what it did.
+if [[ "${1:-}" == "clean" ]]; then
+  cluster_delete
+  restore_context
+  green "removed"
+  exit 0
 fi
 
 # ---------------------------------------------------------------- cluster

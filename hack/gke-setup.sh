@@ -32,6 +32,29 @@ CHECK_ONLY=0
 
 command -v gcloud >/dev/null || fail "gcloud is required: https://cloud.google.com/sdk/docs/install"
 
+bold "==> kubectl can authenticate to GKE"
+# Checked first because it is the prerequisite most likely to be missing and
+# the one whose failure reads least like its cause.
+if command -v gke-gcloud-auth-plugin >/dev/null; then
+  green "  gke-gcloud-auth-plugin on PATH"
+else
+  found=""
+  for d in "$(brew --prefix 2>/dev/null)/share/google-cloud-sdk/bin" \
+           "/opt/homebrew/share/google-cloud-sdk/bin" \
+           "/usr/local/share/google-cloud-sdk/bin" \
+           "$HOME/google-cloud-sdk/bin"; do
+    [[ -x "$d/gke-gcloud-auth-plugin" ]] && found="$d" && break
+  done
+  if [[ -n "$found" ]]; then
+    warn "  gke-gcloud-auth-plugin is installed at ${found} but not on PATH."
+    warn "  hack/e2e.sh finds it anyway. To use kubectl against GKE by hand, add:"
+    warn "    export PATH=\"${found}:\$PATH\""
+  else
+    fail "gke-gcloud-auth-plugin is not installed. kubectl cannot authenticate to GKE.
+  gcloud components install gke-gcloud-auth-plugin"
+  fi
+fi
+
 bold "==> account and project"
 account="$(gcloud config get-value account 2>/dev/null || true)"
 [[ -n "$account" && "$account" != "(unset)" ]] || fail "not logged in. Run: gcloud auth login"
@@ -72,32 +95,56 @@ bold "==> quota for ${NODES} × ${MACHINE} Spot in ${ZONE}"
 # CPU quota of zero, and the cluster create then fails several minutes in with a
 # message about "PREEMPTIBLE_CPUS" that reads like a bug in the script.
 region="${ZONE%-*}"
-spot_quota="$(gcloud compute regions describe "$region" \
-  --format='value(quotas.filter("metric:PREEMPTIBLE_CPUS").limit)' 2>/dev/null || echo "")"
 needed=$(( NODES * 2 ))   # e2-medium is 2 vCPU
-if [[ -z "$spot_quota" ]]; then
-  warn "  could not read PREEMPTIBLE_CPUS quota for ${region}; the run may still work"
-elif (( ${spot_quota%.*} < needed )); then
-  warn "  PREEMPTIBLE_CPUS in ${region} is ${spot_quota%.*}, and ${NODES} × ${MACHINE} needs ${needed}."
-  warn "  Request more at https://console.cloud.google.com/iam-admin/quotas, or run with"
-  warn "  fewer/smaller nodes:  AGENTS=2 GCP_MACHINE=e2-small make cloud-e2e"
+
+# Read the quotas out of JSON rather than a --format filter expression. The
+# filter form returned nothing here and the check reported "could not read",
+# which is how a limit of zero got waved through into a cluster create that
+# would have failed several minutes later.
+quota_json="$(gcloud compute regions describe "$region" --format=json 2>/dev/null || echo '{}')"
+read -r SPOT_LIMIT ONDEMAND_LIMIT <<<"$(printf '%s' "$quota_json" | python3 -c '
+import json, sys
+try:
+    q = {x["metric"]: x["limit"] for x in json.load(sys.stdin).get("quotas", [])}
+except Exception:
+    q = {}
+print(int(q.get("PREEMPTIBLE_CPUS", -1)), int(q.get("CPUS", -1)))
+')"
+
+if [[ "${SPOT_LIMIT:--1}" -ge "$needed" ]]; then
+  green "  ${SPOT_LIMIT} preemptible vCPUs available, ${needed} needed — Spot will be used"
+elif [[ "${ONDEMAND_LIMIT:--1}" -ge "$needed" ]]; then
+  # The common case on a new project: Spot quota starts at zero and has to be
+  # requested. On-demand for twenty-five minutes is a few cents, so falling
+  # back beats blocking on a quota request.
+  warn "  preemptible vCPU quota in ${region} is ${SPOT_LIMIT}, and ${needed} are needed."
+  warn "  On-demand quota is ${ONDEMAND_LIMIT}, so the run will use on-demand nodes instead."
+  warn "  That is roughly 7 cents for a 25 minute run rather than 2. To use Spot,"
+  warn "  request PREEMPTIBLE_CPUS at https://console.cloud.google.com/iam-admin/quotas"
 else
-  green "  ${spot_quota%.*} preemptible vCPUs available, ${needed} needed"
+  fail "neither preemptible (${SPOT_LIMIT}) nor on-demand (${ONDEMAND_LIMIT}) vCPU quota in
+  ${region} covers the ${needed} vCPUs this needs. Request more, or run smaller:
+    AGENTS=2 GCP_MACHINE=e2-small make cloud-e2e"
 fi
 
 bold "==> budget alert"
+# Every gcloud call below runs with stdin closed. The Billing Budgets API is
+# often not enabled on a new project, and gcloud responds by prompting to
+# enable it — which, in a non-interactive script, is an indefinite hang rather
+# than an error. This section is a nicety; it must never block the run.
+exec 3<&0
 # Cheap insurance against the one real failure mode: a cluster left running.
 ba="$(gcloud billing projects describe "$project" \
-  --format='value(billingAccountName)' 2>/dev/null || true)"
+  --format='value(billingAccountName)' </dev/null 2>/dev/null || true)"
 if [[ -z "$ba" ]]; then
   warn "  could not read the billing account; skipping"
 elif gcloud billing budgets list --billing-account="${ba##*/}" \
-       --format='value(displayName)' 2>/dev/null | grep -q "dencer-e2e"; then
+       --format='value(displayName)' </dev/null 2>/dev/null | grep -q "dencer-e2e"; then
   green "  already set"
 elif [[ "$CHECK_ONLY" == "1" ]]; then
   warn "  no dencer-e2e budget alert"
 else
-  if gcloud billing budgets create --billing-account="${ba##*/}" \
+  if gcloud billing budgets create --billing-account="${ba##*/}" </dev/null \
        --display-name="dencer-e2e" \
        --budget-amount="${BUDGET}USD" \
        --threshold-rule=percent=0.5 --threshold-rule=percent=1.0 \
