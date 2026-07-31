@@ -197,6 +197,17 @@ stops sending an element per pod and starts sending occupancy per node — an
 individual 6px block conveys nothing at that density anyway. Method, growth
 curves and the known ceiling in **[docs/benchmarks.md](docs/benchmarks.md)**.
 
+The field itself has three renderings and picks one by cluster size: **Rack** to
+120 nodes, where a pod is an object you can point at; **Wells** to 600, a level
+per node, readable without reading numbers; **Panel** above that, one sorted row
+per node. Any of the three can be chosen explicitly and the choice persists.
+
+How full a node is means the **larger of its CPU and memory requests** as a
+fraction of allocatable — the dimension that actually limits packing, and the
+same one the planner ranks on. Requests, not usage: Kubernetes schedules on what
+pods ask for, so a node at 50% requested is half unschedulable however idle its
+cores are.
+
 ## Documentation
 
 | | |
