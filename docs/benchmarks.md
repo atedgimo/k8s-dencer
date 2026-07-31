@@ -190,3 +190,7 @@ SCALE_LARGE=1 make bench    # adds the 5,000-pod point, several minutes
 Sizes stop at 2,500 on purpose. A benchmark nobody will sit through is a
 benchmark nobody maintains; the larger points are opt-in until the growth curve
 is fixed.
+
+---
+
+[← Documentation index](README.md) · [Project README](../README.md)

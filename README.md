@@ -226,7 +226,8 @@ executor's own event trail marks cordons and drains as they genuinely happen.
 | [Observability](docs/observability.md) | Prometheus metrics per component |
 | [Development](docs/development.md) | Local loop, KWOK fabric, CI gates, releases |
 | [Benchmarks](docs/benchmarks.md) | Measured cost, growth curves, the ceiling |
-| [Roadmap and status](docs/roadmap.md) | Built, planned, and deliberately dropped |
+| [Product roadmap](docs/product-roadmap.md) | Shipped capabilities and what comes next, as features |
+| [Engineering roadmap](docs/roadmap.md) | The milestone history — built, planned, and deliberately dropped |
 | [Design document](docs/k8s-consolidation-agent-architecture.md) | The original architecture and its reasoning |
 
 ## Status
