@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/atedgimo/k8s-dencer/internal/reclaim"
 	"github.com/atedgimo/k8s-dencer/internal/store"
 )
 
@@ -45,12 +46,32 @@ func (s *Server) handleReclamations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Whether anything here removes drained nodes — three-valued, honestly.
+	// A recorded removal is proof (measured, the strongest evidence there
+	// is). A visible autoscaler pod is a promise. Neither is NOT "no
+	// reclaimer": managed control planes run theirs where no pod scan can
+	// see them, which M23 demonstrated by watching GKE remove a node while
+	// nothing in the cluster admitted to being an autoscaler.
+	everStats, err := tracker.ReclamationSummary(ctx, time.Time{})
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	detected := ""
+	if rec, err := s.store.Latest(ctx); err == nil {
+		detected, _ = reclaim.DetectReclaimer(rec.Snapshot)
+	}
+
 	// Seconds rather than the Go duration's nanoseconds: every consumer here
 	// is JavaScript or jq, and 180000000000 is not a number anyone reads.
 	writeJSON(w, http.StatusOK, map[string]any{
 		"tracking": true,
 		"awaiting": pending,
 		"recent":   recent,
+		"reclaimer": map[string]any{
+			"observedWorking": everStats.Reclaimed > 0,
+			"detected":        detected,
+		},
 		"stats": map[string]any{
 			"awaiting":                 stats.Awaiting,
 			"reclaimed":                stats.Reclaimed,

@@ -187,7 +187,11 @@ func min(a, b int) int {
 
 // ReclamationsEnvelope is what GET /api/v1/reclamations returns.
 type ReclamationsEnvelope struct {
-	Tracking bool                `json:"tracking"`
+	Tracking  bool `json:"tracking"`
+	Reclaimer *struct {
+		ObservedWorking bool   `json:"observedWorking"`
+		Detected        string `json:"detected"`
+	} `json:"reclaimer,omitempty"`
 	Awaiting []store.Reclamation `json:"awaiting"`
 	Recent   []store.Reclamation `json:"recent"`
 	Stats    ReclamationStats    `json:"stats"`

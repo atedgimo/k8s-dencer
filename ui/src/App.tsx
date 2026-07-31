@@ -251,6 +251,7 @@ export default function App() {
               reclaimedForReal={reclamations.stats.reclaimed}
               ledgerCpuMilli={reclamations.stats.reclaimedCpuMilli}
               ledgerMemBytes={reclamations.stats.reclaimedMemBytes}
+              noReclaimerEvidence={reclamations.noReclaimerEvidence}
               observed={observed.nodes}
               evictedPods={observed.evictedPods}
               graph={state.graph}

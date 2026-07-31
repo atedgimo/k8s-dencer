@@ -277,6 +277,13 @@ export interface Reclamation {
 
 export interface ReclamationsResponse {
   tracking: boolean;
+  /**
+   * Whether anything here removes drained nodes. observedWorking is proof —
+   * a recorded removal; detected is a promise — an autoscaler pod is
+   * visible. Neither being true is NOT "no reclaimer": managed control
+   * planes run theirs out of sight.
+   */
+  reclaimer?: { observedWorking: boolean; detected: string };
   awaiting: Reclamation[];
   recent: Reclamation[];
   stats: {

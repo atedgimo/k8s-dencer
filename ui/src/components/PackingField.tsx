@@ -73,6 +73,8 @@ interface Props {
   /** The ledger: measured capacity those reclaimed nodes actually returned. */
   ledgerCpuMilli?: number;
   ledgerMemBytes?: number;
+  /** No removal ever recorded and no autoscaler visible; see useReclamations. */
+  noReclaimerEvidence?: boolean;
   /**
    * Per-node observed facts from outside the plan's snapshot: the reclamation
    * tracker and a run's own event trail. Merged over the snapshot here, once,
@@ -98,6 +100,7 @@ export default function PackingField({
   reclaimedForReal = 0,
   ledgerCpuMilli = 0,
   ledgerMemBytes = 0,
+  noReclaimerEvidence = false,
   observed,
   evictedPods,
 }: Props) {
@@ -263,6 +266,7 @@ export default function PackingField({
           reclaimedForReal={reclaimedForReal}
           ledgerCpuMilli={ledgerCpuMilli}
           ledgerMemBytes={ledgerMemBytes}
+          noReclaimerEvidence={noReclaimerEvidence}
         />
       </div>
     );
@@ -439,6 +443,7 @@ export default function PackingField({
         reclaimedForReal={reclaimedForReal}
         ledgerCpuMilli={ledgerCpuMilli}
         ledgerMemBytes={ledgerMemBytes}
+        noReclaimerEvidence={noReclaimerEvidence}
       />
     </div>
   );
@@ -461,6 +466,7 @@ function ReclaimedTray({
   reclaimedForReal,
   ledgerCpuMilli,
   ledgerMemBytes,
+  noReclaimerEvidence,
 }: {
   count: number;
   total: number;
@@ -468,6 +474,7 @@ function ReclaimedTray({
   reclaimedForReal: number;
   ledgerCpuMilli: number;
   ledgerMemBytes: number;
+  noReclaimerEvidence: boolean;
 }) {
   return (
     <div className="tray" aria-live="polite">
@@ -494,6 +501,15 @@ function ReclaimedTray({
               · {formatCPU(ledgerCpuMilli)} cores · {formatBytes(ledgerMemBytes)} returned
             </span>
           )}
+        </span>
+      )}
+      {/* Worth saying only when it costs money: drains are pending and
+          nothing is known to remove nodes here. Worded as absence of
+          evidence, because that is all a pod scan can establish — managed
+          control planes run their autoscalers out of sight. */}
+      {noReclaimerEvidence && awaiting > 0 && (
+        <span className="tray-warning mono" title="No node removal has ever been observed here and no autoscaler is visible in the cluster. Drained nodes stay allocated — and billed — until something removes them.">
+          no reclaimer seen — drained nodes are pure cost
         </span>
       )}
       {awaiting > 0 && (

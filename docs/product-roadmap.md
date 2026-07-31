@@ -57,6 +57,11 @@ deciding what to build next and telling users what they get.
   `pods/eviction` leaks to any other role
 
 ### Observing reality (not just predicting it)
+- **Reclaimer evidence, three-valued** — a recorded removal is proof, a
+  visible autoscaler pod is a promise, and neither is *not* "no reclaimer"
+  (managed control planes hide theirs). When drains are pending and there is
+  no evidence at all, the tray and `dencer reclamations` say so: drained
+  nodes are pure cost until something removes them
 - **Savings ledger** — capacity *actually returned*, measured: the executor
   captures each node's allocatable at drain time (the last moment it can be),
   and the summary sums it over nodes that genuinely disappeared. Pre-ledger
@@ -126,9 +131,6 @@ consolidation's.
 8. **What-if simulation** — the planner against a modified snapshot: "can I
    lose zone B? can this workload fit?" Capacity planning as a question, not
    a spreadsheet.
-9. **Reclaimer detection** — warn *before* draining when no autoscaler or
-   Karpenter is present to remove the emptied node (drained-but-not-removed
-   is pure cost).
 
 
 ## Explicitly not planned
