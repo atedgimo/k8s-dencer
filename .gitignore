@@ -18,3 +18,4 @@ ui/dist/
 /executor
 /ui-backend
 bin/
+.e2e-images.log

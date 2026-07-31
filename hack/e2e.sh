@@ -279,7 +279,14 @@ green "  restricted enforced on $NS and $APP_NS"
 bold "==> images"
 if [[ "$PROVIDER" == "k3d" ]]; then
   TAG="$(make -s -C "$REPO" print-tag)"
-  make -s -C "$REPO" images >/dev/null 2>&1 || fail "image build failed"
+  # Output kept and shown on failure. This line used to discard it, which
+  # turned a CI flake into an hour of local reproduction attempts for a
+  # failure whose reason had been printed and thrown away — the "reported
+  # failure while hiding the cause" cousin of everything in findings.md.
+  if ! make -s -C "$REPO" images >"$REPO/.e2e-images.log" 2>&1; then
+    tail -n 40 "$REPO/.e2e-images.log"
+    fail "image build failed"
+  fi
   k3d image import -c "$CLUSTER" \
     "k8s-dencer-planner:${TAG}" "k8s-dencer-ui-backend:${TAG}" \
     "k8s-dencer-executor:${TAG}" "k8s-dencer-ui-frontend:${TAG}" >/dev/null 2>&1 \
