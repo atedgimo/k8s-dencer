@@ -53,11 +53,42 @@ estimated — every milestone here starts from a number in
 | **M21b** | Real ingress controller and StorageClass, exercised in the e2e | **done** |
 | **M22** | Reclamation loop — observe whether a drained node was actually removed | **done** |
 | **M23** | Cloud test on GKE — GKE's autoscaler reclaimed a drained node in **11m9s**, observed | **done** |
+| **M24** | The field shows what *is*, not only what *would be* — live cluster state beside the plan | in progress |
 
 High availability and a Postgres store were **dropped, not deferred**: a
 consolidation planner is not a serving path. The run queue is already crash-safe
 and resumes, the planner replans on restart, and a minute of UI downtime costs
 nothing.
+
+### M24 — live reality in the field
+
+The packing field draws the plan. Everything on it — a node emptying, a box
+going dim — is the scrubber simulating a step, and it is honest about being a
+simulation. What it cannot do is show what is *actually true right now*.
+
+Found the obvious way: a node was drained on a real cluster, `kubectl` reported
+`SchedulingDisabled`, and the UI looked exactly as it had before. `cordoned`
+was parsed into the model and rendered nowhere, so the only way to see a drain
+was to scrub forward into a prediction that happened to match reality.
+
+That is the same confusion between predicted and observed that the reclamation
+loop existed to remove, surviving one layer up in the view.
+
+| Gap | Today |
+|---|---|
+| **Cordoned** | in the model, drawn nowhere |
+| **Node conditions** | a node going `NotReady` mid-drain is invisible |
+| **Where pods actually are** | the field draws the plan's placement; during a run the two diverge |
+| **Reclamation per node** | only a tray tally; the node that is awaiting is not marked |
+| **Freshness** | the snapshot is as old as the last plan, and nothing says so |
+
+The shape, not yet the design: the field's step 0 should be *live state* rather
+than the plan's snapshot of it, with the plan drawn over it as an overlay that
+is visibly an overlay. Observed and predicted must be distinguishable at a
+glance without reading a label — and without colour, which on this surface
+means risk and nothing else.
+
+First slice shipped: cordoned nodes render as cordoned, hatched and labelled.
 
 Deferred: scheduled automatic execution and multi-agent orchestration.
 
