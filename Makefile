@@ -188,6 +188,30 @@ cli-install: cli ## Install dencer and kubectl-dencer into $(GOBIN) or ~/go/bin
 e2e: ## Install on a throwaway multi-node k3d cluster and drain a real node
 	./hack/e2e.sh
 
+.PHONY: guard-context
+guard-context:
+	@# Refuse to deploy into a cloud cluster by accident.
+	@#
+	@# `make deploy` builds local, unqualified image tags and installs them
+	@# into whatever context happens to be current. That was harmless while
+	@# every context was a local cluster. It stopped being harmless the day a
+	@# GKE path existed: `gcloud container clusters get-credentials` switches
+	@# the current context, so a cloud run in one terminal silently redirects a
+	@# deploy in another — which is exactly what happened, overwriting a live
+	@# test cluster's release with image tags no registry has.
+	@#
+	@# hack/e2e.sh already passes --context on every call for this reason. This
+	@# extends the same discipline to the target humans actually type.
+	@ctx="$$(kubectl config current-context 2>/dev/null)"; \
+	case "$$ctx" in \
+	  orbstack|docker-desktop|minikube|kind-*|k3d-*|colima) ;; \
+	  *) echo "refusing to deploy: current kube context is '$$ctx', which is not a known local cluster."; \
+	     echo "  local image tags are meaningless anywhere else, and a cloud run may have switched this."; \
+	     echo "  switch back:  kubectl config use-context orbstack"; \
+	     echo "  or override:  make deploy ALLOW_ANY_CONTEXT=1"; \
+	     [ -n "$(ALLOW_ANY_CONTEXT)" ] || exit 1 ;; \
+	esac
+
 .PHONY: gke-setup
 gke-setup: ## One-time GCP bootstrap for the cloud test (APIs, quota, budget alert)
 	./hack/gke-setup.sh
@@ -211,7 +235,7 @@ lint: $(KUBECONFORM) ## Chart portability gate: lint, render and assert the cont
 # ---------------------------------------------------------------------------
 
 .PHONY: deploy
-deploy: ## Install/upgrade the product chart with the provider overlay
+deploy: guard-context ## Install/upgrade the product chart with the provider overlay
 	helm upgrade --install $(RELEASE) $(CHART) \
 		--namespace $(NAMESPACE) --create-namespace \
 		-f $(CHART)/ci/$(CLUSTER_PROVIDER)-values.yaml \

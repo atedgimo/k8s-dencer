@@ -15,6 +15,9 @@
  * makes a Green/Yellow/Red rating land.
  */
 
+import { useState } from "react";
+import { Theme, applyTheme, storedTheme } from "../theme";
+
 interface Props {
   /** Operator-set. Empty renders nothing rather than a guess. */
   clusterLabel?: string;
@@ -43,6 +46,7 @@ export default function AppBar({ clusterLabel, identity, onSignOut }: Props) {
       </div>
 
       <div className="appbar-actions">
+        <ThemeToggle />
         {identity && (
           /* The full RBAC principal, which for a ServiceAccount is long and
              gets truncated. The title carries the whole thing, because the
@@ -59,5 +63,33 @@ export default function AppBar({ clusterLabel, identity, onSignOut }: Props) {
         )}
       </div>
     </header>
+  );
+}
+
+/**
+ * Dark or light, the operator's choice rather than their desktop's.
+ *
+ * A glyph and a label, not an unlabelled icon: this is the same surface that
+ * refuses to let colour carry meaning on its own, and an ambiguous sun/moon
+ * pictogram would be that mistake in another form.
+ */
+function ThemeToggle() {
+  const [theme, setTheme] = useState<Theme>(storedTheme);
+
+  const next: Theme = theme === "dark" ? "light" : "dark";
+  return (
+    <button
+      type="button"
+      className="appbar-theme"
+      aria-label={`Switch to the ${next} theme`}
+      title={`Switch to the ${next} theme`}
+      onClick={() => {
+        applyTheme(next);
+        setTheme(next);
+      }}
+    >
+      <span aria-hidden="true">{theme === "dark" ? "◐" : "◑"}</span>
+      <span className="appbar-theme-word">{next}</span>
+    </button>
   );
 }
