@@ -259,3 +259,38 @@ func (c *Client) Preflight(ctx context.Context) (*PreflightEnvelope, error) {
 	}
 	return &out, nil
 }
+
+// ResilienceEnvelope is what GET /api/v1/resilience returns.
+type ResilienceEnvelope struct {
+	TakenAt  time.Time           `json:"takenAt"`
+	PlanID   string              `json:"planId"`
+	Findings []ResilienceFinding `json:"findings"`
+	Pods     int                 `json:"pods"`
+}
+
+type ResilienceFinding struct {
+	Kind        string `json:"kind"`
+	Pod         string `json:"pod"`
+	Node        string `json:"node,omitempty"`
+	Explanation string `json:"explanation"`
+}
+
+// Resilience reports what cannot survive a node loss, and why.
+func (c *Client) Resilience(ctx context.Context) (*ResilienceEnvelope, error) {
+	var out ResilienceEnvelope
+	if err := c.get(ctx, "/api/v1/resilience", &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// Drain queues a guarded drain of one named node.
+func (c *Client) Drain(ctx context.Context, node string, dryRun bool) (string, error) {
+	var out struct {
+		RunID string `json:"runId"`
+	}
+	if err := c.do(ctx, "POST", "/api/v1/drain", map[string]any{"node": node, "dryRun": dryRun}, &out); err != nil {
+		return "", err
+	}
+	return out.RunID, nil
+}

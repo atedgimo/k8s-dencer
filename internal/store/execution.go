@@ -49,6 +49,10 @@ type Run struct {
 	// worthwhile step remains.
 	Mode string `json:"mode,omitempty"`
 
+	// Node is the target of a drain run — one named node, guarded. Empty for
+	// every other mode.
+	Node string `json:"node,omitempty"`
+
 	// Envelope is the operator's consent, for converge runs. A steps run
 	// approves a concrete list of nodes; a converge run approves a *policy*,
 	// and the policy's bounds are recorded on the run so the audit trail
@@ -77,6 +81,11 @@ type Run struct {
 // classic steps run; a named constant for it would suggest other values are
 // equally ordinary, and they are not.
 const RunModeConverge = "converge"
+
+// RunModeDrain drains one operator-named node through the full guard chain —
+// kubectl drain with the rails: PDB pre-checks per eviction, readiness
+// verification, audit trail, abort-means-uncordon.
+const RunModeDrain = "drain"
 
 // Envelope bounds a converge run. Both fields are the operator's explicit
 // choice — there are no defaults here, because a defaulted consent is not
