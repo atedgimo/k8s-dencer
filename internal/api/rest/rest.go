@@ -358,10 +358,11 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	// operator a plan that no longer matches their cluster.
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(v); err != nil {
-		// The status line is already written, so this can only be logged.
-		_ = err
-	}
+	// The status line is already written, so an encode failure cannot be
+	// reported to the client — the symptom is a truncated body, and the
+	// client's own JSON parse error says more than anything loggable here.
+	// Same idiom as auth/middleware.go, deliberately.
+	_ = json.NewEncoder(w).Encode(v)
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {
