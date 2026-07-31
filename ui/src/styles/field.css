@@ -1,0 +1,239 @@
+/* ------------------------------------------------------- packing field */
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20rem;
+  min-height: 0;
+}
+
+/* Field scrolls; the tray does not. The tray used to be sticky inside the
+   scroll container, which floated it over the node boxes and cut them off. */
+.field-wrap {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 0;
+}
+
+.field-scroll {
+  position: relative;
+  overflow: auto;
+  padding: var(--space-6);
+  background:
+    radial-gradient(circle at 1px 1px, var(--edge-soft) 1px, transparent 0) 0 0 / 28px 28px,
+    var(--ink);
+}
+
+.field {
+  position: relative;
+}
+
+/* A node. Every box is the same size so the grid never reflows while
+   scrubbing — a resize would read as motion that means nothing. */
+.box {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  /* Only transform and opacity animate. ~300 elements moving at once cannot
+     afford a layout pass. */
+  transition:
+    transform var(--step-slow) var(--ease-out),
+    opacity var(--step-base) linear,
+    border-color var(--step-fast),
+    filter var(--step-base) linear;
+  /* The staggered entrance is an animation, not a delayed transition. Putting
+     the stagger on transition-delay would also delay every later scrub, so
+     dragging the scrubber would feel like the field was lagging behind the
+     handle. */
+  animation: box-in var(--step-slow) var(--ease-out) both;
+  animation-delay: var(--delay, 0ms);
+}
+
+/* Fullest-first, so the first thing the eye follows is the ordering that
+   drives the whole plan.
+ *
+ * Opacity only. `transform` already carries the box's grid position, and
+ * animating it here would fight that — the box would fly in from the wrong
+ * place, or land somewhere it does not belong. */
+@keyframes box-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.box:focus-visible {
+  border-color: var(--chalk);
+}
+
+/* These carry role="button" and a tabindex and have done since M11, but had
+   neither a pointer nor a hover state — so nothing on screen said a node could
+   be opened. The drill-down was undiscoverable for want of a cursor. */
+.box {
+  cursor: pointer;
+}
+
+.box:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+
+.box:hover .box-name {
+  color: var(--chalk);
+}
+
+.box-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: var(--space-1) var(--space-2) 0;
+  font-size: var(--text-2xs);
+}
+
+.box-name {
+  color: var(--graphite-dim);
+}
+
+.box-pct {
+  font-weight: 600;
+  color: var(--graphite);
+}
+
+.box-gauge {
+  position: absolute;
+  right: 0.4rem;
+  bottom: 0.3rem;
+  left: 0.4rem;
+  height: 2px;
+  background: var(--panel-sunken);
+  overflow: hidden;
+}
+
+/* Drains visibly as pods leave. The moment the whole view exists for. */
+.box-gauge-fill {
+  height: 100%;
+  transition: width var(--step-slow) var(--ease-out), background var(--step-slow) linear;
+}
+
+.box-selected {
+  border-color: var(--chalk);
+}
+
+.box-targeted {
+  border-color: var(--graphite);
+}
+
+/* Reclaimed: desaturated, dimmed, and visibly out of service. It stays on the
+   field because an operator wants to see what was freed. */
+.box-reclaimed {
+  opacity: 0.32;
+  filter: grayscale(1);
+  border-style: dashed;
+}
+
+.box-reclaimed .box-pct {
+  color: var(--graphite-dim);
+}
+
+/* A pod. */
+.blk {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: var(--fill-50);
+  border-radius: 1px;
+  /* The signature: a block travelling between boxes. The settle curve
+     overshoots very slightly so it lands with a sense of mass. */
+  transition:
+    transform var(--step-slow) var(--ease-settle),
+    opacity var(--step-base) linear,
+    background var(--step-base) linear;
+}
+
+.blk:hover {
+  background: var(--fill-95);
+}
+
+/* Pinned pods cannot move — DaemonSets, and anything the analyzer found
+   nowhere to send. Hatched so they read as fixed, not merely different. */
+.blk-pinned {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--fill-25),
+    var(--fill-25) 2px,
+    var(--fill-05) 2px,
+    var(--fill-05) 4px
+  );
+}
+
+/* Blocked pods are diamonds — a shape difference, so the state survives
+   greyscale and colour-vision deficiency without relying on the red. */
+.blk-blocked {
+  background: var(--risk-red);
+  border-radius: 0;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+
+.blk-selected {
+  outline: 1px solid var(--chalk);
+  outline-offset: 1px;
+}
+
+/* Still sitting on a node the plan has already drained: something the plan
+   did not account for. Worth seeing rather than hiding. */
+.blk-orphan {
+  opacity: 0.35;
+}
+
+/* ------------------------------------------------------- reclaimed tray */
+
+.tray {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+  padding: var(--space-3) var(--space-6);
+  background: var(--panel-sunken);
+  border-top: 1px solid var(--edge);
+}
+
+.tray-label {
+  font-size: var(--text-2xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--graphite-dim);
+}
+
+.tray-count {
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: 1;
+  color: var(--chalk);
+}
+
+.tray-of {
+  font-size: var(--text-xs);
+  color: var(--graphite-dim);
+}
+
+.tray-marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-left: auto;
+  max-width: 60%;
+}
+
+.tray-mark {
+  width: 5px;
+  height: 10px;
+  background: var(--fill-05);
+  transition: background var(--step-base) linear;
+}
+
+.tray-mark-on {
+  background: var(--fill-75);
+}

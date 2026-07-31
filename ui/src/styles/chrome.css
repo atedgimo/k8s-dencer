@@ -1,0 +1,278 @@
+/* ------------------------------------------------------------- app bar
+
+   Context, always visible. Quiet by construction: one hairline, no fill, no
+   colour — colour on this surface means risk, and a header that competed for
+   that signal would undo the thing that makes a rating land. */
+
+.appbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-6);
+  border-bottom: 1px solid var(--border-strong);
+  background: var(--surface-1);
+  min-height: 52px;
+}
+
+.appbar-brand,
+.appbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.appbar-mark {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  letter-spacing: var(--tracking-display);
+  color: var(--chalk);
+}
+
+.appbar-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--border-strong);
+}
+
+.appbar-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: var(--text-xs);
+  color: var(--chalk);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Achromatic on purpose. A coloured dot here would read as a health status,
+   and this is an identifier, not a judgement. */
+.appbar-cluster-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--fill-75);
+}
+
+.appbar-identity {
+  font-size: var(--text-xs);
+  color: var(--graphite);
+  max-width: 26ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.appbar-signout {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--graphite);
+  font-size: var(--text-xs);
+  transition: color var(--step-fast) var(--ease-out),
+    border-color var(--step-fast) var(--ease-out);
+}
+
+.appbar-signout:hover {
+  color: var(--chalk);
+  border-color: var(--border-strong);
+}
+
+/* Below this the identity is the first thing worth dropping: the cluster is
+   what stops you draining the wrong thing. */
+@media (max-width: 640px) {
+  .appbar {
+    padding-inline: var(--space-4);
+  }
+  .appbar-identity {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------- verdict */
+
+.verdict {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: var(--space-8);
+  align-items: center;
+  padding: var(--space-6) var(--space-6);
+  background: var(--panel);
+  border-bottom: 1px solid var(--edge);
+}
+
+.verdict-eyebrow {
+  margin: 0 0 0.35rem;
+  font-size: var(--text-2xs);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--graphite-dim);
+}
+
+/* The one display moment on the page: heavy, very tight, large. Everything
+   else is mono or body text, so this has to carry the whole voice. */
+.verdict-line {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(var(--text-xl), 2.6vw, var(--text-2xl));
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+  color: var(--chalk);
+}
+
+.verdict-figure {
+  font-size: 1.15em;
+  font-weight: 600;
+}
+
+/* What the node count is worth, in capacity. Quieter than the headline it
+   qualifies — the count is the verdict, this is its denomination. */
+.verdict-capacity {
+  font-size: 0.55em;
+  font-weight: 400;
+  color: var(--graphite);
+  letter-spacing: 0.01em;
+}
+
+.verdict-sub {
+  margin: 0.5rem 0 0;
+  max-width: 46ch;
+  color: var(--graphite);
+  font-size: var(--text-md);
+}
+
+.verdict-breakdown {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.tally {
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-areas:
+    "glyph count"
+    "word  word"
+    "cap   cap";
+  gap: 0 var(--space-2);
+  padding: var(--space-3) var(--space-3);
+  text-align: left;
+  background: transparent;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  transition: border-color var(--step-fast), background var(--step-fast);
+}
+
+.tally:hover:not(:disabled) {
+  background: var(--panel-raised);
+  border-color: var(--graphite-dim);
+}
+
+.tally:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.tally-active {
+  background: var(--panel-raised);
+  border-color: var(--chalk);
+}
+
+.tally-glyph {
+  grid-area: glyph;
+  align-self: center;
+  font-size: var(--text-sm);
+  line-height: 1;
+}
+
+.tally-count {
+  grid-area: count;
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: 1;
+  color: var(--chalk);
+}
+
+.tally-word {
+  grid-area: word;
+  margin-top: 0.25rem;
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.tally-caption {
+  grid-area: cap;
+  font-size: var(--text-2xs);
+  color: var(--graphite-dim);
+  white-space: nowrap;
+}
+
+/* The only coloured things on the page. */
+.tally-green .tally-glyph,
+.tally-green .tally-word {
+  color: var(--risk-green);
+}
+.tally-yellow .tally-glyph,
+.tally-yellow .tally-word {
+  color: var(--risk-yellow);
+}
+.tally-red .tally-glyph,
+.tally-red .tally-word {
+  color: var(--risk-red);
+}
+
+.verdict-actions {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: stretch;
+}
+
+.btn {
+  padding: var(--space-2) var(--space-4);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--chalk);
+  background: transparent;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  transition: border-color var(--step-fast), background var(--step-fast);
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--chalk);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--chalk);
+  border-color: var(--chalk);
+}
+
+.btn-icon {
+  width: 2.1rem;
+  padding: var(--space-2) 0;
+  text-align: center;
+}
+
+.verdict-note {
+  margin: 0;
+  font-size: var(--text-2xs);
+  color: var(--graphite-dim);
+  text-align: center;
+}

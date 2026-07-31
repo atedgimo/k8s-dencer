@@ -1,0 +1,368 @@
+/* ---------------------------------------------------------- confirmation */
+
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: var(--space-6);
+  background: rgba(0, 0, 0, 0.6);
+  animation: fade-in var(--step-fast) linear;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.sheet {
+  width: min(30rem, 100%);
+  padding: var(--space-6);
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+}
+
+.sheet-title {
+  margin: 0 0 0.6rem;
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.sheet-detail {
+  margin: 0 0 0.9rem;
+  color: var(--graphite);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+
+.sheet-detail strong {
+  color: var(--chalk);
+}
+
+.sheet-list {
+  max-height: 9rem;
+  margin: 0 0 1.1rem;
+  padding: var(--space-2) var(--space-3);
+  overflow-y: auto;
+  font-size: var(--text-xs);
+  color: var(--graphite);
+  list-style: none;
+  background: var(--panel-sunken);
+  border-radius: var(--radius-sm);
+}
+
+.sheet-actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+/* ------------------------------------------------------------ run trail */
+
+.trail {
+  padding: var(--space-3) var(--space-6) var(--space-3);
+  background: var(--panel-raised);
+  border-bottom: 1px solid var(--edge);
+}
+
+/* The only place a run's outcome is coloured, and it uses the same scale as
+   the ratings: blocked is the Yellow of "needs a human", failed is Red. */
+.trail-blocked {
+  box-shadow: inset 3px 0 0 var(--risk-yellow);
+}
+.trail-failed,
+.trail-error {
+  box-shadow: inset 3px 0 0 var(--risk-red);
+}
+.trail-succeeded {
+  box-shadow: inset 3px 0 0 var(--risk-green);
+}
+
+.trail-head {
+  display: flex;
+  gap: var(--space-3);
+  align-items: baseline;
+}
+
+.trail-status {
+  font-weight: 600;
+  font-size: var(--text-md);
+}
+
+.trail-meta {
+  font-size: var(--text-2xs);
+  color: var(--graphite-dim);
+}
+
+.trail-close {
+  margin-left: auto;
+  padding: 0 var(--space-1);
+  color: var(--graphite);
+  background: transparent;
+  border: 0;
+}
+
+.trail-list {
+  max-height: 9rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.trail-row {
+  display: grid;
+  grid-template-columns: 5rem 12rem minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
+  font-size: var(--text-xs);
+  color: var(--graphite);
+}
+
+.trail-row-blocked {
+  color: var(--risk-yellow);
+}
+
+.trail-row-error {
+  color: var(--risk-red);
+}
+
+.trail-action {
+  color: var(--chalk);
+}
+
+.trail-subject {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trail-rule {
+  font-size: var(--text-2xs);
+  padding: 0 var(--space-1);
+  border: 1px solid currentColor;
+  border-radius: var(--radius-sm);
+}
+
+.trail-summary {
+  margin: 0.5rem 0 0;
+  font-size: var(--text-sm);
+  color: var(--chalk);
+}
+
+.trail-note {
+  margin: 0.35rem 0 0;
+  max-width: 70ch;
+  font-size: var(--text-xs);
+  color: var(--graphite);
+}
+
+.trail-grant {
+  margin: 0.5rem 0 0;
+  padding: var(--space-2) var(--space-3);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  background: var(--panel-sunken);
+  border-radius: var(--radius-sm);
+}
+
+@media (max-width: 900px) {
+  .trail-row {
+    grid-template-columns: 4.5rem minmax(0, 1fr);
+  }
+  .trail-subject {
+    display: none;
+  }
+}
+
+.tray-hint {
+  font-size: var(--text-2xs);
+  color: var(--graphite-dim);
+}
+
+/* Per-step selection. Red rows carry a disabled box rather than none, so the
+   reason is discoverable on hover instead of the control just being absent. */
+.ledger-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+}
+
+.ledger-item > .row-why {
+  grid-column: 2;
+}
+
+.row-check {
+  margin: 0 0 0 0.75rem;
+  accent-color: var(--chalk);
+}
+
+.row-check:disabled {
+  opacity: 0.25;
+}
+
+.ledger-picked {
+  margin-left: auto;
+  margin-right: 0.5rem;
+  font-size: var(--text-2xs);
+  color: var(--chalk);
+}
+
+.verdict-flag {
+  display: block;
+  color: var(--risk-yellow);
+}
+
+.verdict-clear {
+  padding: 0;
+  font-size: var(--text-2xs);
+  color: var(--graphite);
+  text-decoration: underline;
+  background: transparent;
+  border: 0;
+}
+
+/* ----------------------------------------------------------------- crash */
+
+.crash {
+  grid-row: 1 / -1;
+  align-self: center;
+  justify-self: center;
+  width: min(44rem, calc(100vw - 3rem));
+  padding: var(--space-6);
+  background: var(--panel);
+  border: 1px solid var(--risk-red);
+  border-radius: var(--radius);
+}
+
+.crash h2 {
+  margin: 0 0 0.5rem;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--risk-red);
+}
+
+.crash-detail {
+  margin: 0 0 1rem;
+  color: var(--graphite);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+
+.crash-message,
+.crash-more pre {
+  margin: 0;
+  padding: var(--space-3) var(--space-3);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  white-space: pre-wrap;
+  background: var(--panel-sunken);
+  border-radius: var(--radius-sm);
+}
+
+.crash-more {
+  margin-top: 0.8rem;
+  font-size: var(--text-sm);
+  color: var(--graphite);
+}
+
+.crash-more summary {
+  cursor: pointer;
+  margin-bottom: 0.4rem;
+  color: var(--graphite-dim);
+}
+
+.crash-more pre {
+  max-height: 14rem;
+  overflow-y: auto;
+  font-size: var(--text-xs);
+}
+
+.crash-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: 1.1rem;
+}
+
+/* ------------------------------------------------------- superseded plan */
+
+.supersede {
+  display: flex;
+  gap: var(--space-4);
+  align-items: center;
+  padding: var(--space-2) var(--space-6);
+  font-size: var(--text-sm);
+  color: var(--graphite);
+  background: var(--panel-raised);
+  border-bottom: 1px solid var(--edge);
+  /* Deliberately uncoloured. A newer plan is information, not risk, and
+     colour on this page only ever means risk. */
+}
+
+.supersede button {
+  margin-left: auto;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.signin-sso {
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  font-family: var(--font-body);
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--chalk);
+  border: 0;
+  border-radius: var(--radius-sm);
+}
+
+.signin-sso:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.signin-issuer {
+  margin: 0.4rem 0 0;
+  overflow-wrap: anywhere;
+  font-size: var(--text-2xs);
+  color: var(--graphite-dim);
+  text-align: center;
+}
+
+.signin-or {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  margin: 1.1rem 0 0.7rem;
+  font-size: var(--text-xs);
+  color: var(--graphite-dim);
+}
+
+.signin-or::before,
+.signin-or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--edge);
+}
+
+.signin-failure {
+  margin: 0 0 0.9rem;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--risk-red);
+  background: var(--panel-sunken);
+  border-left: 2px solid var(--risk-red);
+  border-radius: var(--radius-sm);
+}
