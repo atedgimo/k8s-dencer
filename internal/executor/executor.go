@@ -225,7 +225,7 @@ func (e *Executor) performStep(ctx context.Context, run store.Run, step model.Pl
 	}
 
 	// Gate first, against state read moments ago rather than the plan's.
-	if err := e.guard.CheckStep(step, live, *state); err != nil {
+	if err := e.guard.CheckStep(ctx, step, live, *state); err != nil {
 		e.blocked(ctx, run, step, err)
 		return err
 	}

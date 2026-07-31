@@ -62,8 +62,11 @@ func (r *Reader) Current(ctx context.Context) (*Set, error) {
 //
 // Errors resolve to "refused", with the error in the reason. A window is an
 // authorisation, and being unable to read one is not the same as having one.
-func (r *Reader) AllowsRedOn(node model.Node) (bool, string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+func (r *Reader) AllowsRedOn(ctx context.Context, node model.Node) (bool, string) {
+	// The caller's context, capped: a wedged API server must not stall a step
+	// for longer than this, but an operator aborting the run must not have to
+	// wait even that long — cancellation propagates from the run itself.
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	set, err := r.Current(ctx)

@@ -15,6 +15,7 @@
 package safety
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/atedgimo/k8s-dencer/internal/constraints"
@@ -75,7 +76,9 @@ type Limits struct {
 // so "no windows at all" is representable as nil — which is what Phase 2 was,
 // and what an install that never creates one stays.
 type Windows interface {
-	AllowsRedOn(node model.Node) (bool, string)
+	// The context is the run's own: an operator aborting a run must also
+	// abort a window read in flight, not wait out its timeout.
+	AllowsRedOn(ctx context.Context, node model.Node) (bool, string)
 }
 
 // DefaultLimits are deliberately conservative. An operator who wants to drain
@@ -130,7 +133,7 @@ type RunState struct {
 // live must be a freshly-collected snapshot, not the one the plan was computed
 // from. Checking a step against the state that produced it would confirm only
 // that the planner was self-consistent.
-func (g *Guard) CheckStep(step model.PlanStep, live *model.ClusterSnapshot, run RunState) error {
+func (g *Guard) CheckStep(ctx context.Context, step model.PlanStep, live *model.ClusterSnapshot, run RunState) error {
 	if g.limits.MaxNodesPerRun > 0 && run.NodesDrainedSoFar >= g.limits.MaxNodesPerRun {
 		return block(RuleMaxNodesPerRun,
 			"this run has already drained %d node(s), the configured maximum. "+
@@ -151,7 +154,7 @@ func (g *Guard) CheckStep(step model.PlanStep, live *model.ClusterSnapshot, run 
 	// Red is checked against the windows covering THIS node, which is why it
 	// comes after the node is resolved rather than first. A window scoped to a
 	// batch pool must not authorise a step elsewhere.
-	if err := g.checkRed(step, node); err != nil {
+	if err := g.checkRed(ctx, step, node); err != nil {
 		return err
 	}
 
@@ -169,7 +172,7 @@ func (g *Guard) CheckStep(step model.PlanStep, live *model.ClusterSnapshot, run 
 // Doc §9: "Red-rated steps can only execute inside an active, approved
 // maintenance window — enforced by the Safety Guard itself, not left to UI/API
 // input validation, so it cannot be bypassed by a crafted request."
-func (g *Guard) checkRed(step model.PlanStep, node model.Node) error {
+func (g *Guard) checkRed(ctx context.Context, step model.PlanStep, node model.Node) error {
 	if !step.Impact.RequiresMaintenanceWindow() {
 		return nil
 	}
@@ -182,7 +185,7 @@ func (g *Guard) checkRed(step model.PlanStep, node model.Node) error {
 				"none is configured. Rated Red because: %s",
 			step.SequenceNumber, step.Rationale)
 	}
-	allowed, why := g.windows.AllowsRedOn(node)
+	allowed, why := g.windows.AllowsRedOn(ctx, node)
 	if !allowed {
 		return block(RuleRedRequiresWindow,
 			"step %d is rated Red and may only run inside an approved maintenance window: %s. "+
