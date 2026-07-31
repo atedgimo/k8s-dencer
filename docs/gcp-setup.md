@@ -196,3 +196,31 @@ anywhere in it.
 ---
 
 [← Documentation index](README.md) · [Project README](../README.md)
+
+## The second run
+
+The first cloud test (M23) proved one thing: a reclaimer nobody here wrote
+removed a drained node, observed and timed. Everything shipped since exists
+to be pointed at a real cluster, and the second run is scoped to prove
+exactly what k3d and KWOK structurally cannot:
+
+| What | Why only GCP can prove it |
+|---|---|
+| **Converge against a real scheduler** | the monotonic rail's whole premise is scheduler divergence; kube-scheduler with real scoring is the divergence KWOK cannot produce. Envelope: `--max-nodes 2 --max-impact Green`, dry run first |
+| **The observed overlay under real churn** | NotReady flickers, autoscaler removals, and cordons from outside the product |
+| **The savings ledger on real machines** | capacity captured at drain time from real allocatable, summed after GKE's autoscaler actually removes the node |
+| **`planConfirmedAt` under real latency** | the confirmation heartbeat has only ever run on localhost |
+| **Preflight on real workloads** | blockers quoting real PDBs rather than fixtures |
+
+Order of operations, human present throughout:
+
+1. Publish the release images (outward-facing: needs an explicit go)
+2. `make gke-setup` — quota and billing checks, Spot-first
+3. `make cloud-e2e` — the existing harness, which restores your kubectl
+   context immediately and tears down on exit
+4. `dencer preflight`, `dencer converge --dry-run`, then the real envelope
+5. Watch the ledger and the overlay while GKE's autoscaler does its part
+6. Teardown verified, budgets checked, no identifiers written anywhere
+
+Nothing in this section runs unattended. The first `gcloud` command waits
+for the operator.
