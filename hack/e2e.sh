@@ -60,9 +60,19 @@ PROVIDER="${PROVIDER:-k3d}"
 GCP_ZONE="${GCP_ZONE:-us-central1-a}"
 GCP_MACHINE="${GCP_MACHINE:-e2-medium}"
 # Published tags, not a local build: on GKE this doubles as the first proof
-# that what we ship to ghcr actually installs. Overridable so a release
-# candidate can be tested before it is tagged latest.
-GHCR_TAG="${GHCR_TAG:-latest}"
+# that what we ship to ghcr actually installs.
+#
+# Defaults to the chart's own appVersion rather than "latest" — the chart's
+# values.schema.json refuses a tag of "latest" outright, and it is right to:
+# deploying a floating tag makes a cluster unreproducible and a rollback
+# meaningless. Testing the version the chart declares is also simply the more
+# useful thing to test.
+GHCR_TAG="${GHCR_TAG:-$(awk '/^appVersion:/ {gsub(/"/,"",$2); print $2}' "$REPO/charts/k8s-dencer/Chart.yaml")}"
+# Spot is ~70% cheaper and interruption is fine for a 25-minute test, but a new
+# GCP project's PREEMPTIBLE_CPUS quota starts at zero and has to be requested.
+# Rather than fail the run on that, detect it and use on-demand — the
+# difference over 25 minutes is about five cents.
+GCP_SPOT="${GCP_SPOT:-auto}"
 
 case "$PROVIDER" in
   k3d) CTX="k3d-${CLUSTER}" ;;
@@ -95,13 +105,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if [[ "${1:-}" == "clean" ]]; then
-  cluster_delete
-  restore_context
-  green "removed"
-  exit 0
-fi
-
 # ------------------------------------------------------------- provider
 
 cluster_create() {
@@ -120,6 +123,25 @@ cluster_create() {
   [[ -n "$project" && "$project" != "(unset)" ]] \
     || fail "no gcloud project set. Run 'make gke-setup' first"
 
+  local spot_flag=()
+  case "$GCP_SPOT" in
+    auto)
+      local limit
+      limit="$(gcloud compute regions describe "${GCP_ZONE%-*}" --format=json 2>/dev/null \
+        | python3 -c 'import json,sys
+try: print(int({x["metric"]: x["limit"] for x in json.load(sys.stdin).get("quotas",[])}.get("PREEMPTIBLE_CPUS",0)))
+except Exception: print(0)')"
+      if [[ "${limit:-0}" -ge $(( (AGENTS + 1) * 2 )) ]]; then
+        spot_flag=(--spot)
+        green "  using Spot nodes (${limit} preemptible vCPUs available)"
+      else
+        green "  using on-demand nodes: preemptible quota in ${GCP_ZONE%-*} is ${limit:-0}"
+      fi
+      ;;
+    1|true|yes) spot_flag=(--spot) ;;
+    *) ;;
+  esac
+
   # Zonal, not regional: the GKE free tier credit covers one zonal cluster's
   # management fee, and a regional control plane buys nothing for a cluster
   # that lives twenty minutes.
@@ -134,7 +156,7 @@ cluster_create() {
     --zone "$GCP_ZONE" \
     --num-nodes "$((AGENTS + 1))" \
     --machine-type "$GCP_MACHINE" \
-    --spot \
+    "${spot_flag[@]}" \
     --disk-type pd-standard --disk-size 20 \
     --enable-autoscaling --min-nodes 1 --max-nodes "$((AGENTS + 2))" \
     --no-enable-autoupgrade --no-enable-autorepair \
@@ -155,8 +177,17 @@ cluster_delete() {
   # this script can cost real money, so a failure to delete must be seen rather
   # than swallowed into /dev/null like the k3d case.
   echo "  deleting the GKE cluster (this takes a few minutes)…"
-  gcloud container clusters delete "$CLUSTER" --zone "$GCP_ZONE" --quiet \
-    || red "COULD NOT DELETE CLUSTER ${CLUSTER} in ${GCP_ZONE} — delete it by hand, it is costing money"
+  if ! gcloud container clusters delete "$CLUSTER" --zone "$GCP_ZONE" --quiet 2>/tmp/dencer-del.err; then
+    # A delete already in flight, or a cluster that is simply gone, is not the
+    # failure this warning exists for. Shouting about those trains people to
+    # ignore the one case that matters: a cluster still running and billing.
+    if grep -qiE "not found|already being deleted|is currently being (deleted|repaired)" /tmp/dencer-del.err; then
+      green "  already gone"
+    else
+      red "COULD NOT DELETE CLUSTER ${CLUSTER} in ${GCP_ZONE} — delete it by hand, it is costing money"
+      sed 's/^/    /' /tmp/dencer-del.err
+    fi
+  fi
   kubectl config delete-context "$CTX" >/dev/null 2>&1 || true
 }
 
@@ -169,6 +200,16 @@ if [[ "$PROVIDER" == "k3d" ]]; then
   done
 else
   command -v gcloud >/dev/null || fail "gcloud is required for PROVIDER=gke"
+fi
+
+# `clean` lives here, not at the top of the file: it calls cluster_delete, and
+# a subcommand placed before its own function is defined fails with "command
+# not found" — which is exactly what it did.
+if [[ "${1:-}" == "clean" ]]; then
+  cluster_delete
+  restore_context
+  green "removed"
+  exit 0
 fi
 
 # ---------------------------------------------------------------- cluster
