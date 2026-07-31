@@ -43,12 +43,12 @@ export function useRun(onFinished?: () => void) {
         }
 
         if (isTerminal(detail.run.status)) {
-          setState({ status: "done", run: detail.run, events: detail.events });
+          setState({ status: "done", run: detail.run, events: (detail.events ?? []) });
           // The cluster has changed, so whatever is on screen is now stale.
           finished.current?.();
           return;
         }
-        setState({ status: "active", run: detail.run, events: detail.events });
+        setState({ status: "active", run: detail.run, events: (detail.events ?? []) });
         timer.current = window.setTimeout(tick, 1200);
       };
       void tick();

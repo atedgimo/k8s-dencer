@@ -73,6 +73,25 @@ The lesson is not "add a poll". It is that **two correct components with correct
 comments can still compose into a lie**, and no test of either one catches it.
 Guarded now by mutation-tested assertions on both halves.
 
+### The list that was never null, until it was
+
+The UI crashed whole — "Cannot read properties of null (reading 'length')" —
+found by the user, in production use, minutes after the converge button
+shipped. A run fetched before its first event serves zero events; the nil Go
+slice marshalled as `"events": null`; RunTrail read `.length` off it.
+
+The window existed from the day runs existed. Steps runs always had a Claim
+event within a poll interval, so weeks of use never caught it — what changed
+is that "Run to optimum…" made *start-and-immediately-follow* the normal
+gesture, and the race became the common case. **planResponse had already
+stated the doctrine — "a JSON list is never null" — for exactly this reason,
+three handlers away.** A rule written down once is not a rule enforced.
+
+Fixed at the server (coalesce, mutation-tested — the first mutation attempt
+was itself a silent no-op and had to be asserted before it proved anything),
+belted in the client for old servers, and reproduced live both ways: a
+Pending run now serves `events: []`.
+
 ### Data shipped that nothing read
 
 - **45% of the graph payload was edges** — move, anti-affinity, PDB — unread

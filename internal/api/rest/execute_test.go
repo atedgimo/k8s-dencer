@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -252,5 +253,40 @@ func TestExecuteIsNotImplementedWithoutAnExecutor(t *testing.T) {
 	res, _ := postExecute(t, srv, `{"steps":[1]}`)
 	if res.StatusCode != http.StatusNotImplemented {
 		t.Errorf("got %d, want 501", res.StatusCode)
+	}
+}
+
+// A run fetched before its first event must serve "events": [] — not null.
+// The nil slice crashed the UI on null.length, in a window (Pending, or
+// claimed moments ago) that starting-and-following a run from the UI made
+// common. Same doctrine planResponse states for steps: a JSON list is never
+// null.
+func TestRunWithNoEventsServesAnEmptyListNotNull(t *testing.T) {
+	operator := auth.Identity{Username: "alice@example.com"}
+	srv, db := executableServer(t, allowAll{operator}, planStep(1, "a", model.ImpactGreen))
+	id, err := db.Enqueue(context.Background(), store.Run{
+		PlanID: "plan-1", Steps: []int{1}, Actor: "alice@example.com",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := http.Get(srv.URL + "/api/v1/runs/" + id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		t.Fatalf("status %d: %s", resp.StatusCode, body)
+	}
+	var out struct {
+		Events json.RawMessage `json:"events"`
+	}
+	if err := json.Unmarshal(body, &out); err != nil {
+		t.Fatal(err)
+	}
+	if string(out.Events) == "null" {
+		t.Fatal("a run with no events serves \"events\": null; the UI crashes on null.length")
 	}
 }

@@ -174,6 +174,15 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	if events == nil {
 		events = []store.RunEvent{}
 	}
+	// A JSON list is never null — the same doctrine planResponse states for
+	// steps, missed here. A run fetched before its first event (Pending, or
+	// claimed moments ago) has zero events, the nil slice marshalled as
+	// null, and the UI crashed on null.length. The window was always there;
+	// starting a run from the UI and following it immediately is what made
+	// it common enough to hit.
+	if events == nil {
+		events = []store.RunEvent{}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"run": run, "events": events})
 }
 
