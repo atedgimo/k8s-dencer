@@ -282,7 +282,7 @@ func cmdRun(ctx context.Context, args []string) error {
 	// "dencer run --steps 1-9" typed in the wrong terminal should not be a
 	// silent success.
 	if !*dryRun && !*yes {
-		confirmed, err := confirm(plan, want)
+		confirmed, err := cli.Confirm(os.Stdout, os.Stdin, plan, want)
 		if err != nil {
 			return err
 		}
@@ -366,36 +366,6 @@ func cmdStatus(ctx context.Context, args []string) error {
 	}
 	cli.PrintRun(os.Stdout, env)
 	return nil
-}
-
-// confirm shows what is about to be evicted and asks.
-func confirm(plan *cli.PlanEnvelope, want []int) (bool, error) {
-	fmt.Printf("About to run %d step(s) against plan %s:\n\n", len(want), plan.Plan.ID)
-	moves := 0
-	red := 0
-	for _, s := range plan.Plan.Steps {
-		for _, n := range want {
-			if s.SequenceNumber != n {
-				continue
-			}
-			fmt.Printf("  step %d  %-6s  drain %s (%d pods)\n",
-				s.SequenceNumber, s.Impact, s.TargetNode, len(s.Moves))
-			moves += len(s.Moves)
-			if s.Impact == "Red" {
-				red++
-			}
-		}
-	}
-	fmt.Printf("\n%d pod(s) will be evicted through the eviction API.\n", moves)
-	if red > 0 {
-		fmt.Printf("%d step(s) are Red and will be refused unless a MaintenanceWindow is open.\n", red)
-	}
-	fmt.Print("\nContinue? [y/N] ")
-
-	var answer string
-	_, _ = fmt.Scanln(&answer)
-	answer = strings.ToLower(strings.TrimSpace(answer))
-	return answer == "y" || answer == "yes", nil
 }
 
 func cmdReclamations(ctx context.Context, args []string) error {

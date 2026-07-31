@@ -216,26 +216,28 @@ func (s *Store) Save(ctx context.Context, rec store.Record) (bool, error) {
 		storedAt = time.Now().UTC()
 	}
 
-	var latestID string
-	err := s.db.QueryRowContext(ctx,
-		`SELECT id FROM plans ORDER BY stored_at DESC, rowid DESC LIMIT 1`).Scan(&latestID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return false, fmt.Errorf("read latest plan: %w", err)
+	// One statement does both halves of the dedup: touch stored_at when the
+	// incoming plan IS the latest one, and report via rows-affected whether
+	// that happened. The previous SELECT-then-UPDATE pair had a gap a
+	// concurrent writer could slip through, and cost a round-trip.
+	//
+	// stored_at is touched on the dedup path because it means "last confirmed
+	// against the cluster" and that is what a reader needs. Leaving it alone
+	// made a plan the planner had just re-verified read as nineteen hours
+	// old, so the UI's staleness warning fired on the healthiest possible
+	// state. An unchanged plan is the strongest evidence it is current.
+	touched, err := s.db.ExecContext(ctx,
+		`UPDATE plans SET stored_at = ?
+		 WHERE id = ? AND id = (SELECT id FROM plans ORDER BY stored_at DESC, rowid DESC LIMIT 1)`,
+		storedAt.UTC().Format(time.RFC3339Nano), rec.Plan.ID)
+	if err != nil {
+		return false, fmt.Errorf("touch plan: %w", err)
 	}
-	if latestID == rec.Plan.ID {
+	if n, err := touched.RowsAffected(); err != nil {
+		return false, fmt.Errorf("touch plan: %w", err)
+	} else if n > 0 {
 		// Same content hash as the last write: the cluster has not changed in
 		// any way that alters the plan.
-		//
-		// stored_at is still touched, because it means "last confirmed against
-		// the cluster" and that is what a reader needs. Leaving it alone made
-		// a plan the planner had just re-verified read as nineteen hours old,
-		// so the UI's staleness warning fired on the healthiest possible
-		// state. An unchanged plan is the strongest evidence it is current.
-		if _, err := s.db.ExecContext(ctx,
-			`UPDATE plans SET stored_at = ? WHERE id = ?`,
-			storedAt.UTC().Format(time.RFC3339Nano), rec.Plan.ID); err != nil {
-			return false, fmt.Errorf("touch plan: %w", err)
-		}
 		return false, nil
 	}
 
