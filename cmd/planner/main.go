@@ -20,6 +20,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/atedgimo/k8s-dencer/internal/cluster"
+	"github.com/atedgimo/k8s-dencer/internal/cluster/metrics"
 	"github.com/atedgimo/k8s-dencer/internal/httpserver"
 	"github.com/atedgimo/k8s-dencer/internal/impact"
 	"github.com/atedgimo/k8s-dencer/internal/planner"
@@ -53,10 +54,25 @@ func run(ctx context.Context, log *slog.Logger) error {
 		return err
 	}
 
+	// Usage collection is opt-in and self-degrading: with the source enabled
+	// but metrics-server absent or broken, Available() answers false and the
+	// snapshot honestly reports no usage data — never a guess, never an error
+	// loop.
+	var usage metrics.Source
+	if env("USAGE_SOURCE", "") == "metrics-server" {
+		src, err := metrics.NewMetricsServer(cfg)
+		if err != nil {
+			return err
+		}
+		usage = src
+		log.Info("usage source enabled", "source", "metrics-server")
+	}
+
 	collector, err := cluster.New(cfg, cluster.Options{
 		ResyncPeriod: resync,
 		Namespaces:   splitList(os.Getenv("WATCH_NAMESPACES")),
 		Logger:       log,
+		Metrics:      usage,
 	})
 	if err != nil {
 		return err

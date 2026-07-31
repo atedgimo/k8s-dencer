@@ -37,6 +37,15 @@ rules:
     resources:
       - maintenancewindows
     verbs: ["get", "list", "watch"]
+  {{- if eq .Values.planner.usageSource "metrics-server" }}
+  # Usage collection, opt-in: read-only access to the metrics.k8s.io
+  # aggregated API. Off by default, and still nothing here can write.
+  - apiGroups: ["metrics.k8s.io"]
+    resources:
+      - nodes
+      - pods
+    verbs: ["get", "list"]
+  {{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

@@ -71,6 +71,8 @@ spec:
               value: {{ .Values.planner.impact.redPodsMoved | quote }}
             - name: TIGHT_PDB_HEADROOM
               value: {{ .Values.planner.impact.tightPDBHeadroom | quote }}
+            - name: USAGE_SOURCE
+              value: {{ .Values.planner.usageSource | quote }}
             - name: RETAIN_PLANS
               value: {{ .Values.planner.retainPlans | quote }}
             - name: DATABASE_TYPE

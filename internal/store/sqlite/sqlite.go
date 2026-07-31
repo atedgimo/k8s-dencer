@@ -265,10 +265,29 @@ func (s *Store) Save(ctx context.Context, rec store.Record) (bool, error) {
 	// made a plan the planner had just re-verified read as nineteen hours
 	// old, so the UI's staleness warning fired on the healthiest possible
 	// state. An unchanged plan is the strongest evidence it is current.
-	touched, err := s.db.ExecContext(ctx,
-		`UPDATE plans SET stored_at = ?
-		 WHERE id = ? AND id = (SELECT id FROM plans ORDER BY stored_at DESC, rowid DESC LIMIT 1)`,
-		storedAt.UTC().Format(time.RFC3339Nano), rec.Plan.ID)
+	// When the snapshot carries usage data, the dedup touch refreshes the
+	// snapshot blob too. Usage changes every cycle while the plan does not —
+	// that is what makes a cluster steady — so a report reading the stored
+	// snapshot would otherwise serve measurements from whenever the plan
+	// last changed, aging indefinitely. The write is one compressed blob per
+	// resync, paid only by installations that opted into usage collection.
+	var touched interface{ RowsAffected() (int64, error) }
+	var err error
+	if rec.Snapshot != nil && rec.Snapshot.HasUsageData {
+		snapshotJSON, encErr := encodeBlob(rec.Snapshot)
+		if encErr != nil {
+			return false, fmt.Errorf("encode snapshot: %w", encErr)
+		}
+		touched, err = s.db.ExecContext(ctx,
+			`UPDATE plans SET stored_at = ?, snapshot = ?
+			 WHERE id = ? AND id = (SELECT id FROM plans ORDER BY stored_at DESC, rowid DESC LIMIT 1)`,
+			storedAt.UTC().Format(time.RFC3339Nano), snapshotJSON, rec.Plan.ID)
+	} else {
+		touched, err = s.db.ExecContext(ctx,
+			`UPDATE plans SET stored_at = ?
+			 WHERE id = ? AND id = (SELECT id FROM plans ORDER BY stored_at DESC, rowid DESC LIMIT 1)`,
+			storedAt.UTC().Format(time.RFC3339Nano), rec.Plan.ID)
+	}
 	if err != nil {
 		return false, fmt.Errorf("touch plan: %w", err)
 	}

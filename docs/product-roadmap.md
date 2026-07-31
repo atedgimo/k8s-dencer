@@ -10,6 +10,10 @@ deciding what to build next and telling users what they get.
 ## Shipped
 
 ### Analysis and planning
+- **Right-sizing report** — `dencer rightsizing`: requests versus *measured*
+  usage per workload (metrics-server, opt-in via `planner.usageSource`),
+  sorted by absolute CPU excess. Refuses to estimate without measurements,
+  skips workloads with no sample rather than printing a damning zero
 - **What-if simulation** — `dencer whatif --without-zone b`: the latest
   snapshot minus the removed nodes, every displaced pod re-homed by the
   constraint engine, the homeless ones named with reasons. Non-zero exit when
@@ -115,17 +119,6 @@ what it already records and packs. Chosen because they reuse the machinery
 as it stands, and two of them serve audiences far larger than
 consolidation's.
 
-4. **Right-sizing signal** — requests versus actual usage per workload:
-   "your top 10 over-requested workloads are holding 6 nodes hostage."
-   Multiplies the core value, because consolidation packs requests and most
-   clusters' requests are 2–3× usage.
-   *Scoped 2026-08: the plumbing exists end to end (`metrics.Source`,
-   collector wiring, `Usage` on the model, `HasUsageData`) but the only
-   implementation is `Noop` — a `metrics.k8s.io` client is the actual work,
-   plus read-only RBAC. Deliberately not built against KWOK: fake nodes have
-   no kubelets, so the feature could not be verified here, and shipping an
-   unverifiable feature is how confident wrong numbers happen. First
-   verifiable on k3d with metrics-server or the GCP run.*
 7. **Cost awareness, remaining slices** — pricing and a cost-aware planner
    objective. The facts shipped first: instance type and capacity type are on
    every node (Inspector), and the plan states how its reclaimable nodes are

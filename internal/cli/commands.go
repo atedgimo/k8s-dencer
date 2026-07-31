@@ -331,3 +331,31 @@ func (c *Client) Whatif(ctx context.Context, nodes []string, zone string) (*What
 	}
 	return &out, nil
 }
+
+// RightsizingEnvelope is what GET /api/v1/rightsizing returns.
+type RightsizingEnvelope struct {
+	Available           bool             `json:"available"`
+	Reason              string           `json:"reason,omitempty"`
+	TakenAt             time.Time        `json:"takenAt,omitempty"`
+	Workloads           []RightsizingRow `json:"workloads,omitempty"`
+	TotalRequestedMilli int64            `json:"totalRequestedMilli,omitempty"`
+	TotalUsedMilli      int64            `json:"totalUsedMilli,omitempty"`
+}
+
+type RightsizingRow struct {
+	Workload       string `json:"workload"`
+	Pods           int    `json:"pods"`
+	RequestedMilli int64  `json:"requestedMilli"`
+	UsedMilli      int64  `json:"usedMilli"`
+	RequestedBytes int64  `json:"requestedBytes"`
+	UsedBytes      int64  `json:"usedBytes"`
+}
+
+// Rightsizing reports requests versus observed usage per workload.
+func (c *Client) Rightsizing(ctx context.Context) (*RightsizingEnvelope, error) {
+	var out RightsizingEnvelope
+	if err := c.get(ctx, "/api/v1/rightsizing", &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}

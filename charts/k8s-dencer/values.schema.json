@@ -213,7 +213,15 @@
             }
           }
         }
-      ]
+      ],
+      "usageSource": {
+        "type": "string",
+        "enum": [
+          "",
+          "metrics-server"
+        ],
+        "description": "Actual-usage source for the right-sizing report. Empty disables collection."
+      }
     },
     "uiBackend": {
       "allOf": [
