@@ -208,6 +208,12 @@ same one the planner ranks on. Requests, not usage: Kubernetes schedules on what
 pods ask for, so a node at 50% requested is half unschedulable however idle its
 cores are.
 
+The field also separates **what is observed from what is predicted**. Facts
+about the real cluster — a node cordoned, NotReady, drained and awaiting
+removal, or actually reclaimed — are worded on the node itself and hold still
+while the scrubber animates the plan's forecast over them. During a run the
+executor's own event trail marks cordons and drains as they genuinely happen.
+
 ## Documentation
 
 | | |

@@ -147,7 +147,7 @@ Worth recording because each cost time before being understood as correct:
 
 | Gap | Where |
 |---|---|
-| **M24 — live state in the field** | node conditions, actual pod placement during a run, per-node reclamation, snapshot freshness |
+| **M24 — per-pod placement during a run** | nodes done (observed overlay: NotReady, awaiting, reclaimed, run-event cordons/drains); pods still drawn where the plan put them |
 | **Karpenter / cluster-autoscaler detection** | deliberately skipped: warn *before* draining that nothing will remove the node |
 | **Never run against a production cluster** | a throwaway GKE cluster is not someone's estate |
 | **Workload Identity / IRSA half-proven** | annotations render and are accepted; k8s-dencer makes no cloud API calls, so no credential path is exercised |

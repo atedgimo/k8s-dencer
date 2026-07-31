@@ -195,3 +195,57 @@ func TestPlanConfirmationIsPolledRatherThanFetchedOnce(t *testing.T) {
 			"planConfirmedAt; nothing else refreshes on a steady cluster")
 	}
 }
+
+// Observed node states must be drawn, not merely parsed.
+//
+// Twice now a fact about the real cluster made it into the client model and
+// stopped there — `cordoned` (found by a user: "one node drained, how I know
+// in UI?") and then `ready`, which sat in NodeInfo unrendered from the day it
+// was parsed. The payload-parity guard cannot catch this class: it checks that
+// a field is *read*, and layout.ts reading a field into a struct nothing draws
+// satisfies it. These assertions pin the last hop, source-to-screen.
+func TestObservedNodeStatesAreDrawnNotJustParsed(t *testing.T) {
+	views := read(t, "components/FieldViews.tsx")
+
+	// The observed vocabulary, complete. Losing a word here silently demotes
+	// that state back to invisible.
+	for _, word := range []string{`"reclaimed"`, `"NotReady"`, `"awaiting removal"`, `"cordoned"`} {
+		if !strings.Contains(views, word) {
+			t.Errorf("FieldViews no longer renders the observed state %s", word)
+		}
+	}
+
+	// Observed beats predicted, structurally: stateWord must consult
+	// observedWord before it considers the scrubber's "drained".
+	if !regexp.MustCompile(`(?s)function stateWord[^}]*observedWord\(n\)[^}]*n\.drained`).MatchString(views) {
+		t.Error("stateWord no longer prefers observed facts over the predicted " +
+			"\"drained\"; a real cordon would vanish the moment the scrubber " +
+			"passes the node's step")
+	}
+
+	// The specific field that was parsed and never drawn. NodeInfo.ready must
+	// reach a draw state, not just a struct.
+	field := read(t, "components/PackingField.tsx")
+	if !strings.Contains(field, "notReady: !n.ready") {
+		t.Error("PackingField no longer derives notReady from the model's " +
+			"ready field; NotReady nodes are invisible again")
+	}
+
+	app := read(t, "App.tsx")
+
+	// A rehearsal must never mark a node as actually drained. Dry runs emit
+	// the same event stream on purpose (the UI renders both with one
+	// component), so the observed overlay has to filter them or a dry run
+	// paints the field with drains that never happened.
+	if !regexp.MustCompile(`(?s)const observed = useMemo.{0,900}?!run\.state\.run\.dryRun`).MatchString(app) {
+		t.Error("the observed overlay does not exclude dry runs; a rehearsal " +
+			"would mark nodes as genuinely drained")
+	}
+
+	// The reclamation lists must reach the overlay as names, not just counts.
+	// The counts-only version shipped and the first question was "which node?".
+	if !strings.Contains(app, `{ reclaim: "awaiting" }`) {
+		t.Error("App no longer maps awaiting reclamations onto named nodes; " +
+			"the field cannot mark which node is dead weight")
+	}
+}

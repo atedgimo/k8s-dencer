@@ -53,7 +53,7 @@ estimated — every milestone here starts from a number in
 | **M21b** | Real ingress controller and StorageClass, exercised in the e2e | **done** |
 | **M22** | Reclamation loop — observe whether a drained node was actually removed | **done** |
 | **M23** | Cloud test on GKE — GKE's autoscaler reclaimed a drained node in **11m9s**, observed | **done** |
-| **M24** | The field shows what *is*, not only what *would be* — live cluster state beside the plan | in progress |
+| **M24** | The field shows what *is*, not only what *would be* — observed node states overlaid on the plan | **done for nodes**; per-pod placement waits on M25 |
 | **M25** | Closed-loop consolidation — re-plan from observed state after every step, instead of executing a forecast | planned |
 
 High availability and a Postgres store were **dropped, not deferred**: a
@@ -75,22 +75,35 @@ was to scrub forward into a prediction that happened to match reality.
 That is the same confusion between predicted and observed that the reclamation
 loop existed to remove, surviving one layer up in the view.
 
-| Gap | Today |
+| Gap | State |
 |---|---|
-| **Cordoned** | in the model, drawn nowhere |
-| **Node conditions** | a node going `NotReady` mid-drain is invisible |
-| **Where pods actually are** | the field draws the plan's placement; during a run the two diverge |
-| **Reclamation per node** | only a tray tally; the node that is awaiting is not marked |
-| **Freshness** | the snapshot is as old as the last plan, and the warning fires backwards — see below |
-| **One dimension of three** | the headline fullness figure is CPU alone, while the planner packs on the worst of CPU, memory and pod slots |
+| **Cordoned** | **shipped** — hatched and worded, in all three views |
+| **Node conditions** | **shipped** — NotReady renders as a dotted border and the word; it was parsed and drawn nowhere, the cordoned bug again |
+| **Reclamation per node** | **shipped** — the awaiting node itself says *awaiting removal*; an observed-reclaimed node ghosts and says *reclaimed* |
+| **Freshness** | **shipped** — `planConfirmedAt`, polled; the warning now names the real failure (confirmations stopping) instead of firing on stability |
+| **One dimension of three** | **shipped** — fullness is the dominant of CPU and memory, matching the planner |
+| **During a run** | **shipped for nodes** — the run's own event trail marks cordons and drains as they actually happen, with dry runs excluded; **still open for pods**, whose drawn positions follow the plan even while the scheduler decides otherwise |
 
-The shape, not yet the design: the field's step 0 should be *live state* rather
-than the plan's snapshot of it, with the plan drawn over it as an overlay that
-is visibly an overlay. Observed and predicted must be distinguishable at a
-glance without reading a label — and without colour, which on this surface
-means risk and nothing else.
+The mechanism that landed: a per-node **observed overlay** (`ObservedNode`),
+derived once in `PackingField` from three sources — the snapshot, the
+reclamation tracker, and the current run's event trail — and layered over the
+plan so all three views agree on what is real. Observed facts hold still while
+the scrubber runs; that is the visible difference between a fact and a
+forecast. Priority when facts stack: *reclaimed* over *NotReady* over
+*awaiting removal* over *cordoned*, by what an operator must act on first.
 
-First slice shipped: cordoned nodes render as cordoned, hatched and labelled.
+Textures distinguish the kind without colour: cordon hatches, NotReady dots,
+observed-gone ghosts. The words do the naming; colour stays reserved for risk.
+
+Guarded by mutation-tested source assertions, because this bug class —
+**parsed into the model, rendered nowhere** — shipped twice (`cordoned`, then
+`ready`) and the payload-parity guard structurally cannot catch it: reading a
+field into a struct nothing draws satisfies "the UI reads it".
+
+Remaining for M24: per-pod placement during a run. The run events name evicted
+pods but not where they landed; drawing that honestly needs live placement
+data the payload does not carry, and it is the natural first consumer of M25's
+closed loop.
 
 #### The staleness warning fires backwards
 

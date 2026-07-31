@@ -1789,7 +1789,12 @@
   );
 }
 
-.box-cordoned-tag {
+/* The observed-state word on a rack box — cordoned, NotReady, awaiting
+   removal, reclaimed. One style for all of them, because they differ in
+   *content*, and giving each a look would drift toward colour-coding states,
+   which this surface reserves for risk. Was .box-cordoned-tag when cordoned
+   was the only observed fact the field knew. */
+.box-state-tag {
   margin-left: auto;
   padding: 0 var(--space-1);
   border: 1px solid var(--border-strong);
@@ -1798,6 +1803,49 @@
   letter-spacing: 0.04em;
   color: var(--graphite);
   text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* NotReady: the border itself misbehaves — dotted, not the cordon's dashes.
+   Texture distinguishes the *kind* of problem; the word names it. */
+.box-notready {
+  border-style: dotted;
+  border-color: var(--border-strong);
+}
+
+/* Observed gone: the Node object no longer exists. The box stays as a record
+   of what was reclaimed, but nothing about it should read as live capacity. */
+.box-gone {
+  opacity: 0.45;
+  border-style: dashed;
+  background-image: none;
+}
+
+.well-notready {
+  border-style: dotted;
+  border-color: var(--border-strong);
+}
+
+.well-gone {
+  opacity: 0.45;
+  border-style: dashed;
+}
+
+.well-gone .well-level {
+  display: none;
+}
+
+.panel-row-notready .panel-id {
+  text-decoration: underline dotted var(--graphite-dim);
+  text-underline-offset: 3px;
+}
+
+.panel-row-gone {
+  opacity: 0.45;
+}
+
+.panel-row-gone .panel-trace-bar {
+  display: none;
 }
 
 .appbar-theme {
