@@ -390,10 +390,11 @@ FABRIC_ARGS :=
 endif
 
 .PHONY: demo-up
-demo-up: ## Install the synthetic topology (SCENARIO=a-fragmented, SCALE=medium)
+demo-up: ## Install the synthetic topology (SCENARIO=g-showcase, SCALE=medium)
 	helm upgrade --install $(DEMO_RELEASE) demo/charts/dencer-demo \
 		--namespace $(DEMO_NAMESPACE) --create-namespace \
 		$(FABRIC_ARGS) \
+		--reset-values \
 		--set scenario=$(SCENARIO)
 
 .PHONY: demo-wait

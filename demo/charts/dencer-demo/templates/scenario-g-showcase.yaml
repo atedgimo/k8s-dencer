@@ -1,0 +1,179 @@
+{{- if eq .Values.scenario "g-showcase" }}
+{{/*
+The showcase: every constraint the product explains, live at once, on a
+heterogeneous fleet. The other scenarios isolate one behaviour each for
+testing; this one exists for demos — a cluster complicated enough that the
+plan has Green, Yellow AND Red steps, the audit has findings, preflight has a
+blocker, the wells show memory-bound fills, and the capacity breakdown says
+"spot" about something.
+
+Sized against the showcase pools (26 nodes, ~152 cores): the workloads below
+request ~55 cores — fragmented to ~36%, consolidatable to roughly half the
+fleet.
+*/}}
+
+{{/* Memory-bound cache: high memory, tiny CPU. On the himem pool by
+     preference these fill wells by MEMORY — the dominant-dimension fill is
+     invisible when every pod is CPU-shaped. */}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-cache
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "dencer-demo.labels" . | nindent 4 }}
+spec:
+  replicas: 8
+  selector:
+    matchLabels: { app: dencer-cache, app.kubernetes.io/instance: {{ .Release.Name }} }
+  template:
+    metadata:
+      labels: { app: dencer-cache, app.kubernetes.io/instance: {{ .Release.Name }}, dencer.io/synthetic: "true" }
+    spec:
+      {{- include "dencer-demo.tolerations" . | nindent 6 }}
+      nodeSelector: { type: kwok }
+      containers:
+        - name: cache
+          image: {{ .Values.image }}
+          resources:
+            requests: { cpu: 250m, memory: 12Gi }
+
+{{/* A service whose PDB has zero headroom: minAvailable equals replicas.
+     Undrainable, Red-rated, an audit finding, and a preflight blocker —
+     the single most instructive object in the demo. */}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-payments
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "dencer-demo.labels" . | nindent 4 }}
+spec:
+  replicas: 3
+  selector:
+    matchLabels: { app: dencer-payments, app.kubernetes.io/instance: {{ .Release.Name }} }
+  template:
+    metadata:
+      labels: { app: dencer-payments, app.kubernetes.io/instance: {{ .Release.Name }}, dencer.io/synthetic: "true" }
+    spec:
+      {{- include "dencer-demo.tolerations" . | nindent 6 }}
+      nodeSelector: { type: kwok }
+      containers:
+        - name: payments
+          image: {{ .Values.image }}
+          resources:
+            requests: { cpu: "1", memory: 2Gi }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Release.Name }}-payments
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "dencer-demo.labels" . | nindent 4 }}
+spec:
+  minAvailable: 3
+  selector:
+    matchLabels: { app: dencer-payments }
+
+{{/* An anti-affinity pair: each pod holds its node open against the other. */}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-broker
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "dencer-demo.labels" . | nindent 4 }}
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: dencer-broker, app.kubernetes.io/instance: {{ .Release.Name }} }
+  template:
+    metadata:
+      labels: { app: dencer-broker, app.kubernetes.io/instance: {{ .Release.Name }}, dencer.io/synthetic: "true" }
+    spec:
+      {{- include "dencer-demo.tolerations" . | nindent 6 }}
+      nodeSelector: { type: kwok }
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels: { app: dencer-broker }
+      containers:
+        - name: broker
+          image: {{ .Values.image }}
+          resources:
+            requests: { cpu: "2", memory: 4Gi }
+
+{{/* A StatefulSet (Yellow: ordinal identity) and one unmanaged pod (Red:
+     eviction deletes it permanently). */}}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-ledgerdb
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "dencer-demo.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ .Release.Name }}-ledgerdb
+  replicas: 3
+  selector:
+    matchLabels: { app: dencer-ledgerdb, app.kubernetes.io/instance: {{ .Release.Name }} }
+  template:
+    metadata:
+      labels: { app: dencer-ledgerdb, app.kubernetes.io/instance: {{ .Release.Name }}, dencer.io/synthetic: "true" }
+    spec:
+      {{- include "dencer-demo.tolerations" . | nindent 6 }}
+      nodeSelector: { type: kwok }
+      containers:
+        - name: db
+          image: {{ .Values.image }}
+          resources:
+            requests: { cpu: "1", memory: 8Gi }
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ .Release.Name }}-debug-shell
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "dencer-demo.labels" . | nindent 4 }}
+spec:
+  {{- include "dencer-demo.tolerations" . | nindent 2 }}
+  nodeSelector: { type: kwok }
+  containers:
+    - name: shell
+      image: {{ .Values.image }}
+      resources:
+        requests: { cpu: 100m, memory: 256Mi }
+
+{{/* Spread-bound web tier: zone topology spread, so some moves are
+     constrained but legal — Yellow territory rather than Red. */}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-web
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "dencer-demo.labels" . | nindent 4 }}
+spec:
+  replicas: 18
+  selector:
+    matchLabels: { app: dencer-web, app.kubernetes.io/instance: {{ .Release.Name }} }
+  template:
+    metadata:
+      labels: { app: dencer-web, app.kubernetes.io/instance: {{ .Release.Name }}, dencer.io/synthetic: "true" }
+    spec:
+      {{- include "dencer-demo.tolerations" . | nindent 6 }}
+      nodeSelector: { type: kwok }
+      topologySpreadConstraints:
+        - maxSkew: 2
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels: { app: dencer-web }
+      containers:
+        - name: web
+          image: {{ .Values.image }}
+          resources:
+            requests: { cpu: 500m, memory: 1Gi }
+{{- end }}

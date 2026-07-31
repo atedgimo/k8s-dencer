@@ -11,6 +11,65 @@ subsequent upgrades kwok-controller owns the status instead.
 */}}
 {{- $zones := .Values.nodes.zones -}}
 {{- $zoneCount := len $zones -}}
+{{/*
+Two shapes of fleet. `nodes.pools` (used by the showcase scenario) renders a
+heterogeneous estate — different machine sizes, instance-type labels, a spot
+fraction — because a fleet where every node is identical hides half the
+product: capacity-type breakdowns, memory-bound fills and instance types in
+the Inspector all render as trivia when every machine is the same. Without
+`pools`, the original uniform fleet renders unchanged.
+*/}}
+{{- if .Values.nodes.pools }}
+{{- $idx := 0 -}}
+{{- range $pool := .Values.nodes.pools }}
+{{- range $j := until (int $pool.count) }}
+---
+apiVersion: v1
+kind: Node
+metadata:
+  name: kwok-{{ $pool.name }}-{{ $j }}
+  annotations:
+    kwok.x-k8s.io/node: fake
+    node.alpha.kubernetes.io/ttl: "0"
+  labels:
+    {{- include "dencer-demo.labels" $ | nindent 4 }}
+    type: kwok
+    kubernetes.io/hostname: kwok-{{ $pool.name }}-{{ $j }}
+    kubernetes.io/os: linux
+    kubernetes.io/arch: {{ $.Values.nodes.arch }}
+    kubernetes.io/role: agent
+    node-role.kubernetes.io/agent: ""
+    topology.kubernetes.io/zone: {{ index $zones (mod $idx $zoneCount) }}
+    topology.kubernetes.io/region: synthetic
+    node.kubernetes.io/instance-type: {{ $pool.instanceType }}
+    {{- if $pool.spot }}
+    karpenter.sh/capacity-type: spot
+    {{- else }}
+    karpenter.sh/capacity-type: on-demand
+    {{- end }}
+spec:
+  taints:
+    - key: kwok.x-k8s.io/node
+      value: fake
+      effect: NoSchedule
+status:
+  phase: Running
+  capacity:
+    cpu: {{ $pool.cpu | quote }}
+    memory: {{ $pool.memory }}
+    pods: "110"
+  allocatable:
+    cpu: {{ $pool.cpu | quote }}
+    memory: {{ $pool.memory }}
+    pods: "110"
+  nodeInfo:
+    architecture: {{ $.Values.nodes.arch }}
+    operatingSystem: linux
+    kubeletVersion: fake
+{{- $idx = add1 $idx }}
+{{- end }}
+{{- end }}
+{{- else }}
 {{- $cap := .Values.nodes.capacity -}}
 {{- range $i := until (int .Values.nodes.count) }}
 ---
@@ -50,6 +109,7 @@ status:
     architecture: {{ $.Values.nodes.arch }}
     operatingSystem: linux
     kubeletVersion: fake
+{{- end }}
 {{- end }}
 
 {{- if eq .Values.scenario "e-tainted-pool" }}
