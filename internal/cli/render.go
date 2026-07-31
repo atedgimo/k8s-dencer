@@ -408,6 +408,18 @@ func PrintReclamations(w io.Writer, env *ReclamationsEnvelope) {
 		fmt.Fprintln(w)
 	}
 
+	if r := env.Reclaimer; r != nil && !r.ObservedWorking {
+		if r.Detected != "" {
+			fmt.Fprintf(w, "%s %s is present but has never been observed removing a node here.\n\n",
+				yellow("▲"), r.Detected)
+		} else {
+			fmt.Fprintf(w, "%s No node removal has ever been observed here, and no autoscaler is visible.\n", yellow("▲"))
+			fmt.Fprintln(w, "  (A managed control plane's autoscaler would be invisible to this check.)")
+			fmt.Fprintln(w, "  Until something removes them, drained nodes stay allocated — and billed.")
+			fmt.Fprintln(w)
+		}
+	}
+
 	fmt.Fprintf(w, "%s (last %d days)\n", bold("Observed"), s.WindowDays)
 	fmt.Fprintf(w, "  %s reclaimed", green(fmt.Sprintf("%d", s.Reclaimed)))
 	if s.Reclaimed > 0 && s.MedianReclamationSeconds > 0 {

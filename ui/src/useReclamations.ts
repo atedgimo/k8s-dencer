@@ -3,6 +3,9 @@ import { api, Reclamation } from "./api";
 
 export interface ReclamationState {
   awaiting: Reclamation[];
+  /** No removal ever recorded AND no autoscaler visible — drained nodes may
+   *  sit as pure cost. Absence of evidence, clearly labelled as only that. */
+  noReclaimerEvidence: boolean;
   recent: Reclamation[];
   /** The server's own tallies, for the tray. The recent list is windowed;
    *  recounting it client-side would drift from what the server reports. */
@@ -17,6 +20,7 @@ export interface ReclamationState {
 
 const EMPTY: ReclamationState = {
   awaiting: [],
+  noReclaimerEvidence: false,
   recent: [],
   stats: { awaiting: 0, reclaimed: 0, reclaimedCpuMilli: 0, reclaimedMemBytes: 0 },
 };
@@ -42,6 +46,8 @@ export function useReclamations(): ReclamationState {
         if (!cancelled && r.tracking) {
           setState({
             awaiting: r.awaiting ?? [],
+            noReclaimerEvidence:
+              r.reclaimer != null && !r.reclaimer.observedWorking && !r.reclaimer.detected,
             recent: r.recent ?? [],
             stats: {
               awaiting: r.stats.awaiting,

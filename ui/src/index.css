@@ -2261,3 +2261,15 @@
   flex-shrink: 0;
   opacity: 0.9;
 }
+
+/* Absence-of-reclaimer warning: a word, not a colour — it is a fact about
+   the cluster's tooling, not a risk rating. */
+.tray-warning {
+  color: var(--text-primary);
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-2);
+}
