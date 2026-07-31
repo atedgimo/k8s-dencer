@@ -56,7 +56,7 @@ func Open(path string) (*Store, error) {
 // Close releases the database handle.
 func (s *Store) Close() error { return s.db.Close() }
 
-const schemaVersion = 3
+const schemaVersion = 4
 
 // Migrate creates or upgrades the schema.
 func (s *Store) Migrate(ctx context.Context) error {
@@ -87,6 +87,11 @@ func (s *Store) Migrate(ctx context.Context) error {
 	if current < 3 {
 		if _, err := tx.ExecContext(ctx, schemaV3); err != nil {
 			return fmt.Errorf("apply schema v3: %w", err)
+		}
+	}
+	if current < 4 {
+		if _, err := tx.ExecContext(ctx, schemaV4); err != nil {
+			return fmt.Errorf("apply schema v4: %w", err)
 		}
 	}
 
@@ -202,6 +207,15 @@ CREATE TABLE IF NOT EXISTS reclamations (
 CREATE INDEX IF NOT EXISTS reclamations_pending ON reclamations (resolved_at);
 CREATE INDEX IF NOT EXISTS reclamations_recent ON reclamations (drained_at DESC);
 `
+// Schema v4 — M25: converge runs. A run gains a mode and, for converge, the
+// envelope the operator consented to. Stored as columns-plus-blob in the
+// established shape: mode is queried (the executor logs it), the envelope is
+// opaque consent detail read back whole.
+const schemaV4 = `
+ALTER TABLE runs ADD COLUMN mode TEXT NOT NULL DEFAULT '';
+ALTER TABLE runs ADD COLUMN envelope BLOB;
+`
+
 
 // Save persists a record unless it duplicates the latest plan.
 func (s *Store) Save(ctx context.Context, rec store.Record) (bool, error) {

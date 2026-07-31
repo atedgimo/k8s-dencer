@@ -225,3 +225,97 @@ func (s *Server) failRun(w http.ResponseWriter, err error) {
 	s.log.Error("run request failed", "error", err)
 	writeError(w, http.StatusInternalServerError, "internal error")
 }
+
+// convergeRequest is the body of POST /api/v1/converge.
+//
+// It is an envelope, not a step list. A steps request approves concrete
+// nodes; this approves a policy — "keep consolidating inside these bounds" —
+// and both bounds are required, because a defaulted consent is not consent.
+type convergeRequest struct {
+	MaxNodes  int    `json:"maxNodes"`
+	MaxImpact string `json:"maxImpact"`
+	DryRun    bool   `json:"dryRun"`
+}
+
+// handleConverge queues a closed-loop run. Same shape as handleExecute — this
+// route authorizes and writes a row; only the unreachable executor drains.
+func (s *Server) handleConverge(w http.ResponseWriter, r *http.Request) {
+	if s.runs == nil {
+		writeError(w, http.StatusNotImplemented,
+			"this deployment has no executor; install with executor.enabled=true")
+		return
+	}
+
+	var req convergeRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "request body is not valid JSON")
+		return
+	}
+	if req.MaxNodes < 1 || req.MaxNodes > maxStepsPerRequest {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf(
+			"maxNodes must be between 1 and %d; an unbounded loop is not a grantable consent", maxStepsPerRequest))
+		return
+	}
+	ceiling := model.ImpactRating(req.MaxImpact)
+	if ceiling != model.ImpactGreen && ceiling != model.ImpactYellow {
+		writeError(w, http.StatusBadRequest,
+			"maxImpact must be Green or Yellow; Red always requires a maintenance window and cannot be pre-consented here")
+		return
+	}
+
+	// One consolidation at a time, converge included.
+	if active, err := s.runs.ActiveRun(r.Context()); err == nil {
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error":  fmt.Sprintf("run %s is already %s", active.ID, active.Status),
+			"code":   "run_in_progress",
+			"runId":  active.ID,
+			"status": active.Status,
+		})
+		return
+	} else if !errors.Is(err, store.ErrNotFound) {
+		s.fail(w, err)
+		return
+	}
+
+	actor := auth.Identity{Username: "auth-disabled", Source: auth.SourceAnonymous}
+	if id, ok := auth.IdentityFrom(r.Context()); ok {
+		actor = id
+	}
+
+	// The latest plan ID is recorded for audit context — "what was on the
+	// screen when this policy was approved" — not as an execution input; the
+	// whole point of converge is that it re-plans for itself.
+	planID := ""
+	if rec, err := s.store.Latest(r.Context()); err == nil {
+		planID = rec.Plan.ID
+	}
+
+	runID, err := s.runs.Enqueue(r.Context(), store.Run{
+		PlanID: planID,
+		Mode:   store.RunModeConverge,
+		Envelope: &store.Envelope{
+			MaxNodes:  req.MaxNodes,
+			MaxImpact: ceiling,
+		},
+		DryRun: req.DryRun,
+		Actor:  actor.Username, ActorGroups: actor.Groups,
+	})
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+
+	s.log.Info("converge requested", "run", runID, "maxNodes", req.MaxNodes,
+		"maxImpact", req.MaxImpact, "dryRun", req.DryRun, "actor", actor.Username)
+
+	s.events.Publish(Event{Type: "run", Data: map[string]any{
+		"runId": runID, "planId": planID, "status": store.RunPending,
+		"mode": store.RunModeConverge, "dryRun": req.DryRun,
+	}})
+
+	writeJSON(w, http.StatusAccepted, map[string]any{
+		"runId": runID, "planId": planID, "mode": store.RunModeConverge,
+		"maxNodes": req.MaxNodes, "maxImpact": req.MaxImpact,
+		"dryRun": req.DryRun, "status": store.RunPending,
+	})
+}

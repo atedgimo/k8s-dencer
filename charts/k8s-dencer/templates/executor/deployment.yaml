@@ -81,6 +81,22 @@ spec:
               value: {{ .Values.safety.minReadyNodes | quote }}
             - name: EXECUTOR_READINESS
               value: {{ .Values.executor.readiness | quote }}
+            # Converge runs re-plan and re-rate locally, so the executor reads
+            # the SAME planner values the planner deployment does — one values
+            # block, two consumers, and a step is Yellow in a converge run
+            # exactly when the operator's screen would have called it Yellow.
+            - name: MIN_NODE_AGE
+              value: {{ .Values.planner.minNodeAge | quote }}
+            {{- with .Values.planner.excludeNamespaces }}
+            - name: EXCLUDE_NAMESPACES
+              value: {{ join "," . | quote }}
+            {{- end }}
+            - name: YELLOW_PODS_MOVED
+              value: {{ .Values.planner.impact.yellowPodsMoved | quote }}
+            - name: RED_PODS_MOVED
+              value: {{ .Values.planner.impact.redPodsMoved | quote }}
+            - name: TIGHT_PDB_HEADROOM
+              value: {{ .Values.planner.impact.tightPDBHeadroom | quote }}
             - name: STEP_TIMEOUT
               value: {{ .Values.executor.stepTimeout | quote }}
             - name: SETTLE_TIMEOUT

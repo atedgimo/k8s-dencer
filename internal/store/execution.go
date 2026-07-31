@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 	"time"
+
+	"github.com/atedgimo/k8s-dencer/internal/model"
 )
 
 // RunStatus is the lifecycle of an execution request.
@@ -40,6 +42,19 @@ type Run struct {
 	DryRun bool      `json:"dryRun"`
 	Status RunStatus `json:"status"`
 
+	// Mode selects what the executor does with this run. Empty means steps:
+	// perform the listed steps of the referenced plan, the shape the product
+	// has always had. "converge" means closed-loop: re-plan from observed
+	// state after every drained node, inside the Envelope, until no
+	// worthwhile step remains.
+	Mode string `json:"mode,omitempty"`
+
+	// Envelope is the operator's consent, for converge runs. A steps run
+	// approves a concrete list of nodes; a converge run approves a *policy*,
+	// and the policy's bounds are recorded on the run so the audit trail
+	// shows exactly what was consented to.
+	Envelope *Envelope `json:"envelope,omitempty"`
+
 	// Actor is the authenticated identity that requested the run, captured at
 	// enqueue. Authorization happens once, up front, so a run outlives the
 	// token that authorized it — a 15-minute ID token can start a 40-minute
@@ -56,6 +71,24 @@ type Run struct {
 
 	// Summary is the closing human-readable outcome.
 	Summary string `json:"summary,omitempty"`
+}
+
+// RunModeConverge marks a closed-loop run. The zero value of Run.Mode is the
+// classic steps run; a named constant for it would suggest other values are
+// equally ordinary, and they are not.
+const RunModeConverge = "converge"
+
+// Envelope bounds a converge run. Both fields are the operator's explicit
+// choice — there are no defaults here, because a defaulted consent is not
+// consent.
+type Envelope struct {
+	// MaxNodes is the most nodes this run may drain, however inviting the
+	// re-planning gets. Doubles as the loop's hard round bound.
+	MaxNodes int `json:"maxNodes"`
+	// MaxImpact is the highest impact rating the run may execute without
+	// coming back for a human. Green or Yellow; Red always needs a window
+	// regardless, enforced by the Safety Guard.
+	MaxImpact model.ImpactRating `json:"maxImpact"`
 }
 
 // EventLevel separates progress from refusals and errors.

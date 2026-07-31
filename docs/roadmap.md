@@ -54,7 +54,7 @@ estimated — every milestone here starts from a number in
 | **M22** | Reclamation loop — observe whether a drained node was actually removed | **done** |
 | **M23** | Cloud test on GKE — GKE's autoscaler reclaimed a drained node in **11m9s**, observed | **done** |
 | **M24** | The field shows what *is*, not only what *would be* — observed node states overlaid on the plan | **done for nodes**; per-pod placement waits on M25 |
-| **M25** | Closed-loop consolidation — re-plan from observed state after every step, instead of executing a forecast | planned |
+| **M25** | Closed-loop consolidation — re-plan from observed state after every step, inside an operator-approved envelope | **core shipped**; UI affordance pending |
 
 High availability and a Postgres store were **dropped, not deferred**: a
 consolidation planner is not a serving path. The run queue is already crash-safe
@@ -205,6 +205,34 @@ Verification, in the order that matters:
 - KWOK end-to-end: run to fixpoint and compare the result against what the
   one-shot plan predicted, which finally measures the gap this milestone exists
   to close
+
+**What shipped (core):** `dencer converge --max-nodes N --max-impact Green|Yellow`
+queues a converge run through `POST /api/v1/converge` (same
+`ExecuteConsolidations` grant — one permission, two shapes of consent). The
+executor loop plans one step per round against a fresh snapshot, using the
+same planner library and the same impact thresholds as the planner component
+(one chart values block feeds both), runs the full Safety Guard per step, and
+stops on the first of: optimum reached, envelope's node budget, impact
+ceiling, a round that freed no node, or a guard refusal.
+
+The termination rails, each mutation-tested: removing the monotonic rail, the
+node budget, or the ceiling check makes a named test fail. The
+scheduler-divergence fixture is the interesting one — the planner itself
+refuses non-consolidating moves, so the naive oscillation fixture *cannot
+fail*; the fixture that works has the fake scheduler ignore the plan's target
+the way a real scheduler may, which is the exact case the rail exists for.
+
+The consent prompt for converge is deliberately not the steps prompt with
+different words: it says "you are approving a policy, not a list", states both
+bounds and both rails, and shows the current plan only as explicitly
+non-binding context.
+
+A converge dry run rehearses exactly one round and says so. Rehearsing further
+rounds would mean pretending to know where evicted pods land — a forecast
+wearing a safety vest, the exact thing this mode exists to retire.
+
+**Still open for M25:** a UI affordance for the envelope (the CLI carries it
+today), and the KWOK fixpoint-vs-forecast comparison.
 
 ## What actually runs today
 

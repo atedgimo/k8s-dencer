@@ -36,6 +36,7 @@ Commands:
   explain <step>        why a step is rated as it is, and what it moves
   why <ns>/<pod>        why a pod can or cannot move
   run --steps 1,3-5     execute selected steps and watch them
+  converge              closed loop: re-plan after every drain, inside bounds
   status                the run in flight, or the last one
   reclamations          what actually became of the nodes you drained
   version
@@ -55,6 +56,7 @@ Examples:
   dencer explain 3
   dencer why shop/web-7d9f-abcde
   dencer run --steps 1,2 --dry-run
+  dencer converge --max-nodes 5 --max-impact Green
   dencer reclamations
   dencer plan -o json | jq '.plan.steps[] | select(.impact=="Red")'
 `
@@ -103,6 +105,8 @@ func run() error {
 		return cmdExplain(ctx, args)
 	case "why":
 		return cmdWhy(ctx, args)
+	case "converge":
+		return cmdConverge(ctx, os.Args[2:])
 	case "run":
 		return cmdRun(ctx, args)
 	case "status":
@@ -247,6 +251,78 @@ func cmdWhy(ctx context.Context, args []string) error {
 	}
 	cli.PrintPodConstraints(os.Stdout, pc)
 	return nil
+}
+
+func cmdConverge(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("converge", flag.ExitOnError)
+	g := bind(fs)
+	maxNodes := fs.Int("max-nodes", 0, "most nodes this run may drain (required)")
+	maxImpact := fs.String("max-impact", "Green", "highest impact executed without a human: Green or Yellow")
+	dryRun := fs.Bool("dry-run", false, "rehearse one round without cordoning or evicting")
+	watch := fs.Bool("watch", true, "follow the run until it finishes")
+	yes := fs.Bool("yes", false, "skip the policy confirmation prompt")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *maxNodes < 1 {
+		return errors.New("how many nodes may this run drain? e.g. dencer converge --max-nodes 5")
+	}
+	if *maxImpact != "Green" && *maxImpact != "Yellow" {
+		return errors.New("--max-impact must be Green or Yellow; Red always requires a maintenance window")
+	}
+
+	c, err := connect(ctx, g)
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+
+	// Context for the consent prompt; the run does not execute this plan.
+	plan, _ := c.Plan(ctx, "latest")
+
+	if !*dryRun && !*yes {
+		confirmed, err := cli.ConfirmConverge(os.Stdout, os.Stdin, plan, *maxNodes, *maxImpact)
+		if err != nil {
+			return err
+		}
+		if !confirmed {
+			fmt.Println("Nothing was run.")
+			return nil
+		}
+	}
+
+	runID, err := c.Converge(ctx, *maxNodes, *maxImpact, *dryRun)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("converge run %s queued (up to %d nodes, ceiling %s)", runID, *maxNodes, *maxImpact)
+	if *dryRun {
+		fmt.Print(" (dry run: one round is rehearsed, nothing is touched)")
+	}
+	fmt.Println()
+
+	if !*watch {
+		fmt.Printf("Follow it with: dencer status --run %s\n", runID)
+		return nil
+	}
+
+	final, err := c.Wait(ctx, runID, func(ev store.RunEvent) {
+		cli.PrintEvent(os.Stdout, ev)
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Println()
+	switch final.Status {
+	case store.RunSucceeded:
+		fmt.Printf("Succeeded. %s\n", final.Summary)
+		return nil
+	case store.RunBlocked:
+		return fmt.Errorf("blocked by the Safety Guard: %s", final.Summary)
+	default:
+		return fmt.Errorf("run %s: %s", final.Status, final.Summary)
+	}
 }
 
 func cmdRun(ctx context.Context, args []string) error {

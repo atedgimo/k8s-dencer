@@ -50,3 +50,32 @@ func Confirm(out io.Writer, in io.Reader, plan *PlanEnvelope, want []int) (bool,
 	answer = strings.ToLower(strings.TrimSpace(answer))
 	return answer == "y" || answer == "yes", nil
 }
+
+// ConfirmConverge is the consent prompt for a closed-loop run, and it is
+// deliberately not Confirm with different text. A steps run approves a
+// concrete list an operator can picture; a converge run approves a POLICY —
+// the executor will re-plan after every drain and pick its own targets — and
+// the prompt must make that difference impossible to miss. What is shown is
+// the current plan's outlook as context, explicitly labelled as non-binding.
+func ConfirmConverge(out io.Writer, in io.Reader, plan *PlanEnvelope, maxNodes int, maxImpact string) (bool, error) {
+	fmt.Fprintf(out, "You are approving a policy, not a list of steps.\n\n")
+	fmt.Fprintf(out, "The executor will repeatedly: observe the cluster, plan ONE drain against\n")
+	fmt.Fprintf(out, "live state, run the full Safety Guard, drain, wait for recovery — until no\n")
+	fmt.Fprintf(out, "worthwhile step remains or a bound below is reached.\n\n")
+	fmt.Fprintf(out, "  bound: at most %d node(s) drained\n", maxNodes)
+	fmt.Fprintf(out, "  bound: nothing rated above %s is executed\n", maxImpact)
+	fmt.Fprintf(out, "  rail:  every round must free a node, or the run stops\n")
+	fmt.Fprintf(out, "  rail:  no node is drained twice in one run\n")
+	if plan != nil && plan.Plan != nil {
+		fmt.Fprintf(out, "\nFor context only (targets are re-chosen live): the current plan frees %d node(s).\n",
+			plan.Plan.ReclaimedNodes())
+	}
+	fmt.Fprint(out, "\nApprove this policy? [y/N] ")
+
+	answer, err := bufio.NewReader(in).ReadString('\n')
+	if err != nil && answer == "" {
+		return false, nil
+	}
+	answer = strings.ToLower(strings.TrimSpace(answer))
+	return answer == "y" || answer == "yes", nil
+}

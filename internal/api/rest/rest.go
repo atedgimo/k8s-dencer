@@ -141,6 +141,9 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	// separate grants, which is the entire reason for putting this behind
 	// SubjectAccessReview rather than a single "authenticated" check.
 	route("POST /api/v1/plans/{id}/execute", auth.ExecuteConsolidations, s.handleExecute)
+	// Converge is consent to a policy rather than a list, but it is the same
+	// grant: the ability to have nodes drained. One permission, two shapes.
+	route("POST /api/v1/converge", auth.ExecuteConsolidations, s.handleConverge)
 }
 
 func (s *Server) handleAuthInfo(w http.ResponseWriter, _ *http.Request) {

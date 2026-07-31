@@ -26,7 +26,9 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/atedgimo/k8s-dencer/internal/impact"
 	"github.com/atedgimo/k8s-dencer/internal/model"
+	"github.com/atedgimo/k8s-dencer/internal/planner"
 	"github.com/atedgimo/k8s-dencer/internal/safety"
 	"github.com/atedgimo/k8s-dencer/internal/store"
 	"github.com/atedgimo/k8s-dencer/internal/telemetry"
@@ -63,6 +65,18 @@ type Options struct {
 	// Phase 2 behaviour of refusing Red outright.
 	Windows safety.Windows
 
+	// Planner configures the local re-planning a converge run does each
+	// round. The same knobs as the planner component (min node age, excluded
+	// namespaces), because a converge step must be one the planner could have
+	// proposed — the loop changes when planning happens, not what is
+	// plannable.
+	Planner planner.Options
+
+	// Classifier rates the steps a converge run plans, with the same
+	// thresholds as the planner component, so a step is Yellow here exactly
+	// when the plan on the operator's screen would have called it Yellow.
+	Classifier impact.Classifier
+
 	// Readiness is how a replacement pod is judged recovered. Defaults to
 	// Ready; only the KWOK overlay sets Running.
 	Readiness Readiness
@@ -84,6 +98,19 @@ func (o Options) withDefaults() Options {
 	}
 	if o.SettleTimeout <= 0 {
 		o.SettleTimeout = 5 * time.Minute
+	}
+	if o.Classifier == (impact.Classifier{}) {
+		// A zero-value Classifier has zero thresholds WITHOUT impact.New's
+		// defaulting, which makes RedPodsMoved 0 — every step "at or above"
+		// it, everything Red. Unset must never mean the strangest option:
+		// default through the constructor, the same way the planner does.
+		o.Classifier = impact.New(impact.Thresholds{})
+	}
+	if o.Planner.MinNodeAge == 0 && o.Planner.ExcludeNodeLabels == nil {
+		// The zero Options would plan with no minimum node age and no
+		// control-plane exclusion — more permissive than any configured
+		// planner. Default to the planner's own defaults instead.
+		o.Planner = planner.DefaultOptions()
 	}
 	if o.PollInterval <= 0 {
 		o.PollInterval = 2 * time.Second
@@ -143,8 +170,12 @@ func (e *Executor) Poll(ctx context.Context) (bool, error) {
 	}
 
 	e.log.Info("claimed run", "run", run.ID, "plan", run.PlanID,
-		"steps", run.Steps, "dryRun", run.DryRun, "actor", run.Actor)
-	e.perform(ctx, run)
+		"steps", run.Steps, "mode", run.Mode, "dryRun", run.DryRun, "actor", run.Actor)
+	if run.Mode == store.RunModeConverge {
+		e.converge(ctx, run)
+	} else {
+		e.perform(ctx, run)
+	}
 	return true, nil
 }
 
