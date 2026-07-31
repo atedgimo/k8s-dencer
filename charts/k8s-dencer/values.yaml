@@ -85,6 +85,12 @@ planner:
   logLevel: info
   # How often the planner recomputes and informers relist.
   resyncPeriod: 30s
+  # Where actual usage comes from. "" disables usage collection (the default:
+  # plans never needed it — scheduling is requests-based); "metrics-server"
+  # reads the metrics.k8s.io API and lights up the right-sizing report. If
+  # metrics-server is missing or broken the planner degrades to "no data"
+  # rather than erroring.
+  usageSource: ""
   healthPort: 8081
   # Namespaces the pod, PDB and ReplicaSet informers watch. Empty watches all.
   #

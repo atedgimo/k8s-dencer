@@ -571,3 +571,37 @@ func PrintWhatif(w io.Writer, env *WhatifEnvelope) {
 		}
 	}
 }
+
+// PrintRightsizing renders requests versus observed usage. Consolidation
+// packs requests, so oversized requests hold capacity no drain can free —
+// the top of this list is where fixing a number frees real nodes.
+func PrintRightsizing(w io.Writer, env *RightsizingEnvelope) {
+	if !env.Available {
+		fmt.Fprintln(w, "No usage data.")
+		fmt.Fprintf(w, "  %s\n", env.Reason)
+		return
+	}
+	fmt.Fprintf(w, "%s  %s\n\n",
+		bold(fmt.Sprintf("Cluster requests %s cores, observed use %s cores",
+			formatMilli(env.TotalRequestedMilli), formatMilli(env.TotalUsedMilli))),
+		dim("as of "+humanDuration(time.Since(env.TakenAt))+" ago"))
+
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "WORKLOAD\tPODS\tCPU REQ\tCPU USED\tMEM REQ\tMEM USED")
+	n := 0
+	for _, r := range env.Workloads {
+		if n++; n > 15 {
+			break
+		}
+		fmt.Fprintf(tw, "%s\t%d\t%s\t%s\t%s\t%s\n",
+			r.Workload, r.Pods,
+			formatMilli(r.RequestedMilli), formatMilli(r.UsedMilli),
+			formatBytes(r.RequestedBytes), formatBytes(r.UsedBytes))
+	}
+	tw.Flush()
+	if len(env.Workloads) > 15 {
+		fmt.Fprintf(w, "…and %d more (use -o json for all)\n", len(env.Workloads)-15)
+	}
+	fmt.Fprintln(w, dim("\nSorted by absolute CPU excess. Usage is a point-in-time sample, not a peak;"))
+	fmt.Fprintln(w, dim("shrink requests against your own percentiles, not against this single reading."))
+}
