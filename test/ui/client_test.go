@@ -149,3 +149,49 @@ func TestOidcUsesTheIdTokenAsTheCredential(t *testing.T) {
 		}
 	}
 }
+
+// The plan's confirmation must be re-read, never taken once.
+//
+// This one shipped and reached a user. The verdict line read "confirmed 72
+// minutes ago — the cluster may have moved on" on a cluster that had not moved
+// at all: the store touches stored_at on every resync precisely so an
+// unchanged plan reads as current, but a plan only re-publishes when its
+// *content* changes. So the healthiest possible state — a steady cluster,
+// planner confirming every 30s — was the one state guaranteed to trip the
+// staleness warning. The signal meant the opposite of what it said.
+//
+// The fix is a poll, and a poll is one deleted line away from being a fetch
+// again, with no compile error and no visible symptom until an hour in.
+func TestPlanConfirmationIsPolledRatherThanFetchedOnce(t *testing.T) {
+	app := read(t, "App.tsx")
+
+	// The version fetch and a setInterval must live in the same effect. A
+	// bare api.version() somewhere plus an unrelated interval elsewhere would
+	// satisfy a naive substring check while leaving the value frozen.
+	poll := regexp.MustCompile(`api\s*\n?\s*\.version\(\)[\s\S]{0,600}?setInterval\(`)
+	if !poll.MatchString(app) {
+		t.Error("App fetches the version once instead of polling it; " +
+			"planConfirmedAt will freeze at page load and the plan will " +
+			"appear to go stale while the planner is still confirming it")
+	}
+
+	// Ageing the displayed plan by another plan's confirmation would be worse
+	// than not polling: while the view is pinned, the server's latest is a
+	// different plan.
+	if !strings.Contains(app, "latestPlanId === state.plan.plan.id") {
+		t.Error("App does not check that the polled confirmation belongs to " +
+			"the plan on screen; a pinned plan would be dated by the clock " +
+			"of whatever superseded it")
+	}
+
+	// The backend half. Sending generatedAt here would restore the original
+	// bug: it is the one timestamp that never moves for an unchanged plan.
+	rest, err := os.ReadFile("../../internal/api/rest/rest.go")
+	if err != nil {
+		t.Fatalf("read rest.go: %v", err)
+	}
+	if !strings.Contains(string(rest), `resp["planConfirmedAt"] = latest.StoredAt`) {
+		t.Error("the version response does not carry latest.StoredAt as " +
+			"planConfirmedAt; nothing else refreshes on a steady cluster")
+	}
+}

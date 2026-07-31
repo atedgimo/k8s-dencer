@@ -27,8 +27,13 @@ interface Props {
    * An unchanged plan keeps its original generatedAt however many times the
    * planner re-verifies it, so that field reported a perfectly current plan as
    * hours stale. Confirmation is the question a reader is actually asking.
+   *
+   * It must be *re-read*, not taken once. The store touches it every resync,
+   * but a plan only re-publishes when its content changes, so a client that
+   * fetched this at load and never asked again ages a plan the planner is
+   * actively confirming. App polls the version endpoint for it.
    */
-  generatedAt: string;
+  confirmedAt: string;
   onFocusRating: (impact: Impact | null) => void;
   focusedRating: Impact | null;
   onRun: (dryRun: boolean) => void;
@@ -41,7 +46,7 @@ interface Props {
 export default function Verdict({
   stats,
   steps,
-  generatedAt,
+  confirmedAt,
   onFocusRating,
   focusedRating,
   onRun,
@@ -66,7 +71,7 @@ export default function Verdict({
     <header className="verdict">
       <div className="verdict-main">
         <p className="verdict-eyebrow mono">
-          consolidation plan <PlanAge generatedAt={generatedAt} />
+          consolidation plan <PlanAge confirmedAt={confirmedAt} />
         </p>
         <h1 className="verdict-line">
           Reclaim <span className="verdict-figure num">{stats.reclaimable}</span> of{" "}
@@ -168,22 +173,34 @@ export default function Verdict({
  * proxy for that the UI has. Ticks on its own so the number stays true
  * without waiting for a re-fetch.
  */
-function PlanAge({ generatedAt }: { generatedAt: string }) {
+function PlanAge({ confirmedAt }: { confirmedAt: string }) {
   const [, tick] = useState(0);
   useEffect(() => {
     const t = setInterval(() => tick((n) => n + 1), 15_000);
     return () => clearInterval(t);
   }, []);
 
-  const seconds = Math.max(0, (Date.now() - new Date(generatedAt).getTime()) / 1000);
-  const stale = seconds > 300;
+  const seconds = Math.max(0, (Date.now() - new Date(confirmedAt).getTime()) / 1000);
+  const stale = seconds > STALE_AFTER_SECONDS;
   return (
     <span className={stale ? "verdict-age verdict-age-stale" : "verdict-age"}>
       · confirmed {describeAge(seconds)}
-      {stale && " — the cluster may have moved on"}
+      {stale && " — the planner has stopped confirming it"}
     </span>
   );
 }
+
+/**
+ * How long without a confirmation before the screen stops vouching for itself.
+ *
+ * Ten missed resyncs at the 30s default. The old wording — "the cluster may
+ * have moved on" — described the opposite of what this measures. A confirmation
+ * is refreshed whether or not the plan changes, so silence here does not mean
+ * the cluster drifted; it means **nothing is watching it any more**: the
+ * planner wedged, snapshots failing, the poll dead. That is a different
+ * problem, it is worse, and it deserves to be named.
+ */
+const STALE_AFTER_SECONDS = 300;
 
 function describeAge(seconds: number): string {
   if (seconds < 45) return "just now";
