@@ -79,9 +79,12 @@ Ordered by intent; items move up when a user need pulls them.
 
 The list below reflects a deliberate widening: the constraint analyzer is the
 product's real asset — the only thing in the cluster that can *explain
-evictability* — and consolidation is one question it can answer. Items 3–5
-ask it others, chosen because they reuse the engine as it stands and two of
-them serve audiences far larger than consolidation's.
+evictability* — and consolidation is one question it can answer. Items 2–6
+are the widening: preflight, the resilience audit and guarded drain ask the
+same engine other questions; the savings ledger and right-sizing monetise
+what it already records and packs. Chosen because they reuse the machinery
+as it stands, and two of them serve audiences far larger than
+consolidation's.
 
 1. **Closed-loop consolidation** (M25, designed) — re-plan from observed state
    after every step instead of executing a forecast; bounded by an explicit
