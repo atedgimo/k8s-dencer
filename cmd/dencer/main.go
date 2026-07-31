@@ -39,6 +39,7 @@ Commands:
   converge              closed loop: re-plan after every drain, inside bounds
   status                the run in flight, or the last one
   reclamations          what actually became of the nodes you drained
+  preflight             will every node drain? run before a node-pool rotation
   version
 
 Global flags:
@@ -111,6 +112,8 @@ func run() error {
 		return cmdRun(ctx, args)
 	case "status":
 		return cmdStatus(ctx, args)
+	case "preflight":
+		return cmdPreflight(ctx, os.Args[2:])
 	case "reclamations", "reclaim":
 		return cmdReclamations(ctx, args)
 	default:
@@ -271,6 +274,12 @@ func cmdConverge(ctx context.Context, args []string) error {
 		return errors.New("--max-impact must be Green or Yellow; Red always requires a maintenance window")
 	}
 
+func cmdPreflight(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("preflight", flag.ExitOnError)
+	g := bind(fs)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 	c, err := connect(ctx, g)
 	if err != nil {
 		return err
@@ -323,6 +332,15 @@ func cmdConverge(ctx context.Context, args []string) error {
 	default:
 		return fmt.Errorf("run %s: %s", final.Status, final.Summary)
 	}
+	env, err := c.Preflight(ctx)
+	if err != nil {
+		return err
+	}
+	if g.format != cli.FormatText {
+		return cli.Encode(os.Stdout, g.format, env)
+	}
+	cli.PrintPreflight(os.Stdout, env)
+	return nil
 }
 
 func cmdRun(ctx context.Context, args []string) error {

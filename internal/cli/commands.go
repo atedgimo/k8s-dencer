@@ -221,4 +221,35 @@ func (c *Client) Converge(ctx context.Context, maxNodes int, maxImpact string, d
 		return "", err
 	}
 	return out.RunID, nil
+// PreflightEnvelope is what GET /api/v1/preflight returns.
+type PreflightEnvelope struct {
+	TakenAt   time.Time       `json:"takenAt"`
+	PlanID    string          `json:"planId"`
+	Nodes     []PreflightNode `json:"nodes"`
+	Drainable int             `json:"drainable"`
+	Total     int             `json:"total"`
+}
+
+type PreflightNode struct {
+	Node      string             `json:"node"`
+	Ready     bool               `json:"ready"`
+	Cordoned  bool               `json:"cordoned"`
+	Pods      int                `json:"pods"`
+	Drainable bool               `json:"drainable"`
+	Blockers  []PreflightBlocker `json:"blockers"`
+}
+
+type PreflightBlocker struct {
+	Pod         string `json:"pod"`
+	Kind        string `json:"kind"`
+	Explanation string `json:"explanation"`
+}
+
+// Preflight reports per-node drainability — the upgrade question.
+func (c *Client) Preflight(ctx context.Context) (*PreflightEnvelope, error) {
+	var out PreflightEnvelope
+	if err := c.get(ctx, "/api/v1/preflight", &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }

@@ -160,3 +160,18 @@ drained twice in one run.
 
 `--dry-run` rehearses exactly one round. A converge rehearsal cannot honestly
 simulate where evicted pods land, so it does not pretend to.
+## `dencer preflight` — will the rotation wedge?
+
+```
+dencer preflight [-o json]
+```
+
+The question every team asks before a node-pool rotation, answered before
+anything is touched instead of discovered mid-upgrade through a stuck PDB:
+**will every node drain, and if not, which pod is in the way and why?**
+
+Blocked nodes come first, each with the analyzer's own explanation per
+blocking pod — the same engine that plans consolidations, asked a different
+question, so the preflight always agrees with the plan beside it.
+
+State changes; re-run immediately before upgrading.

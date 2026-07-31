@@ -10,6 +10,9 @@ deciding what to build next and telling users what they get.
 ## Shipped
 
 ### Analysis and planning
+- **Upgrade preflight** — `dencer preflight`: will a node-pool rotation
+  wedge, on which node, because of which pod, and why — answered before
+  anything is touched, by the same analyzer that plans consolidations
 - **Full constraint analysis** — PDBs, topology spread, pod/node affinity,
   taints and tolerations, controller ownership, local storage; every immovable
   pod explained in words, not codes
@@ -98,11 +101,6 @@ consolidation's.
    savings number a consolidation tool can show, and it compounds — every day
    unshipped is data lost. Optional `$/node/month` chart value turns it into
    money.
-3. **Upgrade preflight** — `dencer preflight`: will this node-pool rotation
-   wedge, on which node, because of which pod, and what is the fix — answered
-   *before* anyone touches anything. The analyzer unchanged, printed for a
-   different question. Everyone upgrades; not everyone consolidates — this is
-   the adoption wedge.
 4. **Right-sizing signal** — requests versus actual usage per workload:
    "your top 10 over-requested workloads are holding 6 nodes hostage."
    Multiplies the core value, because consolidation packs requests and most
