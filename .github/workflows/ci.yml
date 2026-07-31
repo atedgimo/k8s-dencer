@@ -30,8 +30,8 @@ jobs:
     name: go test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true
@@ -57,12 +57,12 @@ jobs:
     name: chart contract
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v5
 
       # hack/lint-chart.sh reads telemetry.MetricsPath out of the Go source and
       # asserts the rendered templates agree, so this job needs the whole repo,
@@ -77,8 +77,8 @@ jobs:
       run:
         working-directory: ui
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
@@ -101,12 +101,12 @@ jobs:
     # which evict a pod that is really running.
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v5
 
       # Installed directly rather than through a marketplace action. The one
       # tried first was pinned to a k3d release that no longer exists, and it
@@ -128,8 +128,8 @@ jobs:
     name: benchmarks compile and run
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true
