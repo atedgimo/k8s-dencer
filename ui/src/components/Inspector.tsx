@@ -194,6 +194,17 @@ function NodePanel({
       <dl className="facts">
         <dt>Zone</dt>
         <dd>{node.zone || "—"}</dd>
+        {/* The machine, priced in kind if not in money. Absent on fixtures
+            and bare metal — shown only when the platform actually said. */}
+        {node.instanceType && (
+          <>
+            <dt>Machine</dt>
+            <dd>
+              {node.instanceType}
+              {node.capacityType && <span className="mono"> · {node.capacityType}</span>}
+            </dd>
+          </>
+        )}
         <dt>CPU</dt>
         <dd>
           {formatCPU(node.cpuRequested ?? 0)} / {formatCPU(node.cpuAllocatable ?? 0)} cores (

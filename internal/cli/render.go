@@ -115,8 +115,12 @@ func reclaimSummary(env *PlanEnvelope) string {
 	if env.CPUReclaimableMilli <= 0 {
 		return fmt.Sprintf("%d reclaimable", n)
 	}
-	return fmt.Sprintf("%d reclaimable (%s cores, %s)",
+	out := fmt.Sprintf("%d reclaimable (%s cores, %s",
 		n, formatMilli(env.CPUReclaimableMilli), formatBytes(env.MemReclaimableBytes))
+	if spot, od := env.ReclaimableByCapacity["spot"], env.ReclaimableByCapacity["on-demand"]; spot > 0 || od > 0 {
+		out += fmt.Sprintf("; %d spot, %d on-demand", spot, od)
+	}
+	return out + ")"
 }
 
 // PrintPlan renders a plan as a table.

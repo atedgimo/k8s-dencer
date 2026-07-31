@@ -46,6 +46,35 @@ type Node struct {
 // Zone returns the node's failure domain, or "" if unlabelled.
 func (n Node) Zone() string { return n.Labels[LabelZone] }
 
+// InstanceType returns the machine shape, from the standard well-known label.
+// Empty when the platform does not set it (KWOK fixtures, bare metal).
+func (n Node) InstanceType() string { return n.Labels["node.kubernetes.io/instance-type"] }
+
+// CapacityType reports how the node is bought: "spot" when any of the
+// platforms' spot/preemptible markers is present, "on-demand" when the
+// platform is recognisably present without one, and "" when nothing can be
+// said. Three-valued for the usual reason — a KWOK node is not "on-demand",
+// it is unpriced, and pretending otherwise would put a made-up word in a
+// cost report.
+func (n Node) CapacityType() string {
+	switch {
+	case n.Labels["karpenter.sh/capacity-type"] == "spot",
+		n.Labels["cloud.google.com/gke-spot"] == "true",
+		n.Labels["cloud.google.com/gke-preemptible"] == "true",
+		n.Labels["eks.amazonaws.com/capacityType"] == "SPOT",
+		n.Labels["kubernetes.azure.com/scalesetpriority"] == "spot":
+		return "spot"
+	case n.Labels["karpenter.sh/capacity-type"] != "",
+		n.Labels["eks.amazonaws.com/capacityType"] != "":
+		return "on-demand"
+	case n.InstanceType() != "":
+		// A cloud set the instance type; absent any spot marker, on-demand is
+		// what remains.
+		return "on-demand"
+	}
+	return ""
+}
+
 // Well-known label keys the planner reads directly.
 const (
 	LabelZone     = "topology.kubernetes.io/zone"

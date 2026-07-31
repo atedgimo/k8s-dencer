@@ -74,6 +74,8 @@ type Data struct {
 
 	// Node fields.
 	Zone           string `json:"zone,omitempty"`
+	InstanceType   string `json:"instanceType,omitempty"`
+	CapacityType   string `json:"capacityType,omitempty"`
 	Ready          bool   `json:"ready,omitempty"`
 	Cordoned       bool   `json:"cordoned,omitempty"`
 	CPUAllocatable int64  `json:"cpuAllocatable,omitempty"`
@@ -190,6 +192,8 @@ func BuildWith(plan *model.Plan, snap *model.ClusterSnapshot, analysis *constrai
 				Kind:           "node",
 				Label:          n.Name,
 				Zone:           n.Zone(),
+				InstanceType:   n.InstanceType(),
+				CapacityType:   n.CapacityType(),
 				Ready:          n.Ready,
 				Cordoned:       n.Unschedulable,
 				CPUAllocatable: n.Allocatable.MilliCPU,

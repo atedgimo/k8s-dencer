@@ -65,6 +65,8 @@ export interface GraphData {
   label: string;
 
   zone?: string;
+  instanceType?: string;
+  capacityType?: string;
   ready?: boolean;
   cordoned?: boolean;
   cpuAllocatable?: number;
