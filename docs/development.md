@@ -30,6 +30,22 @@ make demo CLUSTER_PROVIDER=k3d
 
 ---
 
+## make deploy refuses a non-local cluster
+
+`make deploy` builds unqualified local image tags, which mean nothing outside a
+local cluster. That was harmless until a GKE path existed — then
+`gcloud container clusters get-credentials` began making its context *current*,
+silently redirecting a deploy typed in another terminal.
+
+It happened: a `helm upgrade` landed on a live GKE test cluster, installed tags
+no registry had, and killed the run it was supposed to be unrelated to. The
+target now refuses anything that is not a recognisable local context, names
+what it found, and prints the way back. `ALLOW_ANY_CONTEXT=1` overrides it.
+
+The cloud run no longer hijacks the context either: it hands it straight back
+after `get-credentials` and addresses its cluster by `--context` throughout, so
+you can keep working locally while it runs.
+
 ## End-to-end
 
 ```bash
