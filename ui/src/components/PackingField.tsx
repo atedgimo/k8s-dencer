@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { FieldPanel, FieldWells, FILL_TITLE, NodeDrawState, spreadFill } from "./FieldViews";
+import { FieldView } from "../view";
 import { GraphPayload, PlanStep } from "../api";
 import {
   NODE_GAP_X,
@@ -53,6 +55,8 @@ interface Props {
   onSelectPod: (key: string | null) => void;
   selectedNode: string | null;
   selectedPod: string | null;
+  /** Which rendering of the field to draw. */
+  view?: FieldView;
   /** Nodes drained earlier whose machine is still present. Observed, not planned. */
   awaiting?: number;
   /** Nodes whose Node object actually disappeared. Observed, not planned. */
@@ -68,6 +72,7 @@ export default function PackingField({
   onSelectPod,
   selectedNode,
   selectedPod,
+  view = "rack",
   awaiting = 0,
   reclaimedForReal = 0,
 }: Props) {
@@ -150,8 +155,8 @@ export default function PackingField({
     [...model.nodes]
       .sort(
         (a, b) =>
-          (layout.nodeFill.get(b.name) ?? 0) -
-          (layout.nodeFill.get(a.name) ?? 0),
+          (layout.nodeFill.get(b.name)?.dominant ?? 0) -
+          (layout.nodeFill.get(a.name)?.dominant ?? 0),
       )
       .forEach((n, i) => order.set(n.name, i));
     return order;
@@ -197,6 +202,37 @@ export default function PackingField({
     return out;
   }, [model, placement, steps, step]);
 
+  const drawStates: NodeDrawState[] = useMemo(
+    () =>
+      model.nodes.map((n) => ({
+        name: n.name,
+        ...spreadFill(layout.nodeFill.get(n.name)),
+        pods: podsByNode.get(n.name) ?? 0,
+        cordoned: n.cordoned,
+        drained: reclaimed.has(n.name),
+        targeted: stepTarget === n.name,
+        selected: selectedNode === n.name,
+      })),
+    [model, layout, podsByNode, reclaimed, stepTarget, selectedNode],
+  );
+
+  if (view !== "rack") {
+    const Renderer = view === "wells" ? FieldWells : FieldPanel;
+    return (
+      <div className="field-wrap">
+        <div className="field-scroll" ref={scrollRef}>
+          <Renderer nodes={drawStates} model={model} onSelectNode={onSelectNode} />
+        </div>
+        <ReclaimedTray
+          count={reclaimed.size}
+          total={plannedDrains}
+          awaiting={awaiting}
+          reclaimedForReal={reclaimedForReal}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="field-wrap">
       <div className="field-scroll" ref={scrollRef}>
@@ -212,7 +248,7 @@ export default function PackingField({
             const pos = layout.nodes.get(node.id);
             if (!pos) return null;
             if (!inView(index)) return null;
-            const fill = layout.nodeFill.get(node.name) ?? 0;
+            const fill = layout.nodeFill.get(node.name)?.dominant ?? 0;
             const gone = reclaimed.has(node.name);
             const count = podsByNode.get(node.name) ?? 0;
 
@@ -268,7 +304,7 @@ export default function PackingField({
                       cordoned
                     </span>
                   )}
-                  <span className="box-pct num">
+                  <span className="box-pct num" title={FILL_TITLE}>
                     {gone ? "—" : `${Math.round(fill * 100)}`}
                   </span>
                 </div>
