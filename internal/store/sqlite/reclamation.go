@@ -16,10 +16,11 @@ import (
 // RecordDrain notes that a node was drained and now awaits reclamation.
 func (s *Store) RecordDrain(ctx context.Context, r store.Reclamation) error {
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO reclamations (node, drained_at, run_id, plan_id, step)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO reclamations (node, drained_at, run_id, plan_id, step, cpu_milli, mem_bytes)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (node, drained_at) DO NOTHING`,
-		r.Node, r.DrainedAt.UTC().Format(time.RFC3339Nano), r.RunID, r.PlanID, r.Step)
+		r.Node, r.DrainedAt.UTC().Format(time.RFC3339Nano), r.RunID, r.PlanID, r.Step,
+		r.CPUMilli, r.MemBytes)
 	if err != nil {
 		return fmt.Errorf("record drain of %s: %w", r.Node, err)
 	}
@@ -29,7 +30,7 @@ func (s *Store) RecordDrain(ctx context.Context, r store.Reclamation) error {
 // PendingReclamations returns every node still awaiting an outcome.
 func (s *Store) PendingReclamations(ctx context.Context) ([]store.Reclamation, error) {
 	return s.queryReclamations(ctx, `
-		SELECT node, drained_at, run_id, plan_id, step, resolved_at, outcome
+		SELECT node, drained_at, run_id, plan_id, step, resolved_at, outcome, cpu_milli, mem_bytes
 		FROM reclamations WHERE resolved_at IS NULL
 		ORDER BY drained_at`)
 }
@@ -40,7 +41,7 @@ func (s *Store) Reclamations(ctx context.Context, limit int) ([]store.Reclamatio
 		limit = 50
 	}
 	return s.queryReclamations(ctx, `
-		SELECT node, drained_at, run_id, plan_id, step, resolved_at, outcome
+		SELECT node, drained_at, run_id, plan_id, step, resolved_at, outcome, cpu_milli, mem_bytes
 		FROM reclamations ORDER BY drained_at DESC LIMIT ?`, limit)
 }
 
@@ -84,7 +85,7 @@ func (s *Store) ReclamationSummary(ctx context.Context, since time.Time) (store.
 
 	cutoff := since.UTC().Format(time.RFC3339Nano)
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT outcome, drained_at, resolved_at FROM reclamations
+		SELECT outcome, drained_at, resolved_at, cpu_milli, mem_bytes FROM reclamations
 		WHERE resolved_at IS NOT NULL AND resolved_at >= ?`, cutoff)
 	if err != nil {
 		return out, fmt.Errorf("summarise reclamations: %w", err)
@@ -94,12 +95,22 @@ func (s *Store) ReclamationSummary(ctx context.Context, since time.Time) (store.
 	var durations []time.Duration
 	for rows.Next() {
 		var outcome, drainedAt, resolvedAt string
-		if err := rows.Scan(&outcome, &drainedAt, &resolvedAt); err != nil {
+		var cpuMilli, memBytes int64
+		if err := rows.Scan(&outcome, &drainedAt, &resolvedAt, &cpuMilli, &memBytes); err != nil {
 			return out, err
 		}
 		switch store.ReclamationOutcome(outcome) {
 		case store.ReclaimedGone:
 			out.Reclaimed++
+			// The ledger. Rows from before capacity capture carry zeroes;
+			// counting them as savings of zero would silently under-report,
+			// so they are counted as what they are — uncounted.
+			if cpuMilli > 0 || memBytes > 0 {
+				out.ReclaimedCPUMilli += cpuMilli
+				out.ReclaimedMemBytes += memBytes
+			} else {
+				out.UncountedNodes++
+			}
 			// Only genuine reclamations contribute to the timing. A node that
 			// was uncordoned tells us how long someone took to change their
 			// mind, which is a different question and would skew the answer to
@@ -152,7 +163,8 @@ func (s *Store) queryReclamations(ctx context.Context, query string, args ...any
 			step                   sql.NullInt64
 			resolvedAt             sql.NullString
 		)
-		if err := rows.Scan(&r.Node, &drainedAt, &runID, &planID, &step, &resolvedAt, &outcome); err != nil {
+		if err := rows.Scan(&r.Node, &drainedAt, &runID, &planID, &step, &resolvedAt, &outcome,
+			&r.CPUMilli, &r.MemBytes); err != nil {
 			return nil, err
 		}
 		r.DrainedAt = parseTime(drainedAt)

@@ -413,6 +413,17 @@ func PrintReclamations(w io.Writer, env *ReclamationsEnvelope) {
 	if s.Returned > 0 {
 		fmt.Fprintf(w, "  %d returned to service instead\n", s.Returned)
 	}
+
+	// The ledger: the one savings figure in this product that is measured
+	// rather than estimated, summed from capacity captured at drain time.
+	if s.ReclaimedCPUMilli > 0 || s.ReclaimedMemBytes > 0 {
+		fmt.Fprintf(w, "\n%s %s cores, %s actually returned\n",
+			bold("Ledger:"), formatMilli(s.ReclaimedCPUMilli), formatBytes(s.ReclaimedMemBytes))
+		if s.UncountedNodes > 0 {
+			fmt.Fprintf(w, "  (+%d node(s) reclaimed before capacity was recorded; their savings are real but unmeasured)\n",
+				s.UncountedNodes)
+		}
+	}
 }
 
 func countOlderThan(rs []store.Reclamation, d time.Duration, now time.Time) int {

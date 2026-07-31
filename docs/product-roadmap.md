@@ -45,6 +45,11 @@ deciding what to build next and telling users what they get.
   `pods/eviction` leaks to any other role
 
 ### Observing reality (not just predicting it)
+- **Savings ledger** — capacity *actually returned*, measured: the executor
+  captures each node's allocatable at drain time (the last moment it can be),
+  and the summary sums it over nodes that genuinely disappeared. Pre-ledger
+  reclamations are counted as uncounted rather than silently zero. Shown in
+  the UI tray and `dencer reclamations`
 - **Reclamation tracking** — a drained node is watched until something
   actually removes it (*awaiting → reclaimed | returned*), proven against
   GKE's own autoscaler (removal observed and timed at 11m9s)
@@ -95,12 +100,6 @@ consolidation's.
    gap where a run aborts on divergence a fresh plan would simply absorb.
    Includes per-pod placement during a run, the first consumer of its live
    data.
-2. **Savings ledger** — "reclaimed 340 cores · 1.3 TiB across 23 nodes in 90
-   days, median removal 11m", from the reclamation history the product
-   already records with timestamps. The only *measured* (not estimated)
-   savings number a consolidation tool can show, and it compounds — every day
-   unshipped is data lost. Optional `$/node/month` chart value turns it into
-   money.
 4. **Right-sizing signal** — requests versus actual usage per workload:
    "your top 10 over-requested workloads are holding 6 nodes hostage."
    Multiplies the core value, because consolidation packs requests and most

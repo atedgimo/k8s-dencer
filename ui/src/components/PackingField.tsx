@@ -10,7 +10,7 @@ import {
   spreadFill,
 } from "./FieldViews";
 import { FieldView } from "../view";
-import { GraphPayload, PlanStep } from "../api";
+import { formatBytes, formatCPU, GraphPayload, PlanStep } from "../api";
 import {
   NODE_GAP_X,
   NODE_GAP_Y,
@@ -70,6 +70,9 @@ interface Props {
   awaiting?: number;
   /** Nodes whose Node object actually disappeared. Observed, not planned. */
   reclaimedForReal?: number;
+  /** The ledger: measured capacity those reclaimed nodes actually returned. */
+  ledgerCpuMilli?: number;
+  ledgerMemBytes?: number;
   /**
    * Per-node observed facts from outside the plan's snapshot: the reclamation
    * tracker and a run's own event trail. Merged over the snapshot here, once,
@@ -90,6 +93,8 @@ export default function PackingField({
   view = "rack",
   awaiting = 0,
   reclaimedForReal = 0,
+  ledgerCpuMilli = 0,
+  ledgerMemBytes = 0,
   observed,
 }: Props) {
   const model: Model = useMemo(() => toModel(graph), [graph]);
@@ -252,6 +257,8 @@ export default function PackingField({
           total={plannedDrains}
           awaiting={awaiting}
           reclaimedForReal={reclaimedForReal}
+          ledgerCpuMilli={ledgerCpuMilli}
+          ledgerMemBytes={ledgerMemBytes}
         />
       </div>
     );
@@ -416,7 +423,14 @@ export default function PackingField({
         </div>
       </div>
 
-      <ReclaimedTray count={reclaimed.size} total={plannedDrains} awaiting={awaiting} reclaimedForReal={reclaimedForReal} />
+      <ReclaimedTray
+        count={reclaimed.size}
+        total={plannedDrains}
+        awaiting={awaiting}
+        reclaimedForReal={reclaimedForReal}
+        ledgerCpuMilli={ledgerCpuMilli}
+        ledgerMemBytes={ledgerMemBytes}
+      />
     </div>
   );
 }
@@ -436,11 +450,15 @@ function ReclaimedTray({
   total,
   awaiting,
   reclaimedForReal,
+  ledgerCpuMilli,
+  ledgerMemBytes,
 }: {
   count: number;
   total: number;
   awaiting: number;
   reclaimedForReal: number;
+  ledgerCpuMilli: number;
+  ledgerMemBytes: number;
 }) {
   return (
     <div className="tray" aria-live="polite">
@@ -458,6 +476,15 @@ function ReclaimedTray({
         <span className="tray-observed">
           <span className="tray-observed-count num">{reclaimedForReal}</span>
           <span className="mono"> reclaimed</span>
+          {/* The ledger: measured, not estimated — capacity captured at
+              drain time, summed over nodes that actually disappeared. The
+              only savings figure in this product that is a measurement. */}
+          {(ledgerCpuMilli > 0 || ledgerMemBytes > 0) && (
+            <span className="tray-ledger num">
+              {" "}
+              · {formatCPU(ledgerCpuMilli)} cores · {formatBytes(ledgerMemBytes)} returned
+            </span>
+          )}
         </span>
       )}
       {awaiting > 0 && (

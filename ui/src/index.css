@@ -2156,3 +2156,11 @@
     display: none;
   }
 }
+
+/* The ledger figure beside the reclaimed tally — quieter than the count it
+   denominates, same relationship as the verdict's capacity to its headline. */
+.tray-ledger {
+  color: var(--graphite);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.01em;
+}

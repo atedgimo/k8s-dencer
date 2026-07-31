@@ -88,6 +88,15 @@ type Reclamation struct {
 	// reclamation.
 	ResolvedAt *time.Time         `json:"resolvedAt,omitempty"`
 	Outcome    ReclamationOutcome `json:"outcome,omitempty"`
+
+	// The node's allocatable, captured AT DRAIN TIME by the executor — the
+	// last moment it can be captured, because a reclaimed node takes its
+	// capacity record with it. This is what lets the ledger say "340 cores
+	// returned" as a measurement rather than an estimate. Zero on rows
+	// recorded before the ledger existed; sums treat those as zero and the
+	// ledger says so rather than guessing.
+	CPUMilli int64 `json:"cpuMilli,omitempty"`
+	MemBytes int64 `json:"memBytes,omitempty"`
 }
 
 // Pending reports whether this node is still drained and still present.
@@ -110,6 +119,16 @@ type ReclamationStats struct {
 	// noticed would drag an average into uselessness, and the question being
 	// answered is "how long does this normally take".
 	MedianTime time.Duration `json:"medianReclamationSeconds"`
+
+	// The ledger: capacity actually returned, summed over reclaimed nodes
+	// from their drain-time records. The only measured — not estimated —
+	// savings figure a consolidation tool can show. Rows recorded before
+	// capacity capture existed contribute zero; UncountedNodes says how many,
+	// so the ledger can be honest about its own blind spot instead of
+	// silently under-reporting.
+	ReclaimedCPUMilli int64 `json:"reclaimedCpuMilli"`
+	ReclaimedMemBytes int64 `json:"reclaimedMemBytes"`
+	UncountedNodes    int   `json:"uncountedNodes"`
 }
 
 // ReclamationStore tracks drained nodes until something removes them.
