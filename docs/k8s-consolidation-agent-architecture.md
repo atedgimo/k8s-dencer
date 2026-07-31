@@ -1,5 +1,11 @@
 # k8s-dencer — Architecture & Implementation Plan
 
+> **Historical document.** This is the original design, kept as the record of
+> what was intended and why. Where it disagrees with the code, the code won —
+> see [architecture.md](architecture.md) for what actually runs, and
+> [roadmap.md](roadmap.md) for what changed along the way and the reasons.
+
+
 **Project name**: `k8s-dencer`
 
 | Artifact | Name |
@@ -222,3 +228,7 @@ and no subagents/ADK orchestration yet — that's still Phase 4.
 - Exact thresholds/rules for Green vs. Yellow vs. Red classification (e.g.
   where PDB headroom stops being "Green") — likely needs to be a tunable
   policy rather than hardcoded, since risk tolerance differs per cluster.
+
+---
+
+[← Documentation index](README.md) · [Project README](../README.md)

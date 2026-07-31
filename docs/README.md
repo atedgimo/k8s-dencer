@@ -12,7 +12,8 @@
 | **[Development](development.md)** | The local loop, the KWOK fake-node fabric, the CI gates, and cutting a release |
 | **[Benchmarks](benchmarks.md)** | Measured cost per operation, and where each stage stops being usable |
 | **[Findings](findings.md)** | Bugs and gaps found by running it — what hid, and why |
-| **[Roadmap and status](roadmap.md)** | What is built, what is planned, and what was dropped |
+| **[Product roadmap](product-roadmap.md)** | Shipped capabilities and what comes next, as features rather than milestones |
+| **[Engineering roadmap and status](roadmap.md)** | The milestone history — measurements, design reasoning, what was dropped and why |
 | **[Security policy](../SECURITY.md)** | Reporting a vulnerability, and what is in scope |
 | **[Design document](k8s-consolidation-agent-architecture.md)** | The original architecture and the reasoning behind it |
 
