@@ -229,11 +229,17 @@ workload came back Ready, then deletes the node and confirms the reclamation
 was observed. That is what
 [`make e2e`](hack/e2e.sh) does, and it runs on every pull request.
 
-**It has still never run against a cloud cluster.** A cloud test now exists —
-`make cloud-e2e` runs the same assertions on a throwaway GKE cluster for about
-two cents, so a real cluster autoscaler is the thing that removes the drained
-node rather than our own test script — but it is one command away, not a green
-tick. When it has been run, this paragraph will say so.
+**It has now run against a real cloud cluster.** `make cloud-e2e` stands up a
+five-node GKE cluster, installs the published images, drains a node, and then
+waits — touching nothing — while **Google's own cluster autoscaler** decides the
+node is unneeded and removes it. Observed and timed at **11m9s** on
+2026-07-31. That is the reclamation loop confirmed against a reclaimer nobody
+here wrote, which is the one thing k3d structurally cannot prove.
+
+Still unproven, and worth saying: this has not run against anyone's
+*production* cluster, only a throwaway one. Workload Identity and IRSA remain
+half-tested — the chart's annotations render and are accepted, but k8s-dencer
+makes no cloud API calls, so there is no credential path to exercise.
 
 Treat the read-only path as ready to try, and the executor as something to
 enable deliberately, on something you can afford to be wrong about.
