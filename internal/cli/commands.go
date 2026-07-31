@@ -221,6 +221,8 @@ func (c *Client) Converge(ctx context.Context, maxNodes int, maxImpact string, d
 		return "", err
 	}
 	return out.RunID, nil
+}
+
 // PreflightEnvelope is what GET /api/v1/preflight returns.
 type PreflightEnvelope struct {
 	TakenAt   time.Time       `json:"takenAt"`

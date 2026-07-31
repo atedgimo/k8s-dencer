@@ -274,12 +274,6 @@ func cmdConverge(ctx context.Context, args []string) error {
 		return errors.New("--max-impact must be Green or Yellow; Red always requires a maintenance window")
 	}
 
-func cmdPreflight(ctx context.Context, args []string) error {
-	fs := flag.NewFlagSet("preflight", flag.ExitOnError)
-	g := bind(fs)
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
 	c, err := connect(ctx, g)
 	if err != nil {
 		return err
@@ -332,6 +326,20 @@ func cmdPreflight(ctx context.Context, args []string) error {
 	default:
 		return fmt.Errorf("run %s: %s", final.Status, final.Summary)
 	}
+}
+
+func cmdPreflight(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("preflight", flag.ExitOnError)
+	g := bind(fs)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	c, err := connect(ctx, g)
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+
 	env, err := c.Preflight(ctx)
 	if err != nil {
 		return err

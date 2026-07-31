@@ -105,6 +105,13 @@ consolidation's.
    "your top 10 over-requested workloads are holding 6 nodes hostage."
    Multiplies the core value, because consolidation packs requests and most
    clusters' requests are 2–3× usage.
+   *Scoped 2026-08: the plumbing exists end to end (`metrics.Source`,
+   collector wiring, `Usage` on the model, `HasUsageData`) but the only
+   implementation is `Noop` — a `metrics.k8s.io` client is the actual work,
+   plus read-only RBAC. Deliberately not built against KWOK: fake nodes have
+   no kubelets, so the feature could not be verified here, and shipping an
+   unverifiable feature is how confident wrong numbers happen. First
+   verifiable on k3d with metrics-server or the GCP run.*
 5. **Resilience audit** — the analyzer's never-evictable list, re-sorted into
    an availability risk report: zero-headroom PDBs, single replicas,
    controller-less pods — the cluster's inability to survive a node loss,
