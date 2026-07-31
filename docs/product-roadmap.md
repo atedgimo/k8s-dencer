@@ -5,7 +5,7 @@ milestones. The engineering history behind each item, with measurements and
 design reasoning, is in **[roadmap.md](roadmap.md)**; this page is the view for
 deciding what to build next and telling users what they get.
 
-*Last updated: 2026-07-31.*
+*Last updated: 2026-08-01.*
 
 ## Shipped
 
@@ -19,6 +19,9 @@ deciding what to build next and telling users what they get.
   ratings are glyph + word, never colour alone
 - **Fullness measured the way the scheduler packs** — worst of CPU and memory
   requests over allocatable, identical to the planner's own ranking
+- **Plans priced in capacity, not just count** — "reclaim 11 of 31 nodes ·
+  88 cores · 352 GiB", identical from the UI and the CLI, because nodes are
+  not fungible and a count alone cannot say whether a plan matters
 - **Scales to 5,000+ pods** — constraint analysis 298 ms, planning 466 ms at
   5,026 pods, measured; no cluster required to benchmark
 
@@ -74,22 +77,53 @@ deciding what to build next and telling users what they get.
 
 Ordered by intent; items move up when a user need pulls them.
 
-1. **Reclaimed capacity, not just node count** — "reclaim 15 nodes, 340
-   cores, 1.2 TiB" instead of a bare count. Nodes are not fungible; the count
-   alone cannot say whether a plan is worth running.
-2. **Closed-loop consolidation** (M25, designed) — re-plan from observed state
+The list below reflects a deliberate widening: the constraint analyzer is the
+product's real asset — the only thing in the cluster that can *explain
+evictability* — and consolidation is one question it can answer. Items 2–6
+are the widening: preflight, the resilience audit and guarded drain ask the
+same engine other questions; the savings ledger and right-sizing monetise
+what it already records and packs. Chosen because they reuse the machinery
+as it stands, and two of them serve audiences far larger than
+consolidation's.
+
+1. **Closed-loop consolidation** (M25, designed) — re-plan from observed state
    after every step instead of executing a forecast; bounded by an explicit
    operator-approved envelope (max nodes, window, impact ceiling). Ends the
    gap where a run aborts on divergence a fresh plan would simply absorb.
-3. **Per-pod placement during a run** — draw where pods actually landed, not
-   where the plan predicted; first consumer of the closed loop's live data.
-4. **Cost awareness** — instance type and capacity type (spot/on-demand) in
+   Includes per-pod placement during a run, the first consumer of its live
+   data.
+2. **Savings ledger** — "reclaimed 340 cores · 1.3 TiB across 23 nodes in 90
+   days, median removal 11m", from the reclamation history the product
+   already records with timestamps. The only *measured* (not estimated)
+   savings number a consolidation tool can show, and it compounds — every day
+   unshipped is data lost. Optional `$/node/month` chart value turns it into
+   money.
+3. **Upgrade preflight** — `dencer preflight`: will this node-pool rotation
+   wedge, on which node, because of which pod, and what is the fix — answered
+   *before* anyone touches anything. The analyzer unchanged, printed for a
+   different question. Everyone upgrades; not everyone consolidates — this is
+   the adoption wedge.
+4. **Right-sizing signal** — requests versus actual usage per workload:
+   "your top 10 over-requested workloads are holding 6 nodes hostage."
+   Multiplies the core value, because consolidation packs requests and most
+   clusters' requests are 2–3× usage.
+5. **Resilience audit** — the analyzer's never-evictable list, re-sorted into
+   an availability risk report: zero-headroom PDBs, single replicas,
+   controller-less pods — the cluster's inability to survive a node loss,
+   named before the incident.
+6. **Guarded drain** — `dencer drain <node>`: the drain everyone does with
+   kubectl, but with the PDB pre-check, readiness verification and audit
+   trail the executor already has.
+7. **Cost awareness** — instance type and capacity type (spot/on-demand) in
    the model, so "better plan" can mean "cheaper estate", not "fewer nodes".
-5. **Reclaimer detection** — warn *before* draining when no autoscaler or
-   Karpenter is present to remove the emptied node (drained-but-not-removed is
-   pure cost).
-6. **Planner lookahead** — evaluate whether draining A forecloses draining B
-   and C; adopt only if measurably better plans result.
+8. **What-if simulation** — the planner against a modified snapshot: "can I
+   lose zone B? can this workload fit?" Capacity planning as a question, not
+   a spreadsheet.
+9. **Reclaimer detection** — warn *before* draining when no autoscaler or
+   Karpenter is present to remove the emptied node (drained-but-not-removed
+   is pure cost).
+10. **Planner lookahead** — evaluate whether draining A forecloses draining B
+    and C; adopt only if measurably better plans result.
 
 ## Explicitly not planned
 
