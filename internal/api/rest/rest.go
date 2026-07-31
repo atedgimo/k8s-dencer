@@ -345,14 +345,32 @@ func planResponse(rec store.Record) map[string]any {
 	// The same figure the UI's verdict shows, so the CLI does not state a
 	// bare node count the web page qualifies.
 	cpu, mem := model.ReclaimableCapacity(rec.Plan, rec.Snapshot)
+
+	// How the reclaimable nodes are bought, when the platform says. Spot
+	// nodes reclaimed and on-demand nodes reclaimed are different amounts of
+	// money, and the count alone hides that. Unpriced nodes (fixtures, bare
+	// metal) are omitted rather than invented.
+	byCapacity := map[string]int{}
+	byName := make(map[string]model.Node, len(rec.Snapshot.Nodes))
+	for _, n := range rec.Snapshot.Nodes {
+		byName[n.Name] = n
+	}
+	for _, step := range rec.Plan.Steps {
+		if n, ok := byName[step.TargetNode]; ok {
+			if ct := n.CapacityType(); ct != "" {
+				byCapacity[ct]++
+			}
+		}
+	}
 	return map[string]any{
-		"plan":                rec.Plan,
-		"strategy":            rec.Strategy,
-		"storedAt":            rec.StoredAt,
-		"ratings":             rec.Plan.CountByRating(),
-		"cpuReclaimableMilli": cpu,
-		"memReclaimableBytes": mem,
-		"readOnly":            true,
+		"plan":                  rec.Plan,
+		"strategy":              rec.Strategy,
+		"storedAt":              rec.StoredAt,
+		"ratings":               rec.Plan.CountByRating(),
+		"cpuReclaimableMilli":   cpu,
+		"memReclaimableBytes":   mem,
+		"reclaimableByCapacity": byCapacity,
+		"readOnly":              true,
 	}
 }
 

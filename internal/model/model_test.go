@@ -268,3 +268,29 @@ func TestSnapshotAggregation(t *testing.T) {
 		t.Errorf("PodsOnNode = %d, want 3 (unfiltered)", got)
 	}
 }
+
+// CapacityType is three-valued on purpose: a KWOK node is not "on-demand",
+// it is unpriced, and a made-up word in a cost report poisons the report.
+func TestCapacityTypeIsThreeValued(t *testing.T) {
+	cases := []struct {
+		name   string
+		labels map[string]string
+		want   string
+	}{
+		{"karpenter spot", map[string]string{"karpenter.sh/capacity-type": "spot"}, "spot"},
+		{"gke spot", map[string]string{"cloud.google.com/gke-spot": "true"}, "spot"},
+		{"gke preemptible", map[string]string{"cloud.google.com/gke-preemptible": "true"}, "spot"},
+		{"eks spot", map[string]string{"eks.amazonaws.com/capacityType": "SPOT"}, "spot"},
+		{"aks spot", map[string]string{"kubernetes.azure.com/scalesetpriority": "spot"}, "spot"},
+		{"karpenter on-demand", map[string]string{"karpenter.sh/capacity-type": "on-demand"}, "on-demand"},
+		{"cloud with instance type only", map[string]string{"node.kubernetes.io/instance-type": "n2-standard-8"}, "on-demand"},
+		{"nothing known", map[string]string{}, ""},
+		{"kwok fixture", map[string]string{"topology.kubernetes.io/zone": "z1"}, ""},
+	}
+	for _, c := range cases {
+		n := model.Node{Labels: c.labels}
+		if got := n.CapacityType(); got != c.want {
+			t.Errorf("%s: CapacityType() = %q, want %q", c.name, got, c.want)
+		}
+	}
+}

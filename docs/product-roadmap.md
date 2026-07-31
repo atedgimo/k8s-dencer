@@ -117,8 +117,12 @@ consolidation's.
    no kubelets, so the feature could not be verified here, and shipping an
    unverifiable feature is how confident wrong numbers happen. First
    verifiable on k3d with metrics-server or the GCP run.*
-7. **Cost awareness** — instance type and capacity type (spot/on-demand) in
-   the model, so "better plan" can mean "cheaper estate", not "fewer nodes".
+7. **Cost awareness, remaining slices** — pricing and a cost-aware planner
+   objective. The facts shipped first: instance type and capacity type are on
+   every node (Inspector), and the plan states how its reclaimable nodes are
+   bought — "7 spot, 4 on-demand" — with unpriced nodes omitted rather than
+   invented. Turning "fewer nodes" into "cheaper estate" as the *objective*
+   is the remaining, deliberately separate, step.
 8. **What-if simulation** — the planner against a modified snapshot: "can I
    lose zone B? can this workload fit?" Capacity planning as a question, not
    a spreadsheet.

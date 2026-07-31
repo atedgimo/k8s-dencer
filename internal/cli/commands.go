@@ -24,6 +24,8 @@ type PlanEnvelope struct {
 	// disagree about it.
 	CPUReclaimableMilli int64 `json:"cpuReclaimableMilli"`
 	MemReclaimableBytes int64 `json:"memReclaimableBytes"`
+	// How the reclaimable nodes are bought, when the platform says.
+	ReclaimableByCapacity map[string]int `json:"reclaimableByCapacity,omitempty"`
 }
 
 type RunEnvelope struct {
