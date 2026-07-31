@@ -3,14 +3,15 @@ name: k8s-dencer
 description: |
   Continuously analyses Kubernetes scheduling constraints (PDBs, topology
   spread, affinity, taints) and builds a node consolidation plan as discrete,
-  impact-rated steps. Phase 1 is read-only: it plans and explains, it never
-  evicts.
+  impact-rated steps a human approves one at a time. Execution is off by
+  default; enabled, a separate workload drains through the eviction API so the
+  API server enforces your PodDisruptionBudgets.
 type: application
 
 # Chart version tracks the chart; appVersion tracks the images. Component image
 # tags default to appVersion so a chart release pins a coherent image set.
-version: 0.1.0
-appVersion: "0.1.0"
+version: 0.2.0
+appVersion: "0.2.0"
 
 # controller-runtime and the policy/v1 PDB API used here are stable from 1.21,
 # but the chart relies on 1.27-era defaults for restricted Pod Security
