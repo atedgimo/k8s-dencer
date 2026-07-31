@@ -1,6 +1,7 @@
 package safety_test
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -70,7 +71,7 @@ func TestRedStepsAreRefused(t *testing.T) {
 	live := &model.ClusterSnapshot{Nodes: []model.Node{node("a", 4000), node("b", 4000)}}
 	g := safety.New(permissive())
 
-	err := g.CheckStep(step(7, "a", model.ImpactRed), live, safety.RunState{})
+	err := g.CheckStep(t.Context(), step(7, "a", model.ImpactRed), live, safety.RunState{})
 	b := blockedBy(t, err, safety.RuleRedRequiresWindow)
 
 	// The refusal must quote the classifier's own rationale, so the operator
@@ -88,7 +89,7 @@ func TestGreenAndYellowStepsPass(t *testing.T) {
 	g := safety.New(permissive())
 
 	for _, impact := range []model.ImpactRating{model.ImpactGreen, model.ImpactYellow} {
-		if err := g.CheckStep(step(1, "a", impact), live, safety.RunState{}); err != nil {
+		if err := g.CheckStep(t.Context(), step(1, "a", impact), live, safety.RunState{}); err != nil {
 			t.Errorf("%s step refused: %v", impact, err)
 		}
 	}
@@ -98,10 +99,10 @@ func TestMaxNodesPerRunCapsTheWholeRequest(t *testing.T) {
 	live := &model.ClusterSnapshot{Nodes: []model.Node{node("a", 4000), node("b", 4000)}}
 	g := safety.New(safety.Limits{MaxNodesPerRun: 3})
 
-	if err := g.CheckStep(step(1, "a", model.ImpactGreen), live, safety.RunState{NodesDrainedSoFar: 2}); err != nil {
+	if err := g.CheckStep(t.Context(), step(1, "a", model.ImpactGreen), live, safety.RunState{NodesDrainedSoFar: 2}); err != nil {
 		t.Fatalf("third node refused early: %v", err)
 	}
-	err := g.CheckStep(step(1, "a", model.ImpactGreen), live, safety.RunState{NodesDrainedSoFar: 3})
+	err := g.CheckStep(t.Context(), step(1, "a", model.ImpactGreen), live, safety.RunState{NodesDrainedSoFar: 3})
 	blockedBy(t, err, safety.RuleMaxNodesPerRun)
 }
 
@@ -114,7 +115,7 @@ func TestMinReadyNodesCountsOnlySchedulableCapacity(t *testing.T) {
 		live := &model.ClusterSnapshot{Nodes: []model.Node{
 			node("a", 4000), node("b", 4000), node("c", 4000),
 		}}
-		if err := g.CheckStep(step(1, "a", model.ImpactGreen), live, safety.RunState{}); err != nil {
+		if err := g.CheckStep(t.Context(), step(1, "a", model.ImpactGreen), live, safety.RunState{}); err != nil {
 			t.Errorf("refused with 2 nodes left: %v", err)
 		}
 	})
@@ -127,7 +128,7 @@ func TestMinReadyNodesCountsOnlySchedulableCapacity(t *testing.T) {
 			node("d", 4000),
 		}}
 		// Only a and d are schedulable; draining a leaves 1, below the floor.
-		err := g.CheckStep(step(1, "a", model.ImpactGreen), live, safety.RunState{})
+		err := g.CheckStep(t.Context(), step(1, "a", model.ImpactGreen), live, safety.RunState{})
 		b := blockedBy(t, err, safety.RuleMinReadyNodes)
 		if !strings.Contains(b.Reason, "floor of 2") {
 			t.Errorf("refusal should state the floor: %s", b.Reason)
@@ -137,7 +138,7 @@ func TestMinReadyNodesCountsOnlySchedulableCapacity(t *testing.T) {
 
 func TestVanishedNodeIsRefused(t *testing.T) {
 	live := &model.ClusterSnapshot{Nodes: []model.Node{node("b", 4000)}}
-	err := safety.New(permissive()).CheckStep(step(1, "gone", model.ImpactGreen), live, safety.RunState{})
+	err := safety.New(permissive()).CheckStep(t.Context(), step(1, "gone", model.ImpactGreen), live, safety.RunState{})
 	blockedBy(t, err, safety.RuleNodeNotFound)
 }
 
@@ -151,7 +152,7 @@ func TestStepIsRefusedWhenPodsHaveNowhereToGo(t *testing.T) {
 			Nodes: []model.Node{node("a", 4000), node("b", 4000)},
 			Pods:  []model.Pod{pod("app", "x", "a", 1000)},
 		}
-		if err := g.CheckStep(step(1, "a", model.ImpactGreen), live, safety.RunState{}); err != nil {
+		if err := g.CheckStep(t.Context(), step(1, "a", model.ImpactGreen), live, safety.RunState{}); err != nil {
 			t.Errorf("refused a feasible step: %v", err)
 		}
 	})
@@ -164,7 +165,7 @@ func TestStepIsRefusedWhenPodsHaveNowhereToGo(t *testing.T) {
 				pod("app", "filler", "b", 3800), // b has only 200m left
 			},
 		}
-		err := g.CheckStep(step(1, "a", model.ImpactGreen), live, safety.RunState{})
+		err := g.CheckStep(t.Context(), step(1, "a", model.ImpactGreen), live, safety.RunState{})
 		b := blockedBy(t, err, safety.RuleStepFreshness)
 		if !strings.Contains(b.Reason, "app/big") {
 			t.Errorf("refusal should name the homeless pod: %s", b.Reason)
@@ -181,7 +182,7 @@ func TestStepIsRefusedWhenPodsHaveNowhereToGo(t *testing.T) {
 				pod("app", "p2", "a", 2500),
 			},
 		}
-		err := g.CheckStep(step(1, "a", model.ImpactGreen), live, safety.RunState{})
+		err := g.CheckStep(t.Context(), step(1, "a", model.ImpactGreen), live, safety.RunState{})
 		blockedBy(t, err, safety.RuleStepFreshness)
 	})
 }
@@ -196,7 +197,7 @@ func TestDaemonSetPodsDoNotBlockADrain(t *testing.T) {
 			pod("kube-system", "agent-b", "b", 900, daemonSet),
 		},
 	}
-	if err := safety.New(permissive()).CheckStep(step(1, "a", model.ImpactGreen), live, safety.RunState{}); err != nil {
+	if err := safety.New(permissive()).CheckStep(t.Context(), step(1, "a", model.ImpactGreen), live, safety.RunState{}); err != nil {
 		t.Errorf("a node holding only DaemonSet pods should be drainable: %v", err)
 	}
 }
@@ -269,7 +270,7 @@ type stubWindows struct {
 	why   string
 }
 
-func (s stubWindows) AllowsRedOn(model.Node) (bool, string) { return s.allow, s.why }
+func (s stubWindows) AllowsRedOn(context.Context, model.Node) (bool, string) { return s.allow, s.why }
 
 // The whole point of Phase 3: an open window that permits Red unlocks a step
 // that was previously refused outright.
@@ -278,7 +279,7 @@ func TestRedIsPermittedByAnOpenWindow(t *testing.T) {
 	red := step(7, "a", model.ImpactRed)
 
 	t.Run("no windows configured", func(t *testing.T) {
-		err := safety.New(permissive()).CheckStep(red, live, safety.RunState{})
+		err := safety.New(permissive()).CheckStep(t.Context(), red, live, safety.RunState{})
 		b := blockedBy(t, err, safety.RuleRedRequiresWindow)
 		if !strings.Contains(b.Reason, "none is configured") {
 			t.Errorf("refusal should say no window exists: %s", b.Reason)
@@ -289,7 +290,7 @@ func TestRedIsPermittedByAnOpenWindow(t *testing.T) {
 		g := safety.New(permissive()).WithWindows(stubWindows{
 			allow: false, why: "maintenance window nightly is open but does not permit Red steps",
 		})
-		b := blockedBy(t, g.CheckStep(red, live, safety.RunState{}), safety.RuleRedRequiresWindow)
+		b := blockedBy(t, g.CheckStep(t.Context(), red, live, safety.RunState{}), safety.RuleRedRequiresWindow)
 		// The refusal must carry the window's own explanation, so an operator
 		// can tell "nothing is open" from "open, but not for this".
 		if !strings.Contains(b.Reason, "does not permit Red steps") {
@@ -303,7 +304,7 @@ func TestRedIsPermittedByAnOpenWindow(t *testing.T) {
 
 	t.Run("window open and permits Red", func(t *testing.T) {
 		g := safety.New(permissive()).WithWindows(stubWindows{allow: true, why: "open until 06:00"})
-		if err := g.CheckStep(red, live, safety.RunState{}); err != nil {
+		if err := g.CheckStep(t.Context(), red, live, safety.RunState{}); err != nil {
 			t.Errorf("an open permissive window should admit a Red step: %v", err)
 		}
 	})
@@ -318,14 +319,14 @@ func TestAnOpenWindowDoesNotSuspendTheOtherRails(t *testing.T) {
 	live := &model.ClusterSnapshot{Nodes: []model.Node{node("a", 4000), node("b", 4000)}}
 
 	// Node floor still applies.
-	blockedBy(t, g.CheckStep(step(1, "a", model.ImpactRed), live, safety.RunState{}),
+	blockedBy(t, g.CheckStep(t.Context(), step(1, "a", model.ImpactRed), live, safety.RunState{}),
 		safety.RuleMinReadyNodes)
 
 	// Run cap still applies.
 	big := &model.ClusterSnapshot{Nodes: []model.Node{
 		node("a", 4000), node("b", 4000), node("c", 4000), node("d", 4000),
 	}}
-	blockedBy(t, g.CheckStep(step(1, "a", model.ImpactRed), big, safety.RunState{NodesDrainedSoFar: 2}),
+	blockedBy(t, g.CheckStep(t.Context(), step(1, "a", model.ImpactRed), big, safety.RunState{NodesDrainedSoFar: 2}),
 		safety.RuleMaxNodesPerRun)
 }
 
@@ -343,16 +344,16 @@ func TestRedIsCheckedAgainstTheStepsOwnNode(t *testing.T) {
 	scoped := scopedWindows{pool: "batch"}
 	g := safety.New(permissive()).WithWindows(scoped)
 
-	if err := g.CheckStep(step(1, "batch-1", model.ImpactRed), live, safety.RunState{}); err != nil {
+	if err := g.CheckStep(t.Context(), step(1, "batch-1", model.ImpactRed), live, safety.RunState{}); err != nil {
 		t.Errorf("a node inside the window's scope should be permitted: %v", err)
 	}
-	blockedBy(t, g.CheckStep(step(2, "web-1", model.ImpactRed), live, safety.RunState{}),
+	blockedBy(t, g.CheckStep(t.Context(), step(2, "web-1", model.ImpactRed), live, safety.RunState{}),
 		safety.RuleRedRequiresWindow)
 }
 
 type scopedWindows struct{ pool string }
 
-func (s scopedWindows) AllowsRedOn(n model.Node) (bool, string) {
+func (s scopedWindows) AllowsRedOn(_ context.Context, n model.Node) (bool, string) {
 	if n.Labels["pool"] == s.pool {
 		return true, "covered"
 	}

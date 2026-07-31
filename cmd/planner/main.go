@@ -7,15 +7,12 @@ package main
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -23,13 +20,10 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/atedgimo/k8s-dencer/internal/cluster"
-	"github.com/atedgimo/k8s-dencer/internal/constraints"
 	"github.com/atedgimo/k8s-dencer/internal/httpserver"
 	"github.com/atedgimo/k8s-dencer/internal/impact"
-	"github.com/atedgimo/k8s-dencer/internal/model"
 	"github.com/atedgimo/k8s-dencer/internal/planner"
-	"github.com/atedgimo/k8s-dencer/internal/reclaim"
-	"github.com/atedgimo/k8s-dencer/internal/store"
+	"github.com/atedgimo/k8s-dencer/internal/publish"
 	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlite"
 	"github.com/atedgimo/k8s-dencer/internal/telemetry"
 )
@@ -83,43 +77,48 @@ func run(ctx context.Context, log *slog.Logger) error {
 	if err := db.Migrate(ctx); err != nil {
 		return err
 	}
-	retain := intEnv(log, "RETAIN_PLANS", 200)
-
-	var latest atomic.Pointer[model.ClusterSnapshot]
-	var latestAnalysis atomic.Pointer[constraints.Analysis]
-	var latestPlan atomic.Pointer[model.Plan]
-
-	strategy := planner.Greedy{}
 	planOpts := planner.DefaultOptions()
 	planOpts.MinNodeAge = duration(log, "MIN_NODE_AGE", planOpts.MinNodeAge)
 	planOpts.MaxSteps = intEnv(log, "MAX_STEPS", 0)
 	planOpts.ExcludeNamespaces = splitList(os.Getenv("EXCLUDE_NAMESPACES"))
 
-	classifier := impact.New(impact.Thresholds{
-		YellowPodsMoved:  intEnv(log, "YELLOW_PODS_MOVED", 0),
-		RedPodsMoved:     intEnv(log, "RED_PODS_MOVED", 0),
-		TightPDBHeadroom: int32(intEnv(log, "TIGHT_PDB_HEADROOM", 0)),
-	})
+	metrics := telemetry.NewMetrics(telemetry.ComponentPlanner)
+
+	// The cycle itself lives in internal/publish, where its semantics are
+	// tested. This file is only wiring: env, informers, HTTP, the ticker.
+	pub := &publish.Publisher{
+		Log:      log,
+		Source:   collector,
+		Strategy: planner.Greedy{},
+		Options:  planOpts,
+		Classifier: impact.New(impact.Thresholds{
+			YellowPodsMoved:  intEnv(log, "YELLOW_PODS_MOVED", 0),
+			RedPodsMoved:     intEnv(log, "RED_PODS_MOVED", 0),
+			TightPDBHeadroom: int32(intEnv(log, "TIGHT_PDB_HEADROOM", 0)),
+		}),
+		DB:      db,
+		Retain:  intEnv(log, "RETAIN_PLANS", 200),
+		Metrics: metrics,
+	}
 
 	health := &httpserver.Health{}
-	metrics := telemetry.NewMetrics(telemetry.ComponentPlanner)
 	mux := http.NewServeMux()
 	health.Register(mux)
 	metrics.Register(mux)
 	mux.HandleFunc("GET /debug/snapshot", yamlHandler(func() any {
-		if v := latest.Load(); v != nil {
+		if v := pub.LatestSnapshot(); v != nil {
 			return v
 		}
 		return nil
 	}))
 	mux.HandleFunc("GET /debug/constraints", yamlHandler(func() any {
-		if v := latestAnalysis.Load(); v != nil {
+		if v := pub.LatestAnalysis(); v != nil {
 			return v
 		}
 		return nil
 	}))
 	mux.HandleFunc("GET /debug/plan", yamlHandler(func() any {
-		if v := latestPlan.Load(); v != nil {
+		if v := pub.LatestPlan(); v != nil {
 			return v
 		}
 		return nil
@@ -147,7 +146,7 @@ func run(ctx context.Context, log *slog.Logger) error {
 	ticker := time.NewTicker(resync)
 	defer ticker.Stop()
 
-	collect(ctx, log, collector, &latest, &latestAnalysis, &latestPlan, strategy, planOpts, classifier, db, retain, metrics)
+	pub.Cycle(ctx)
 
 	for {
 		select {
@@ -158,150 +157,8 @@ func run(ctx context.Context, log *slog.Logger) error {
 		case err := <-serveErr:
 			return err
 		case <-ticker.C:
-			collect(ctx, log, collector, &latest, &latestAnalysis, &latestPlan, strategy, planOpts, classifier, db, retain, metrics)
+			pub.Cycle(ctx)
 		}
-	}
-}
-
-func collect(
-	ctx context.Context,
-	log *slog.Logger,
-	c *cluster.Collector,
-	latest *atomic.Pointer[model.ClusterSnapshot],
-	latestAnalysis *atomic.Pointer[constraints.Analysis],
-	latestPlan *atomic.Pointer[model.Plan],
-	strategy planner.Strategy,
-	planOpts planner.Options,
-	classifier impact.Classifier,
-	db store.Store,
-	retain int,
-	m *telemetry.Metrics,
-) {
-	cycleStart := time.Now()
-
-	snap, err := c.Snapshot(ctx)
-	if err != nil {
-		log.Error("snapshot failed", "error", err)
-		m.SnapshotFailure.Inc()
-		return
-	}
-	latest.Store(snap)
-
-	allocatable, requested := snap.Totals()
-	cpu, mem, pods := requested.Ratio(allocatable)
-
-	occupied := 0
-	for _, n := range snap.Nodes {
-		if !snap.RequestedOnNode(n.Name).IsZero() {
-			occupied++
-		}
-	}
-
-	blocking := 0
-	for _, p := range snap.PDBs {
-		if p.Blocks() {
-			blocking++
-		}
-	}
-
-	log.Info("snapshot",
-		"nodes", len(snap.Nodes),
-		"nodesOccupied", occupied,
-		"pods", len(snap.Pods),
-		"pdbs", len(snap.PDBs),
-		"pdbsBlocking", blocking,
-		"cpuRequestedPct", pct(cpu),
-		"memRequestedPct", pct(mem),
-		"podSlotsUsedPct", pct(pods),
-		"usageData", snap.HasUsageData,
-	)
-	m.SnapshotNodes.Set(float64(len(snap.Nodes)))
-	m.SnapshotPods.Set(float64(len(snap.Pods)))
-
-	analysis := constraints.Analyze(snap)
-	latestAnalysis.Store(analysis)
-
-	cs := analysis.Summarize()
-	undrainable := 0
-	for _, n := range snap.Nodes {
-		if drainable, _ := analysis.NodeDrainable(n.Name); !drainable {
-			undrainable++
-		}
-	}
-
-	log.Info("constraints",
-		"movable", cs.Movable,
-		"blocked", cs.Blocked,
-		"stuck", cs.Stuck,
-		"pdbBlocked", cs.PDBBlocked,
-		"antiAffinity", cs.AntiAffinity,
-		"spreadBound", cs.SpreadBound,
-		"controllerPinned", cs.ControllerPin,
-		"nodesUndrainable", undrainable,
-	)
-
-	plan, err := strategy.Plan(snap, analysis, planOpts)
-	if err != nil {
-		log.Error("planning failed", "error", err)
-		return
-	}
-	// Rating happens after planning, never during it: the plan is the ideal
-	// end state, and risk is a separate judgement laid over it.
-	classifier.ClassifyPlan(plan, snap, analysis)
-	latestPlan.Store(plan)
-
-	byRating := plan.CountByRating()
-	log.Info("plan",
-		"id", plan.ID,
-		"strategy", strategy.Name(),
-		"steps", len(plan.Steps),
-		"nodesBefore", plan.NodesBefore,
-		"nodesAfter", plan.NodesAfter,
-		"reclaims", plan.ReclaimedNodes(),
-		"green", byRating[model.ImpactGreen],
-		"yellow", byRating[model.ImpactYellow],
-		"red", byRating[model.ImpactRed],
-	)
-
-	// Set every rating explicitly, including the zeroes. Leaving a label unset
-	// makes the series vanish from the scrape, and a missing series reads as a
-	// gap in a graph rather than as "no Red steps" — the opposite of the
-	// reassurance it should give.
-	for _, r := range []model.ImpactRating{model.ImpactGreen, model.ImpactYellow, model.ImpactRed} {
-		m.PlanSteps.WithLabelValues(string(r)).Set(float64(byRating[r]))
-	}
-	m.NodesReclaimed.Set(float64(plan.ReclaimedNodes()))
-	m.PlanProduced(time.Now())
-	m.PlanCycleTime.Observe(time.Since(cycleStart).Seconds())
-
-	// The planner is the only component watching nodes continuously, so it is
-	// the one that can tell whether a node the executor drained was actually
-	// removed. Done against the snapshot just taken, so it costs no API calls.
-	observeReclamations(ctx, log, db, snap, m)
-
-	stored, err := db.Save(ctx, store.Record{
-		Plan:     plan,
-		Snapshot: snap,
-		Analysis: analysis,
-		Strategy: strategy.Name(),
-	})
-	if err != nil {
-		// A store failure must not stop planning: the in-memory plan is still
-		// correct and the next cycle will retry the write.
-		log.Error("storing plan failed", "error", err)
-		return
-	}
-	if !stored {
-		// Same content hash as the previous write, so the cluster has not
-		// changed in any way that alters the plan.
-		return
-	}
-	log.Info("plan stored", "id", plan.ID)
-
-	if pruned, err := db.Prune(ctx, retain); err != nil {
-		log.Warn("pruning plan history failed", "error", err)
-	} else if pruned > 0 {
-		log.Info("pruned plan history", "removed", pruned, "retained", retain)
 	}
 }
 
@@ -340,10 +197,6 @@ func yamlHandler(load func() any) http.HandlerFunc {
 	}
 }
 
-func pct(f float64) string {
-	return fmt.Sprintf("%.1f%%", f*100)
-}
-
 func splitList(s string) []string {
 	if strings.TrimSpace(s) == "" {
 		return nil
@@ -376,60 +229,4 @@ func duration(log *slog.Logger, key string, fallback time.Duration) time.Duratio
 		return fallback
 	}
 	return d
-}
-
-// observeReclamations closes out drained nodes that have since been removed or
-// put back into service.
-//
-// Runs every cycle against the snapshot already in hand. The whole rule lives
-// in internal/reclaim as a pure function so it is testable without a cluster;
-// this is only the plumbing around it.
-//
-// Failures are logged and dropped. Reclamation tracking is a measurement laid
-// over the product, and a database hiccup must not stop the planner planning.
-func observeReclamations(ctx context.Context, log *slog.Logger, db store.Store,
-	snap *model.ClusterSnapshot, m *telemetry.Metrics) {
-	tracker, ok := db.(store.ReclamationStore)
-	if !ok {
-		return
-	}
-
-	pending, err := tracker.PendingReclamations(ctx)
-	if err != nil {
-		log.Error("could not read pending reclamations", "error", err)
-		return
-	}
-	m.NodesAwaitingReclamation.Set(float64(len(pending)))
-	if len(pending) == 0 {
-		return
-	}
-
-	now := time.Now().UTC()
-	for _, t := range reclaim.Resolve(pending, snap, now) {
-		if err := tracker.ResolveReclamation(ctx, t.Reclamation.Node, t.Reclamation.DrainedAt, t.Outcome, t.At); err != nil {
-			if !errors.Is(err, store.ErrNotFound) {
-				log.Error("could not resolve reclamation", "node", t.Reclamation.Node, "error", err)
-			}
-			continue
-		}
-		switch t.Outcome {
-		case store.ReclaimedGone:
-			// The moment the product exists to produce, and the first time it
-			// has ever been recorded rather than assumed.
-			log.Info("node reclaimed", "node", t.Reclamation.Node,
-				"after", t.Took.Round(time.Second), "run", t.Reclamation.RunID)
-			m.ReclamationSeconds.Observe(t.Took.Seconds())
-		case store.ReclaimedReturned:
-			log.Info("drained node returned to service", "node", t.Reclamation.Node,
-				"run", t.Reclamation.RunID)
-			m.NodesReturnedTotal.Inc()
-		}
-	}
-
-	// Recount rather than subtract: a drain recorded by the executor between
-	// the read above and now would make arithmetic wrong, and this gauge is
-	// the one an operator alerts on.
-	if remaining, err := tracker.PendingReclamations(ctx); err == nil {
-		m.NodesAwaitingReclamation.Set(float64(len(remaining)))
-	}
 }
