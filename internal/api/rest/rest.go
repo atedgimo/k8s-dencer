@@ -49,6 +49,17 @@ type Server struct {
 	// as a knob because the right threshold depends on the operator's machine
 	// as much as on the cluster.
 	graphOpts graph.Options
+
+	// clusterLabel is what the UI shows in its header so an operator can see
+	// which cluster they are about to act on. Operator-set; empty means the
+	// header shows nothing rather than a guess.
+	clusterLabel string
+}
+
+// WithClusterLabel sets the human name shown in the UI header.
+func (s *Server) WithClusterLabel(label string) *Server {
+	s.clusterLabel = label
+	return s
 }
 
 // WithGraphPodDetailLimit overrides the pod count above which the graph
@@ -146,6 +157,26 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 		resp["latestPlanId"] = latest.Plan.ID
 		resp["planGeneratedAt"] = latest.Plan.GeneratedAt
 	}
+
+	// Who is asking, and which cluster they are looking at.
+	//
+	// Carried on this response rather than a new route: it is already
+	// authenticated and already fetched on load, and a new endpoint would be
+	// two more things to guard for data the client needs on every page anyway.
+	//
+	// The UI showed neither before, which for a tool that evicts pods is a
+	// safety gap rather than a cosmetic one — "am I about to drain production?"
+	// had no answer on screen.
+	if id, ok := auth.IdentityFrom(r.Context()); ok {
+		resp["identity"] = id.Username
+	}
+	// Empty unless an operator set it. Nothing in a cluster reliably names
+	// itself, and a guessed environment label is worse than none: the whole
+	// value of this field is being trusted when it says "prod".
+	if s.clusterLabel != "" {
+		resp["clusterLabel"] = s.clusterLabel
+	}
+
 	writeJSON(w, http.StatusOK, resp)
 }
 

@@ -51,7 +51,12 @@ data:
             try_files $uri =404;
         }
 
+        # The entry HTML must revalidate on every load: without a
+        # Cache-Control it is heuristically cached, and because it names the
+        # hashed asset files a stale copy pins the browser to the previous
+        # release with no sign that a deploy happened.
         location / {
+            add_header Cache-Control "no-cache" always;
             try_files $uri $uri/ /index.html;
         }
     }

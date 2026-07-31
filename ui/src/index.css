@@ -7,9 +7,110 @@
 
 .shell {
   display: grid;
-  grid-template-rows: auto 1fr auto auto;
+  grid-template-rows: auto auto 1fr auto auto;
   height: 100%;
   background: var(--ink);
+}
+
+/* ------------------------------------------------------------- app bar
+
+   Context, always visible. Quiet by construction: one hairline, no fill, no
+   colour — colour on this surface means risk, and a header that competed for
+   that signal would undo the thing that makes a rating land. */
+
+.appbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-6);
+  border-bottom: 1px solid var(--border-strong);
+  background: var(--surface-1);
+  min-height: 52px;
+}
+
+.appbar-brand,
+.appbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.appbar-mark {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  letter-spacing: var(--tracking-display);
+  color: var(--chalk);
+}
+
+.appbar-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--border-strong);
+}
+
+.appbar-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: var(--text-xs);
+  color: var(--chalk);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Achromatic on purpose. A coloured dot here would read as a health status,
+   and this is an identifier, not a judgement. */
+.appbar-cluster-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--fill-75);
+}
+
+.appbar-identity {
+  font-size: var(--text-xs);
+  color: var(--graphite);
+  max-width: 26ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.appbar-signout {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--graphite);
+  font-size: var(--text-xs);
+  transition: color var(--step-fast) var(--ease-out),
+    border-color var(--step-fast) var(--ease-out);
+}
+
+.appbar-signout:hover {
+  color: var(--chalk);
+  border-color: var(--border-strong);
+}
+
+/* Below this the identity is the first thing worth dropping: the cluster is
+   what stops you draining the wrong thing. */
+@media (max-width: 640px) {
+  .appbar {
+    padding-inline: var(--space-4);
+  }
+  .appbar-identity {
+    display: none;
+  }
 }
 
 /* ------------------------------------------------------------- verdict */
@@ -17,16 +118,16 @@
 .verdict {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 2.5rem;
+  gap: var(--space-8);
   align-items: center;
-  padding: 1.4rem 1.75rem;
+  padding: var(--space-6) var(--space-6);
   background: var(--panel);
   border-bottom: 1px solid var(--edge);
 }
 
 .verdict-eyebrow {
   margin: 0 0 0.35rem;
-  font-size: 0.68rem;
+  font-size: var(--text-2xs);
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--graphite-dim);
@@ -37,7 +138,7 @@
 .verdict-line {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(1.5rem, 2.6vw, 2.1rem);
+  font-size: clamp(var(--text-xl), 2.6vw, var(--text-2xl));
   font-weight: 700;
   letter-spacing: -0.035em;
   line-height: 1.05;
@@ -53,12 +154,12 @@
   margin: 0.5rem 0 0;
   max-width: 46ch;
   color: var(--graphite);
-  font-size: 0.85rem;
+  font-size: var(--text-md);
 }
 
 .verdict-breakdown {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
 .tally {
@@ -68,8 +169,8 @@
     "glyph count"
     "word  word"
     "cap   cap";
-  gap: 0 0.4rem;
-  padding: 0.6rem 0.8rem;
+  gap: 0 var(--space-2);
+  padding: var(--space-3) var(--space-3);
   text-align: left;
   background: transparent;
   border: 1px solid var(--edge);
@@ -95,13 +196,13 @@
 .tally-glyph {
   grid-area: glyph;
   align-self: center;
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   line-height: 1;
 }
 
 .tally-count {
   grid-area: count;
-  font-size: 1.35rem;
+  font-size: var(--text-xl);
   font-weight: 600;
   line-height: 1;
   color: var(--chalk);
@@ -110,13 +211,13 @@
 .tally-word {
   grid-area: word;
   margin-top: 0.25rem;
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   font-weight: 600;
 }
 
 .tally-caption {
   grid-area: cap;
-  font-size: 0.68rem;
+  font-size: var(--text-2xs);
   color: var(--graphite-dim);
   white-space: nowrap;
 }
@@ -137,14 +238,14 @@
 
 .verdict-actions {
   display: grid;
-  gap: 0.4rem;
+  gap: var(--space-2);
   justify-items: stretch;
 }
 
 .btn {
-  padding: 0.5rem 0.9rem;
+  padding: var(--space-2) var(--space-4);
   font-family: var(--font-body);
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   color: var(--chalk);
   background: transparent;
   border: 1px solid var(--edge);
@@ -170,13 +271,13 @@
 
 .btn-icon {
   width: 2.1rem;
-  padding: 0.4rem 0;
+  padding: var(--space-2) 0;
   text-align: center;
 }
 
 .verdict-note {
   margin: 0;
-  font-size: 0.68rem;
+  font-size: var(--text-2xs);
   color: var(--graphite-dim);
   text-align: center;
 }
@@ -200,7 +301,7 @@
 .field-scroll {
   position: relative;
   overflow: auto;
-  padding: 1.5rem;
+  padding: var(--space-6);
   background:
     radial-gradient(circle at 1px 1px, var(--edge-soft) 1px, transparent 0) 0 0 / 28px 28px,
     var(--ink);
@@ -253,12 +354,28 @@
   border-color: var(--chalk);
 }
 
+/* These carry role="button" and a tabindex and have done since M11, but had
+   neither a pointer nor a hover state — so nothing on screen said a node could
+   be opened. The drill-down was undiscoverable for want of a cursor. */
+.box {
+  cursor: pointer;
+}
+
+.box:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+
+.box:hover .box-name {
+  color: var(--chalk);
+}
+
 .box-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  padding: 0.25rem 0.4rem 0;
-  font-size: 0.66rem;
+  padding: var(--space-1) var(--space-2) 0;
+  font-size: var(--text-2xs);
 }
 
 .box-name {
@@ -360,29 +477,29 @@
 
 .tray {
   display: flex;
-  gap: 0.55rem;
+  gap: var(--space-2);
   align-items: baseline;
-  padding: 0.6rem 1.5rem;
+  padding: var(--space-3) var(--space-6);
   background: var(--panel-sunken);
   border-top: 1px solid var(--edge);
 }
 
 .tray-label {
-  font-size: 0.68rem;
+  font-size: var(--text-2xs);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--graphite-dim);
 }
 
 .tray-count {
-  font-size: 1.5rem;
+  font-size: var(--text-xl);
   font-weight: 600;
   line-height: 1;
   color: var(--chalk);
 }
 
 .tray-of {
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   color: var(--graphite-dim);
 }
 
@@ -418,7 +535,7 @@
 
 .panel-title {
   margin: 0;
-  font-size: 0.68rem;
+  font-size: var(--text-2xs);
   font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -436,12 +553,12 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.85rem 1rem 0.5rem;
+  padding: var(--space-3) var(--space-4) var(--space-2);
 }
 
 .ledger-clear {
-  padding: 0.1rem 0.4rem;
-  font-size: 0.66rem;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-2xs);
   color: var(--graphite);
   background: transparent;
   border: 1px solid var(--edge);
@@ -450,7 +567,7 @@
 
 .ledger-list {
   margin: 0;
-  padding: 0 0 0.6rem;
+  padding: 0 0 var(--space-3);
   overflow-y: auto;
   list-style: none;
 }
@@ -458,10 +575,10 @@
 .row {
   display: grid;
   grid-template-columns: 1.6rem 0.9rem minmax(0, 1fr) 1.6rem auto;
-  gap: 0.5rem;
+  gap: var(--space-2);
   align-items: baseline;
   width: 100%;
-  padding: 0.34rem 1rem;
+  padding: var(--space-1) var(--space-4);
   text-align: left;
   background: transparent;
   border: 0;
@@ -483,31 +600,31 @@
 }
 
 .row-seq {
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
   color: var(--graphite-dim);
 }
 
 .row-glyph {
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
   line-height: 1;
 }
 
 .row-node {
   overflow: hidden;
-  font-size: 0.74rem;
+  font-size: var(--text-xs);
   color: var(--chalk);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .row-moves {
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
   color: var(--graphite-dim);
   text-align: right;
 }
 
 .row-rating {
-  font-size: 0.66rem;
+  font-size: var(--text-2xs);
   font-weight: 600;
 }
 
@@ -528,14 +645,14 @@
 .row-why {
   margin: 0 1rem 0.6rem 3rem;
   color: var(--graphite);
-  font-size: 0.76rem;
+  font-size: var(--text-xs);
   line-height: 1.5;
 }
 
 .ledger-empty {
-  padding: 0 1rem 1rem;
+  padding: 0 var(--space-4) var(--space-4);
   color: var(--graphite-dim);
-  font-size: 0.76rem;
+  font-size: var(--text-xs);
 }
 
 /* -------------------------------------------------------------- scrubber */
@@ -543,9 +660,9 @@
 .scrub {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 1rem;
+  gap: var(--space-4);
   align-items: center;
-  padding: 0.7rem 1.75rem;
+  padding: var(--space-3) var(--space-6);
   background: var(--panel);
   border-top: 1px solid var(--edge);
 }
@@ -621,14 +738,14 @@
 
 .scrub-read {
   display: flex;
-  gap: 0.35rem;
+  gap: var(--space-2);
   align-items: baseline;
   margin: 0;
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
 }
 
 .scrub-now {
-  font-size: 1rem;
+  font-size: var(--text-lg);
   font-weight: 600;
   color: var(--chalk);
 }
@@ -647,10 +764,10 @@
 
 .statusbar {
   display: flex;
-  gap: 1.25rem;
+  gap: var(--space-6);
   align-items: center;
-  padding: 0.4rem 1.75rem;
-  font-size: 0.66rem;
+  padding: var(--space-2) var(--space-6);
+  font-size: var(--text-2xs);
   color: var(--graphite-dim);
   background: var(--panel-sunken);
   border-top: 1px solid var(--edge);
@@ -671,16 +788,31 @@
 .placeholder {
   display: grid;
   place-content: center;
-  gap: 0.5rem;
+  justify-items: center;
+  max-width: 52ch;
+  margin-inline: auto;
+  gap: var(--space-2);
   grid-row: 1 / -1;
-  padding: 3rem;
+  padding: var(--space-8);
   text-align: center;
+}
+
+/* Quieter than the detail above it, and monospaced where it carries a command
+   or a threshold — those are values to read exactly, not prose. */
+.placeholder-hint {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-1);
+  color: var(--graphite);
+  font-size: var(--text-sm);
+  text-align: left;
 }
 
 .placeholder h2 {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 1.05rem;
+  font-size: var(--text-lg);
   font-weight: 650;
   letter-spacing: -0.02em;
 }
@@ -689,7 +821,7 @@
   margin: 0;
   max-width: 34rem;
   color: var(--graphite);
-  font-size: 0.85rem;
+  font-size: var(--text-md);
   /* A 403 carries the kubectl command that grants the permission; collapsing
      it onto one line would make it unreadable and un-copyable. */
   white-space: pre-line;
@@ -706,7 +838,7 @@
   align-self: center;
   justify-self: center;
   width: min(30rem, calc(100vw - 3rem));
-  padding: 1.75rem;
+  padding: var(--space-6);
   background: var(--panel);
   border: 1px solid var(--edge);
   border-radius: var(--radius);
@@ -715,7 +847,7 @@
 .signin h2 {
   margin: 0 0 0.65rem;
   font-family: var(--font-display);
-  font-size: 1.05rem;
+  font-size: var(--text-lg);
   font-weight: 650;
   letter-spacing: -0.02em;
 }
@@ -723,27 +855,27 @@
 .signin-detail {
   margin: 0 0 0.9rem;
   color: var(--graphite);
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   line-height: 1.55;
 }
 
 .signin form {
   display: grid;
-  gap: 0.4rem;
+  gap: var(--space-2);
 }
 
 .signin label {
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--graphite-dim);
 }
 
 .signin input {
-  padding: 0.55rem 0.65rem;
+  padding: var(--space-2) var(--space-3);
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   color: var(--chalk);
   background: var(--panel-sunken);
   border: 1px solid var(--edge);
@@ -753,8 +885,8 @@
 .signin button {
   justify-self: start;
   margin-top: 0.35rem;
-  padding: 0.5rem 1.1rem;
-  font-size: 0.82rem;
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--ink);
   background: var(--chalk);
@@ -769,7 +901,7 @@
 
 .signin-help {
   margin-top: 1.1rem;
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   color: var(--graphite);
 }
 
@@ -780,10 +912,10 @@
 
 .signin-help pre {
   margin: 0.6rem 0;
-  padding: 0.55rem 0.65rem;
+  padding: var(--space-2) var(--space-3);
   overflow-x: auto;
   font-family: var(--font-mono);
-  font-size: 0.76rem;
+  font-size: var(--text-xs);
   background: var(--panel-sunken);
   border-radius: var(--radius-sm);
 }
@@ -798,7 +930,7 @@
 @media (max-width: 1100px) {
   .verdict {
     grid-template-columns: 1fr;
-    gap: 1rem;
+    gap: var(--space-4);
   }
   .verdict-breakdown {
     flex-wrap: wrap;
@@ -820,7 +952,7 @@
   .verdict,
   .scrub,
   .statusbar {
-    padding-inline: 1rem;
+    padding-inline: var(--space-4);
   }
   .scrub-label {
     display: none;
@@ -835,7 +967,7 @@
   z-index: 20;
   display: grid;
   place-items: center;
-  padding: 1.5rem;
+  padding: var(--space-6);
   background: rgba(0, 0, 0, 0.6);
   animation: fade-in var(--step-fast) linear;
 }
@@ -848,7 +980,7 @@
 
 .sheet {
   width: min(30rem, 100%);
-  padding: 1.5rem;
+  padding: var(--space-6);
   background: var(--panel);
   border: 1px solid var(--edge);
   border-radius: var(--radius);
@@ -857,7 +989,7 @@
 .sheet-title {
   margin: 0 0 0.6rem;
   font-family: var(--font-display);
-  font-size: 1.15rem;
+  font-size: var(--text-xl);
   font-weight: 700;
   letter-spacing: -0.03em;
 }
@@ -865,7 +997,7 @@
 .sheet-detail {
   margin: 0 0 0.9rem;
   color: var(--graphite);
-  font-size: 0.83rem;
+  font-size: var(--text-sm);
   line-height: 1.55;
 }
 
@@ -876,9 +1008,9 @@
 .sheet-list {
   max-height: 9rem;
   margin: 0 0 1.1rem;
-  padding: 0.5rem 0.7rem;
+  padding: var(--space-2) var(--space-3);
   overflow-y: auto;
-  font-size: 0.76rem;
+  font-size: var(--text-xs);
   color: var(--graphite);
   list-style: none;
   background: var(--panel-sunken);
@@ -887,14 +1019,14 @@
 
 .sheet-actions {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-2);
   justify-content: flex-end;
 }
 
 /* ------------------------------------------------------------ run trail */
 
 .trail {
-  padding: 0.7rem 1.75rem 0.85rem;
+  padding: var(--space-3) var(--space-6) var(--space-3);
   background: var(--panel-raised);
   border-bottom: 1px solid var(--edge);
 }
@@ -914,23 +1046,23 @@
 
 .trail-head {
   display: flex;
-  gap: 0.7rem;
+  gap: var(--space-3);
   align-items: baseline;
 }
 
 .trail-status {
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: var(--text-md);
 }
 
 .trail-meta {
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
   color: var(--graphite-dim);
 }
 
 .trail-close {
   margin-left: auto;
-  padding: 0 0.3rem;
+  padding: 0 var(--space-1);
   color: var(--graphite);
   background: transparent;
   border: 0;
@@ -947,9 +1079,9 @@
 .trail-row {
   display: grid;
   grid-template-columns: 5rem 12rem minmax(0, 1fr) auto;
-  gap: 0.6rem;
-  padding: 0.12rem 0;
-  font-size: 0.72rem;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
+  font-size: var(--text-xs);
   color: var(--graphite);
 }
 
@@ -972,31 +1104,31 @@
 }
 
 .trail-rule {
-  font-size: 0.68rem;
-  padding: 0 0.3rem;
+  font-size: var(--text-2xs);
+  padding: 0 var(--space-1);
   border: 1px solid currentColor;
   border-radius: var(--radius-sm);
 }
 
 .trail-summary {
   margin: 0.5rem 0 0;
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   color: var(--chalk);
 }
 
 .trail-note {
   margin: 0.35rem 0 0;
   max-width: 70ch;
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   color: var(--graphite);
 }
 
 .trail-grant {
   margin: 0.5rem 0 0;
-  padding: 0.45rem 0.6rem;
+  padding: var(--space-2) var(--space-3);
   overflow-x: auto;
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   background: var(--panel-sunken);
   border-radius: var(--radius-sm);
 }
@@ -1011,7 +1143,7 @@
 }
 
 .tray-hint {
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
   color: var(--graphite-dim);
 }
 
@@ -1039,7 +1171,7 @@
 .ledger-picked {
   margin-left: auto;
   margin-right: 0.5rem;
-  font-size: 0.66rem;
+  font-size: var(--text-2xs);
   color: var(--chalk);
 }
 
@@ -1050,7 +1182,7 @@
 
 .verdict-clear {
   padding: 0;
-  font-size: 0.68rem;
+  font-size: var(--text-2xs);
   color: var(--graphite);
   text-decoration: underline;
   background: transparent;
@@ -1064,7 +1196,7 @@
   align-self: center;
   justify-self: center;
   width: min(44rem, calc(100vw - 3rem));
-  padding: 1.75rem;
+  padding: var(--space-6);
   background: var(--panel);
   border: 1px solid var(--risk-red);
   border-radius: var(--radius);
@@ -1073,7 +1205,7 @@
 .crash h2 {
   margin: 0 0 0.5rem;
   font-family: var(--font-display);
-  font-size: 1.1rem;
+  font-size: var(--text-lg);
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--risk-red);
@@ -1082,17 +1214,17 @@
 .crash-detail {
   margin: 0 0 1rem;
   color: var(--graphite);
-  font-size: 0.83rem;
+  font-size: var(--text-sm);
   line-height: 1.55;
 }
 
 .crash-message,
 .crash-more pre {
   margin: 0;
-  padding: 0.6rem 0.7rem;
+  padding: var(--space-3) var(--space-3);
   overflow-x: auto;
   font-family: var(--font-mono);
-  font-size: 0.76rem;
+  font-size: var(--text-xs);
   white-space: pre-wrap;
   background: var(--panel-sunken);
   border-radius: var(--radius-sm);
@@ -1100,7 +1232,7 @@
 
 .crash-more {
   margin-top: 0.8rem;
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   color: var(--graphite);
 }
 
@@ -1113,12 +1245,12 @@
 .crash-more pre {
   max-height: 14rem;
   overflow-y: auto;
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
 }
 
 .crash-actions {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-2);
   margin-top: 1.1rem;
 }
 
@@ -1126,10 +1258,10 @@
 
 .supersede {
   display: flex;
-  gap: 1rem;
+  gap: var(--space-4);
   align-items: center;
-  padding: 0.55rem 1.75rem;
-  font-size: 0.78rem;
+  padding: var(--space-2) var(--space-6);
+  font-size: var(--text-sm);
   color: var(--graphite);
   background: var(--panel-raised);
   border-bottom: 1px solid var(--edge);
@@ -1139,16 +1271,16 @@
 
 .supersede button {
   margin-left: auto;
-  padding: 0.3rem 0.7rem;
-  font-size: 0.76rem;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
   white-space: nowrap;
 }
 
 .signin-sso {
   width: 100%;
-  padding: 0.6rem 1rem;
+  padding: var(--space-3) var(--space-4);
   font-family: var(--font-body);
-  font-size: 0.85rem;
+  font-size: var(--text-md);
   font-weight: 600;
   color: var(--ink);
   background: var(--chalk);
@@ -1164,17 +1296,17 @@
 .signin-issuer {
   margin: 0.4rem 0 0;
   overflow-wrap: anywhere;
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
   color: var(--graphite-dim);
   text-align: center;
 }
 
 .signin-or {
   display: flex;
-  gap: 0.6rem;
+  gap: var(--space-3);
   align-items: center;
   margin: 1.1rem 0 0.7rem;
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   color: var(--graphite-dim);
 }
 
@@ -1188,8 +1320,8 @@
 
 .signin-failure {
   margin: 0 0 0.9rem;
-  padding: 0.5rem 0.65rem;
-  font-size: 0.78rem;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
   color: var(--risk-red);
   background: var(--panel-sunken);
   border-left: 2px solid var(--risk-red);
@@ -1215,14 +1347,14 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.85rem 1rem 0.5rem;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) var(--space-2);
 }
 
 .inspector-title {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: var(--text-2xs);
   font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -1230,7 +1362,7 @@
 }
 
 .inspector-close {
-  padding: 0 0.3rem;
+  padding: 0 var(--space-1);
   color: var(--graphite-dim);
   background: transparent;
   border: 0;
@@ -1245,8 +1377,8 @@
 .inspector-body {
   min-height: 0;
   overflow-y: auto;
-  padding: 0 1rem 1rem;
-  font-size: 0.78rem;
+  padding: 0 var(--space-4) var(--space-4);
+  font-size: var(--text-sm);
 }
 
 .inspector-subhead {
@@ -1254,7 +1386,7 @@
   align-items: baseline;
   justify-content: space-between;
   margin: 0.9rem 0 0.4rem;
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--graphite-dim);
@@ -1269,9 +1401,9 @@
 .facts {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.2rem 0.75rem;
+  gap: var(--space-1) var(--space-3);
   margin: 0;
-  font-size: 0.76rem;
+  font-size: var(--text-xs);
 }
 
 .facts dt {
@@ -1293,26 +1425,26 @@
 }
 
 .constraint-list > li {
-  padding: 0.45rem 0;
+  padding: var(--space-2) 0;
   border-top: 1px solid var(--edge);
 }
 
 .constraint-head {
   display: flex;
-  gap: 0.4rem;
+  gap: var(--space-2);
   align-items: baseline;
 }
 
 .constraint-kind {
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   color: var(--chalk);
 }
 
 .constraint-subject {
   overflow: hidden;
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
   color: var(--graphite-dim);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1327,9 +1459,9 @@
 }
 
 .flag-blocked {
-  padding: 0 0.3rem;
+  padding: 0 var(--space-1);
   font-family: var(--font-mono);
-  font-size: 0.66rem;
+  font-size: var(--text-2xs);
   color: var(--risk-red);
   border: 1px solid var(--risk-red);
   border-radius: var(--radius-sm);
@@ -1337,21 +1469,21 @@
 
 .inspector-callout {
   margin-top: 0.8rem;
-  padding: 0.55rem 0.65rem;
+  padding: var(--space-2) var(--space-3);
   background: var(--panel-sunken);
   border-radius: var(--radius-sm);
 }
 
 .callout-head {
   margin: 0 0 0.25rem;
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   font-weight: 600;
   color: var(--chalk);
 }
 
 .linkish {
   padding: 0;
-  font-size: 0.74rem;
+  font-size: var(--text-xs);
   color: var(--graphite);
   text-decoration: underline;
   background: transparent;
@@ -1365,13 +1497,13 @@
 .muted {
   margin: 0;
   color: var(--graphite-dim);
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
 }
 
 .error-text {
   margin: 0;
   color: var(--risk-red);
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
 }
 
 /* --------------------------------------------- next move and plan age */
@@ -1419,8 +1551,8 @@
 .ledger-more {
   display: block;
   width: 100%;
-  padding: 0.5rem 1rem 0.9rem;
-  font-size: 0.74rem;
+  padding: var(--space-2) var(--space-4) var(--space-4);
+  font-size: var(--text-xs);
   color: var(--graphite);
   text-align: left;
   background: transparent;
@@ -1444,20 +1576,20 @@
 .box-density {
   display: flex;
   align-items: baseline;
-  gap: 0.28rem;
-  padding: 0.35rem 0.5rem 0;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-2) 0;
   flex-wrap: wrap;
 }
 
 .box-density-count {
-  font-size: 1.35rem;
+  font-size: var(--text-xl);
   line-height: 1;
   color: var(--chalk);
   font-variant-numeric: tabular-nums;
 }
 
 .box-density-unit {
-  font-size: 0.62rem;
+  font-size: var(--text-2xs);
   letter-spacing: 0.04em;
   color: var(--muted);
 }
@@ -1466,7 +1598,7 @@
    mark means the same thing here as everywhere else. Never colour alone. */
 .box-density-blocked {
   margin-left: auto;
-  font-size: 0.62rem;
+  font-size: var(--text-2xs);
   color: var(--risk-yellow);
   white-space: nowrap;
 }
@@ -1487,9 +1619,9 @@
 .tray-awaiting {
   display: inline-flex;
   align-items: baseline;
-  gap: 0.2rem;
+  gap: var(--space-1);
   margin-left: 0.75rem;
-  font-size: 0.68rem;
+  font-size: var(--text-2xs);
   color: var(--muted);
 }
 
@@ -1507,4 +1639,134 @@
 
 .tray-awaiting-count {
   font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------- drill-down
+
+   A node used to be a dead end: it reported "4 pods" and gave you no way to
+   ask about any of them. The list below is the missing step between the field
+   and the constraint analyser. */
+
+/* Panel content is keyed on the selection, so this plays on every drill —
+   short, and downward, because the gesture is going deeper. */
+.inspector-swap {
+  animation: drill-in var(--step-base) var(--ease-out) both;
+}
+
+@keyframes drill-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.inspector-up {
+  align-self: flex-start;
+  margin: 0 var(--space-4);
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--graphite);
+  font-size: var(--text-xs);
+  transition: color var(--step-fast) var(--ease-out);
+}
+
+.inspector-up:hover {
+  color: var(--chalk);
+}
+
+.podlist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.podlist-head {
+  margin: 0;
+}
+
+.podlist-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.podlist-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "name flag"
+    "ns   flag";
+  align-items: center;
+  gap: 0 var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  text-align: left;
+  transition: border-color var(--step-fast) var(--ease-out),
+    background var(--step-fast) var(--ease-out);
+  /* Assembles rather than appears: each row is a consequence of the click
+     before it, and the stagger is what makes the list read that way. */
+  animation: row-in var(--step-base) var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 22ms);
+}
+
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+}
+
+.podlist-row:hover {
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+}
+
+.podlist-name {
+  grid-area: name;
+  font-size: var(--text-sm);
+  color: var(--chalk);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.podlist-ns {
+  grid-area: ns;
+  font-size: var(--text-2xs);
+  color: var(--graphite-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Glyph plus word on the blocked flag, never colour alone — the same rule the
+   ratings follow, for the same reason. */
+.podlist-flag {
+  grid-area: flag;
+  font-size: var(--text-2xs);
+  color: var(--graphite-dim);
+  white-space: nowrap;
+}
+
+.podlist-flag-blocked {
+  color: var(--risk-red);
+}
+
+.podlist-flag-ok {
+  color: var(--graphite);
+}
+
+.podlist-elided {
+  margin: var(--space-4) 0 0;
+  color: var(--graphite-dim);
+  font-size: var(--text-xs);
 }
