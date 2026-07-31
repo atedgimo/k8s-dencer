@@ -199,3 +199,18 @@ the same impact thresholds as a planned step** (a Red drain needs a
 maintenance window — naming the node is not a side-channel), every eviction
 passes the PDB pre-check against fresh state, recovery is verified on
 readiness, aborting uncordons, and the whole thing lands in the audit trail.
+
+## `dencer whatif` — can I lose this?
+
+```
+dencer whatif --without-zone eu-west-1b
+dencer whatif --without-nodes worker-3,worker-4
+```
+
+The question capacity planning answers with a spreadsheet, answered instead by
+the same constraint engine that plans consolidations: the latest snapshot
+minus the removed nodes, every displaced pod re-homed by the analyzer, and the
+ones with **nowhere legal to go named, with reasons**. Exit status is non-zero
+when the simulated cluster cannot hold its workloads, so it works as a CI
+gate. A fit is the engine's answer, not a promise about the scheduler on the
+day — and the report says so.

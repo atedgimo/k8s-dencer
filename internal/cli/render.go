@@ -551,3 +551,23 @@ func PrintResilience(w io.Writer, env *ResilienceEnvelope) {
 	}
 	fmt.Fprintln(w, "\nEach finding names a pod a node loss would hurt — voluntarily drained or not.")
 }
+
+// PrintWhatif renders a loss simulation. The verdict leads; the homeless
+// pods, when any, are the entire point of asking.
+func PrintWhatif(w io.Writer, env *WhatifEnvelope) {
+	fmt.Fprintf(w, "Simulated losing %d node(s): %s\n", len(env.Removed), strings.Join(env.Removed, ", "))
+	fmt.Fprintf(w, "%d pod(s) displaced.\n\n", env.Displaced)
+	if env.Fits {
+		fmt.Fprintf(w, "%s\n", bold(green("Everything fits.")))
+		fmt.Fprintln(w, "The constraint engine found every displaced pod a legal home on the surviving nodes.")
+		fmt.Fprintln(w, dim("A fit here is the engine's answer, not a promise about the scheduler on the day."))
+		return
+	}
+	fmt.Fprintf(w, "%s\n", bold(red(fmt.Sprintf("%d pod(s) would have nowhere legal to go:", len(env.Homeless)))))
+	for _, h := range env.Homeless {
+		fmt.Fprintf(w, "  %s %s\n", red("■"), h.Pod)
+		for _, why := range h.Why {
+			fmt.Fprintf(w, "      %s\n", why)
+		}
+	}
+}
