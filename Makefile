@@ -69,7 +69,10 @@ export PATH := $(LOCALBIN):$(PATH)
 help: ## Show available targets
 	@echo "k8s-dencer  (provider=$(CLUSTER_PROVIDER)  tag=$(IMAGE_TAG))"
 	@echo
-	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
+	@# Digits belong in the class: without them every target with a number in
+	@# its name is silently missing from this list, which is how `e2e` stayed
+	@# invisible from the day it was added.
+	@grep -hE '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) \
 		| sort \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
 
@@ -184,6 +187,20 @@ cli-install: cli ## Install dencer and kubectl-dencer into $(GOBIN) or ~/go/bin
 .PHONY: e2e
 e2e: ## Install on a throwaway multi-node k3d cluster and drain a real node
 	./hack/e2e.sh
+
+.PHONY: gke-setup
+gke-setup: ## One-time GCP bootstrap for the cloud test (APIs, quota, budget alert)
+	./hack/gke-setup.sh
+
+.PHONY: cloud-e2e
+cloud-e2e: ## The same e2e on a real GKE cluster, so a real autoscaler reclaims the node
+	@echo "This creates a billable GKE cluster (~2-3 cents) and destroys it afterwards."
+	@echo "Run 'make gke-setup' first if you have not."
+	PROVIDER=gke ./hack/e2e.sh
+
+.PHONY: cloud-e2e-clean
+cloud-e2e-clean: ## Delete a GKE test cluster left behind by an interrupted run
+	PROVIDER=gke ./hack/e2e.sh clean
 
 .PHONY: lint
 lint: $(KUBECONFORM) ## Chart portability gate: lint, render and assert the contract

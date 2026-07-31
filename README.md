@@ -229,9 +229,14 @@ workload came back Ready, then deletes the node and confirms the reclamation
 was observed. That is what
 [`make e2e`](hack/e2e.sh) does, and it runs on every pull request.
 
-It has still never run against a production cluster. Treat the read-only path
-as ready to try, and the executor as something to enable deliberately, on
-something you can afford to be wrong about.
+**It has still never run against a cloud cluster.** A cloud test now exists —
+`make cloud-e2e` runs the same assertions on a throwaway GKE cluster for about
+two cents, so a real cluster autoscaler is the thing that removes the drained
+node rather than our own test script — but it is one command away, not a green
+tick. When it has been run, this paragraph will say so.
+
+Treat the read-only path as ready to try, and the executor as something to
+enable deliberately, on something you can afford to be wrong about.
 
 Full milestone history in [docs/roadmap.md](docs/roadmap.md).
 

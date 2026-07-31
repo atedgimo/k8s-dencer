@@ -25,15 +25,25 @@
 #      since M0 on the strength of `helm template | grep`. Here the namespace
 #      enforces it and the API server decides.
 #
-#   ./hack/e2e.sh            run it
-#   ./hack/e2e.sh clean      tear the cluster down
-#   KEEP=1 ./hack/e2e.sh     leave the cluster up afterwards for poking at
+#   ./hack/e2e.sh                 run it on a throwaway k3d cluster
+#   ./hack/e2e.sh clean           tear the cluster down
+#   KEEP=1 ./hack/e2e.sh          leave the cluster up afterwards for poking at
+#   PROVIDER=gke ./hack/e2e.sh    run it on a real GKE cluster (see below)
+#
+# The GKE path exists for the one thing k3d structurally cannot do: let a
+# cluster autoscaler we did not write decide, on its own schedule, to remove a
+# node we drained. Everything else here is shared, deliberately — the
+# assertions are the valuable part of this file, and a forked cloud copy would
+# drift from them inside two milestones. Only cluster lifecycle, image delivery
+# and the reclamation trigger branch.
+#
+# It costs roughly two cents a run and destroys the cluster on every exit path.
+# See docs/development.md, and run `make gke-setup` once first.
 #
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CLUSTER="${CLUSTER:-dencer-e2e}"
-CTX="k3d-${CLUSTER}"
 NS="${NS:-k8s-dencer}"
 APP_NS="${APP_NS:-shop}"
 RELEASE="k8s-dencer"
@@ -45,6 +55,20 @@ AGENTS="${AGENTS:-4}"
 PF_PORT="${PF_PORT:-18099}"
 INGRESS_PORT="${INGRESS_PORT:-18080}"
 INGRESS_HOST="${INGRESS_HOST:-k8s-dencer.e2e}"
+
+PROVIDER="${PROVIDER:-k3d}"
+GCP_ZONE="${GCP_ZONE:-us-central1-a}"
+GCP_MACHINE="${GCP_MACHINE:-e2-medium}"
+# Published tags, not a local build: on GKE this doubles as the first proof
+# that what we ship to ghcr actually installs. Overridable so a release
+# candidate can be tested before it is tagged latest.
+GHCR_TAG="${GHCR_TAG:-latest}"
+
+case "$PROVIDER" in
+  k3d) CTX="k3d-${CLUSTER}" ;;
+  gke) CTX="gke-e2e" ;;
+  *)   echo "PROVIDER must be k3d or gke, got '$PROVIDER'" >&2; exit 1 ;;
+esac
 
 red()   { printf '\033[31m%s\033[0m\n' "$*"; }
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
@@ -65,32 +89,92 @@ PF=""
 cleanup() {
   [[ -n "$PF" ]] && kill "$PF" 2>/dev/null || true
   if [[ "${KEEP:-0}" != "1" ]]; then
-    k3d cluster delete "$CLUSTER" >/dev/null 2>&1 || true
+    cluster_delete
   fi
   restore_context
 }
 trap cleanup EXIT
 
 if [[ "${1:-}" == "clean" ]]; then
-  k3d cluster delete "$CLUSTER" >/dev/null 2>&1 || true
+  cluster_delete
   restore_context
   green "removed"
   exit 0
 fi
 
-for bin in k3d kubectl helm docker; do
+# ------------------------------------------------------------- provider
+
+cluster_create() {
+  if [[ "$PROVIDER" == "k3d" ]]; then
+    k3d cluster delete "$CLUSTER" >/dev/null 2>&1 || true
+    # The loadbalancer port is published so a request can actually traverse the
+    # ingress controller. Rendering an Ingress proves nothing; k3s bundles
+    # Traefik, so the only missing piece was a way in.
+    k3d cluster create "$CLUSTER" --servers 1 --agents "$AGENTS" \
+      -p "${INGRESS_PORT}:80@loadbalancer" --wait --timeout 300s >/dev/null
+    return
+  fi
+
+  local project
+  project="$(gcloud config get-value project 2>/dev/null)"
+  [[ -n "$project" && "$project" != "(unset)" ]] \
+    || fail "no gcloud project set. Run 'make gke-setup' first"
+
+  # Zonal, not regional: the GKE free tier credit covers one zonal cluster's
+  # management fee, and a regional control plane buys nothing for a cluster
+  # that lives twenty minutes.
+  #
+  # Autoscaling is the entire point. min-nodes below the starting count is what
+  # permits the autoscaler to remove the node we drain — without it, it would
+  # correctly refuse and the run would report a false negative.
+  #
+  # Autoupgrade and autorepair off so GKE does not move nodes underneath the
+  # test and make its own maintenance look like our reclamation.
+  gcloud container clusters create "$CLUSTER" \
+    --zone "$GCP_ZONE" \
+    --num-nodes "$((AGENTS + 1))" \
+    --machine-type "$GCP_MACHINE" \
+    --spot \
+    --disk-type pd-standard --disk-size 20 \
+    --enable-autoscaling --min-nodes 1 --max-nodes "$((AGENTS + 2))" \
+    --no-enable-autoupgrade --no-enable-autorepair \
+    --workload-pool "${project}.svc.id.goog" \
+    --labels purpose=dencer-e2e \
+    --quiet >/dev/null || fail "could not create the GKE cluster"
+
+  gcloud container clusters get-credentials "$CLUSTER" --zone "$GCP_ZONE" --quiet 2>/dev/null
+  kubectl config rename-context "$(kubectl config current-context)" "$CTX" >/dev/null 2>&1 || true
+}
+
+cluster_delete() {
+  if [[ "$PROVIDER" == "k3d" ]]; then
+    k3d cluster delete "$CLUSTER" >/dev/null 2>&1 || true
+    return
+  fi
+  # Deliberately noisy and synchronous. A leaked GKE cluster is the only way
+  # this script can cost real money, so a failure to delete must be seen rather
+  # than swallowed into /dev/null like the k3d case.
+  echo "  deleting the GKE cluster (this takes a few minutes)…"
+  gcloud container clusters delete "$CLUSTER" --zone "$GCP_ZONE" --quiet \
+    || red "COULD NOT DELETE CLUSTER ${CLUSTER} in ${GCP_ZONE} — delete it by hand, it is costing money"
+  kubectl config delete-context "$CTX" >/dev/null 2>&1 || true
+}
+
+for bin in kubectl helm; do
   command -v "$bin" >/dev/null || fail "$bin is required"
 done
+if [[ "$PROVIDER" == "k3d" ]]; then
+  for bin in k3d docker; do
+    command -v "$bin" >/dev/null || fail "$bin is required"
+  done
+else
+  command -v gcloud >/dev/null || fail "gcloud is required for PROVIDER=gke"
+fi
 
 # ---------------------------------------------------------------- cluster
 
-bold "==> multi-node cluster"
-k3d cluster delete "$CLUSTER" >/dev/null 2>&1 || true
-# The loadbalancer port is published so a request can actually traverse the
-# ingress controller. Rendering an Ingress proves nothing; k3s bundles Traefik,
-# so the only missing piece was a way in.
-k3d cluster create "$CLUSTER" --servers 1 --agents "$AGENTS" \
-  -p "${INGRESS_PORT}:80@loadbalancer" --wait --timeout 300s >/dev/null
+bold "==> multi-node cluster (${PROVIDER})"
+cluster_create
 nodes="$(kubectl --context "$CTX" get nodes --no-headers | wc -l | tr -d ' ')"
 [[ "$nodes" -ge 4 ]] || fail "expected at least 4 nodes for the guard's floor, got $nodes"
 green "  ${nodes} nodes"
@@ -112,13 +196,21 @@ green "  restricted enforced on $NS and $APP_NS"
 # ---------------------------------------------------------------- images
 
 bold "==> images"
-TAG="$(make -s -C "$REPO" print-tag)"
-make -s -C "$REPO" images >/dev/null 2>&1 || fail "image build failed"
-k3d image import -c "$CLUSTER" \
-  "k8s-dencer-planner:${TAG}" "k8s-dencer-ui-backend:${TAG}" \
-  "k8s-dencer-executor:${TAG}" "k8s-dencer-ui-frontend:${TAG}" >/dev/null 2>&1 \
-  || fail "could not import images into the cluster"
-green "  built and imported ${TAG}"
+if [[ "$PROVIDER" == "k3d" ]]; then
+  TAG="$(make -s -C "$REPO" print-tag)"
+  make -s -C "$REPO" images >/dev/null 2>&1 || fail "image build failed"
+  k3d image import -c "$CLUSTER" \
+    "k8s-dencer-planner:${TAG}" "k8s-dencer-ui-backend:${TAG}" \
+    "k8s-dencer-executor:${TAG}" "k8s-dencer-ui-frontend:${TAG}" >/dev/null 2>&1 \
+    || fail "could not import images into the cluster"
+  green "  built and imported ${TAG}"
+else
+  # Pulled, not imported. On a real cluster there is no local image store to
+  # cheat with, so this run is also the first check that what we publish to
+  # ghcr is installable by someone who is not us.
+  TAG="$GHCR_TAG"
+  green "  using published ghcr.io/atedgimo/k8s-dencer-*:${TAG}"
+fi
 
 # ---------------------------------------------------------------- workload
 
@@ -169,6 +261,49 @@ green "  ${ready} replicas Ready with httpGet probes"
 
 # ---------------------------------------------------------------- install
 
+# Chart flags that differ by provider. On GKE the Ingress is skipped: it
+# provisions a billable load balancer and takes minutes to become healthy,
+# which is real cost and real waiting for a path Traefik already proves.
+if [[ "$PROVIDER" == "k3d" ]]; then
+  # Local, unqualified image names with IfNotPresent so the imported images are
+  # used and nothing reaches for a registry.
+  IMAGE_SET=(
+    --set planner.image.pullPolicy=IfNotPresent
+    --set uiBackend.image.pullPolicy=IfNotPresent
+    --set executor.image.pullPolicy=IfNotPresent
+    --set uiFrontend.image.pullPolicy=IfNotPresent
+    --set-string planner.image.registry=""
+    --set-string uiBackend.image.registry=""
+    --set-string executor.image.registry=""
+    --set-string uiFrontend.image.registry=""
+    --set-string planner.image.repository=k8s-dencer-planner
+    --set-string uiBackend.image.repository=k8s-dencer-ui-backend
+    --set-string executor.image.repository=k8s-dencer-executor
+    --set-string uiFrontend.image.repository=k8s-dencer-ui-frontend
+  )
+  PROVIDER_SET=(
+    --set-string persistence.storageClass=local-path
+    --set ingress.enabled=true
+    --set-string ingress.className=traefik
+    --set-string "ingress.hosts[0].host=${INGRESS_HOST}"
+    --set-string "ingress.hosts[0].paths[0].path=/"
+    --set-string "ingress.hosts[0].paths[0].pathType=Prefix"
+  )
+else
+  IMAGE_SET=()
+  PROVIDER_SET=(
+    --set-string persistence.storageClass=standard-rwo
+    --set-string planner.image.registry=ghcr.io
+    --set-string uiBackend.image.registry=ghcr.io
+    --set-string executor.image.registry=ghcr.io
+    --set-string uiFrontend.image.registry=ghcr.io
+    --set-string planner.image.repository=atedgimo/k8s-dencer-planner
+    --set-string uiBackend.image.repository=atedgimo/k8s-dencer-ui-backend
+    --set-string executor.image.repository=atedgimo/k8s-dencer-executor
+    --set-string uiFrontend.image.repository=atedgimo/k8s-dencer-ui-frontend
+  )
+fi
+
 # minNodeAge=0s: a fresh k3d cluster's nodes are seconds old, and the planner
 # correctly refuses to drain anything younger than minNodeAge — the rail that
 # stops it reclaiming a node an autoscaler added moments ago. Sensible in
@@ -178,30 +313,14 @@ helm --kube-context "$CTX" upgrade --install "$RELEASE" "$REPO/charts/k8s-dencer
   --namespace "$NS" \
   --set auth.enabled=true \
   --set persistence.enabled=true \
-  --set-string persistence.storageClass=local-path \
-  --set ingress.enabled=true \
-  --set-string ingress.className=traefik \
-  --set-string "ingress.hosts[0].host=${INGRESS_HOST}" \
-  --set-string "ingress.hosts[0].paths[0].path=/" \
-  --set-string "ingress.hosts[0].paths[0].pathType=Prefix" \
+  "${PROVIDER_SET[@]}" \
   --set executor.enabled=true \
   --set planner.minNodeAge=0s \
   --set-string planner.image.tag="$TAG" \
   --set-string uiBackend.image.tag="$TAG" \
   --set-string executor.image.tag="$TAG" \
   --set-string uiFrontend.image.tag="$TAG" \
-  --set planner.image.pullPolicy=IfNotPresent \
-  --set uiBackend.image.pullPolicy=IfNotPresent \
-  --set executor.image.pullPolicy=IfNotPresent \
-  --set uiFrontend.image.pullPolicy=IfNotPresent \
-  --set-string planner.image.registry="" \
-  --set-string uiBackend.image.registry="" \
-  --set-string executor.image.registry="" \
-  --set-string uiFrontend.image.registry="" \
-  --set-string planner.image.repository=k8s-dencer-planner \
-  --set-string uiBackend.image.repository=k8s-dencer-ui-backend \
-  --set-string executor.image.repository=k8s-dencer-executor \
-  --set-string uiFrontend.image.repository=k8s-dencer-ui-frontend \
+  "${IMAGE_SET[@]}" \
   --wait --timeout 300s >/dev/null || {
     kubectl --context "$CTX" -n "$NS" get pods
     fail "chart did not install"
@@ -224,8 +343,9 @@ pvc="$(kubectl --context "$CTX" -n "$NS" get pvc -o jsonpath='{.items[0].metadat
 [[ -n "$pvc" ]] || fail "persistence is on but no PersistentVolumeClaim was created"
 phase="$(kubectl --context "$CTX" -n "$NS" get pvc "$pvc" -o jsonpath='{.status.phase}')"
 [[ "$phase" == "Bound" ]] || fail "PVC ${pvc} is ${phase}, not Bound"
+want_sc="local-path"; [[ "$PROVIDER" == "gke" ]] && want_sc="standard-rwo"
 sc="$(kubectl --context "$CTX" -n "$NS" get pvc "$pvc" -o jsonpath='{.spec.storageClassName}')"
-[[ "$sc" == "local-path" ]] || fail "PVC bound to StorageClass '${sc}', not the requested local-path"
+[[ "$sc" == "$want_sc" ]] || fail "PVC bound to StorageClass '${sc}', not the requested ${want_sc}"
 green "  ${pvc} Bound on ${sc}"
 
 bold "==> the ReadWriteOnce claim keeps its two readers together"
@@ -241,6 +361,11 @@ bnode="$(kubectl --context "$CTX" -n "$NS" get pod -l app.kubernetes.io/componen
   || fail "planner is on '${pnode}' and ui-backend on '${bnode}'; a ReadWriteOnce volume cannot span nodes"
 green "  planner and ui-backend co-scheduled on ${pnode}"
 
+if [[ "$PROVIDER" == "gke" ]]; then
+  bold "==> ingress"
+  green "  skipped on GKE: a cloud Ingress provisions a billable load balancer,"
+  green "  and the Traefik run already proves the chart's Ingress routes"
+else
 bold "==> a request actually traverses the ingress controller"
 code=""
 for _ in $(seq 1 30); do
@@ -252,6 +377,7 @@ done
 [[ "$code" == "200" ]] \
   || fail "GET / through the ingress returned '${code}', not 200"
 green "  Traefik routed ${INGRESS_HOST} to the frontend (HTTP 200)"
+fi
 
 # ---------------------------------------------------------------- plan
 
@@ -384,20 +510,55 @@ done
   || fail "the drain of ${TARGET} was never recorded; got '$(reclamation_outcome "$TARGET")'"
 green "  ${TARGET} is awaiting reclamation"
 
-bold "==> an autoscaler removes it"
-kubectl --context "$CTX" delete node "$TARGET" --wait=true >/dev/null
-# The planner observes on its resync, so this waits a cycle rather than a tick.
-for _ in $(seq 1 30); do
-  [[ "$(reclamation_outcome "$TARGET")" == "reclaimed" ]] && break
-  sleep 5
-done
-[[ "$(reclamation_outcome "$TARGET")" == "reclaimed" ]] \
-  || fail "${TARGET} was deleted but never observed as reclaimed; got '$(reclamation_outcome "$TARGET")'"
-green "  observed as reclaimed — the loop closes"
+if [[ "$PROVIDER" == "k3d" ]]; then
+  bold "==> an autoscaler removes it"
+  # k3d has no autoscaler, so the script plays the part. This proves the
+  # observation works; it cannot prove anything about a real reclaimer.
+  kubectl --context "$CTX" delete node "$TARGET" --wait=true >/dev/null
+  # The planner observes on its resync, so this waits a cycle rather than a tick.
+  for _ in $(seq 1 30); do
+    [[ "$(reclamation_outcome "$TARGET")" == "reclaimed" ]] && break
+    sleep 5
+  done
+  [[ "$(reclamation_outcome "$TARGET")" == "reclaimed" ]] \
+    || fail "${TARGET} was deleted but never observed as reclaimed; got '$(reclamation_outcome "$TARGET")'"
+  green "  observed as reclaimed — the loop closes"
+else
+  bold "==> GKE's own cluster autoscaler removes it"
+  echo "  Nothing here touches the node. GKE decides, on its own schedule —"
+  echo "  scale-down-unneeded-time defaults to 10 minutes, so this waits."
+  started="$(date +%s)"
+  outcome=""
+  for _ in $(seq 1 60); do   # up to 15 minutes
+    outcome="$(reclamation_outcome "$TARGET")"
+    [[ "$outcome" == "reclaimed" ]] && break
+    # A Spot preemption would also make a node vanish. Tying the assertion to
+    # the node the plan drained is what stops that reading as a pass.
+    sleep 15
+  done
+  took=$(( $(date +%s) - started ))
+  if [[ "$outcome" != "reclaimed" ]]; then
+    red "  ${TARGET} was never reclaimed after $((took / 60))m. Current state:"
+    kubectl --context "$CTX" get nodes -o wide 2>/dev/null | sed 's/^/    /'
+    # The usual cause, and not a bug in this product: a kube-system pod with no
+    # PDB pins the node and the autoscaler correctly refuses.
+    kubectl --context "$CTX" get pods -A --field-selector "spec.nodeName=${TARGET}" \
+      --no-headers 2>/dev/null | sed 's/^/    /'
+    fail "no reclamation observed; got '${outcome}'"
+  fi
+  kubectl --context "$CTX" get node "$TARGET" >/dev/null 2>&1 \
+    && fail "recorded as reclaimed but the Node object is still there"
+  green "  observed as reclaimed after $((took / 60))m$((took % 60))s — by a reclaimer we did not write"
+fi
 
 # The other branch. An operator who uncordons a drained node is never getting a
 # reclamation, and leaving that row pending forever would make the awaiting
 # count grow without bound and mean nothing.
+if [[ "$PROVIDER" == "gke" ]]; then
+  bold "==> the other branch: a drained node put back into service"
+  green "  skipped on GKE: uncordoning races the autoscaler, which may remove"
+  green "  the node before the observer sees it schedulable — the k3d run proves it"
+else
 bold "==> the other branch: a drained node put back into service"
 SECOND="$(api /api/v1/plans/latest | python3 -c '
 import json,sys
@@ -442,6 +603,7 @@ for s in (d.get('plan') or d).get('steps') or []:
     green "  ${node2} observed as returned to service, not counted as a saving"
   fi
 fi
+fi
 
 bold "==> the metrics agree"
 kubectl --context "$CTX" -n "$NS" port-forward "deploy/${RELEASE}-planner" 18100:8081 >/dev/null 2>&1 &
@@ -456,5 +618,11 @@ observed="$(grep -E "^dencer_reclamation_seconds_count " <<<"$series" | awk "{pr
 green "  dencer_reclamation_seconds observed ${observed} reclamation(s)"
 
 echo
-green "e2e passed: multi-node, PodSecurity enforced, a real ingress and StorageClass,"
-green "real pods evicted and recovered, and a node observed actually going away."
+if [[ "$PROVIDER" == "gke" ]]; then
+  green "cloud e2e passed on GKE: the published images installed, a cloud StorageClass"
+  green "bound, real pods were evicted and recovered, and GKE's own cluster autoscaler"
+  green "removed the drained node — observed by a reclaimer we did not write."
+else
+  green "e2e passed: multi-node, PodSecurity enforced, a real ingress and StorageClass,"
+  green "real pods evicted and recovered, and a node observed actually going away."
+fi
