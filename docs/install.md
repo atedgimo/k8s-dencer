@@ -67,7 +67,22 @@ Runs `helm lint` and `kubeconform --strict` across every profile, then asserts t
 20. scraping **does not give the executor a Service** — planner and executor stay reachable only as pods
 21. enabling `serviceMonitor` makes the NetworkPolicy **admit the monitoring namespace**, or the scrape is silently dropped
 
-### Known constraints
+### Naming the cluster in the UI
+
+```yaml
+uiBackend:
+  clusterLabel: prod-eu-west-1
+```
+
+Shown in the UI header so an operator can see which cluster they are about to
+act on. **Empty by default, and the header then shows nothing.** Nothing in a
+cluster reliably names itself, and a guessed environment label is worse than
+none — the entire value of this field is being believed when it says `prod`.
+
+Beside it the header shows the identity the API server verified through
+`TokenReview`, not a claim decoded from whatever token the page is holding.
+
+## Known constraints
 
 - **SQLite is single-writer.** `uiBackend.replicaCount` is pinned to 1 and enforced by the schema; the planner is co-scheduled with ui-backend via a `requiredDuringScheduling` podAffinity, because a ReadWriteOnce claim only permits multiple pods on the same node. Both constraints disappear when the Postgres store lands.
 - **PDBs use `maxUnavailable`, never `minAvailable`.** A `minAvailable` PDB on a single-replica Deployment makes its own pod undrainable — the exact pathology this product exists to detect.

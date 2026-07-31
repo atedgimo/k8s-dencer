@@ -158,6 +158,18 @@ The graph payload is shaped for Cytoscape's compound-node model — cluster node
 make ui     # port-forwards and prints the URLs
 ```
 
+**A header carries the context, quietly.** Which cluster (`uiBackend.clusterLabel`,
+empty by default) and the identity the API server verified — plus sign-out and a
+dark/light toggle. Dark is the default rather than following the OS: the ground
+going black is what leaves a saturated rating as the only lit thing on the
+surface, and that is the premise the whole palette rests on.
+
+**Cordoned is drawn, because reality and prediction are different things.** A
+node cordoned in the cluster right now gets dashed hatching and the word; a node
+the *plan* would drain at the scrubber's position gets the reclaimed treatment.
+Conflating them is how the field once showed nothing at all after a real drain
+— see [M24](roadmap.md), which is about closing the rest of that gap.
+
 **The capacity ribbon is the page's argument.** One bar per node, ordered fullest-first, filled to requested CPU — the long tail of barely-used bars *is* the case for consolidating. Dragging the scrubber drains them in place. A big number over a small label was the first draft; it states a conclusion where the evidence should be, so the only display-size figure now sits inside a sentence that gives it meaning.
 
 **One morphing canvas, not two before/after panes.** Scrubbing shows the same comparison plus every intermediate state, and makes the causality visible — this pod leaves, so this node empties. Two half-width panes of 30 nodes would be unreadable, and the ribbon already does the at-a-glance job.
