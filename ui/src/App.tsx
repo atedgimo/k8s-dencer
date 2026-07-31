@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, Impact, PlanStep, Reclamation, VersionResponse } from "./api";
+import { Impact, PlanStep } from "./api";
 import Inspector, { Selection } from "./components/Inspector";
 import PackingField from "./components/PackingField";
-import { ObservedNode } from "./components/FieldViews";
 import { ConfirmRun, RunTrail } from "./components/RunPanel";
 import Scrubber from "./components/Scrubber";
 import { SignIn } from "./components/SignIn";
@@ -13,8 +12,11 @@ import { FieldView, defaultView, rememberView, storedView } from "./view";
 import { authInfo, token as tokenStore } from "./auth";
 import { onRenewed } from "./oidc";
 import { runtimeConfig } from "./runtime-config";
+import { useObserved } from "./useObserved";
 import { usePlan } from "./usePlan";
+import { useReclamations } from "./useReclamations";
 import { useRun } from "./useRun";
+import { useVersion } from "./useVersion";
 
 export default function App() {
   // Pinned while there is a selection to protect or a run to watch. Step
@@ -28,61 +30,12 @@ export default function App() {
   const [step, setStep] = useState(0);
   const [playing, setPlaying] = useState(false);
 
-  // Observed reclamation, as distinct from what the plan predicts. Polled
-  // rather than pushed: it changes on the planner's resync, which is tens of
-  // seconds, and it is never the reason someone is watching the screen.
-  //
-  // The full lists, not just the tallies. The names in them are the difference
-  // between "2 awaiting" in a tray and the actual node on the field being
-  // marked — the tray version shipped first and a user immediately asked
-  // *which* node. Stats ride along for the tray so its numbers stay the
-  // server's own (the recent list is windowed; recounting it would drift).
-  const [reclamations, setReclamations] = useState<{
-    awaiting: Reclamation[];
-    recent: Reclamation[];
-    stats: { awaiting: number; reclaimed: number };
-  }>({ awaiting: [], recent: [], stats: { awaiting: 0, reclaimed: 0 } });
+  const reclamations = useReclamations();
 
-  // Identity and cluster, for the header. Fetched once — neither changes
-  // within a session, and re-polling them would be noise.
-  const [server, setServer] = useState<VersionResponse | null>(null);
+  const server = useVersion();
 
   // null means "follow cluster size", which is right until someone disagrees.
   const [viewPref, setViewPref] = useState<FieldView | null>(storedView);
-  // Polled, not fetched once, because this response carries the only
-  // liveness signal the client gets.
-  //
-  // A plan re-publishes when its *content* changes. On a steady cluster it
-  // never does — which is the healthiest possible state — so the client would
-  // sit on the storedAt it was handed at load and watch it age past the
-  // staleness threshold while the planner went on confirming the plan every
-  // resync. The warning fired precisely when nothing was wrong. Re-reading
-  // planConfirmedAt is what makes "confirmed just now" stay true, and what
-  // makes the warning mean the thing it says.
-  //
-  // Identity and cluster label ride along unchanged; they are cheap and cannot
-  // drift within a session.
-  useEffect(() => {
-    let cancelled = false;
-    const load = () => {
-      api
-        .version()
-        .then((v) => {
-          if (!cancelled) setServer(v);
-        })
-        .catch(() => {
-          // Leave the last good response in place. A dropped poll is not
-          // evidence the plan went stale, and blanking the header over one
-          // failed request would be its own kind of lie.
-        });
-    };
-    load();
-    const t = setInterval(load, 30_000);
-    return () => {
-      cancelled = true;
-      clearInterval(t);
-    };
-  }, []);
 
   // Sign out clears the credential this tab is carrying, and asks the OIDC
   // provider to forget the session too when there is one. Without the second
@@ -100,31 +53,6 @@ export default function App() {
     tokenStore.clear();
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const r = await api.reclamations();
-        if (!cancelled && r.tracking) {
-          setReclamations({
-            awaiting: r.awaiting ?? [],
-            recent: r.recent ?? [],
-            stats: { awaiting: r.stats.awaiting, reclaimed: r.stats.reclaimed },
-          });
-        }
-      } catch {
-        // Reclamation tracking is supplementary. A backend that does not have
-        // it, or a transient failure, must never blank the page — the field
-        // and the ledger are what the operator came for.
-      }
-    };
-    void load();
-    const t = setInterval(load, 30_000);
-    return () => {
-      cancelled = true;
-      clearInterval(t);
-    };
-  }, []);
   const [selectedStep, setSelectedStep] = useState<number | null>(null);
   const [selection, setSelection] = useState<Selection>(null);
   const [focusedRating, setFocusedRating] = useState<Impact | null>(null);
@@ -145,42 +73,7 @@ export default function App() {
   // on a picture that no longer matches their cluster.
   const run = useRun(state.status === "ready" ? state.reload : undefined);
 
-  // Everything known about nodes from *outside* the plan's snapshot, keyed by
-  // node name. Two sources, layered oldest-first:
-  //
-  //   - the reclamation tracker: nodes drained for real and what became of them
-  //   - the current run's event trail: the executor saying what it just did,
-  //     which matters most at exactly the moment the plan is pinned and its
-  //     snapshot is at its most wrong
-  //
-  // A dry run is excluded outright. Its events say "would", and letting a
-  // rehearsal mark nodes as actually drained would be the predicted/observed
-  // confusion this overlay exists to end, rebuilt one layer up.
-  const observed = useMemo(() => {
-    const m = new Map<string, ObservedNode>();
-    for (const r of reclamations.awaiting) {
-      m.set(r.node, { reclaim: "awaiting" });
-    }
-    for (const r of reclamations.recent) {
-      if (r.outcome === "reclaimed") m.set(r.node, { reclaim: "reclaimed" });
-      // "returned" is deliberately not drawn: the node is back in service and
-      // is, once again, just a node. The tray still counts it.
-    }
-    if (run.state.status === "active" || run.state.status === "done") {
-      if (!run.state.run.dryRun) {
-        for (const e of run.state.events) {
-          if (!e.node) continue;
-          if (e.action === "Cordon") {
-            m.set(e.node, { ...m.get(e.node), cordoned: true });
-          } else if (e.action === "Drained") {
-            const cur = m.get(e.node);
-            m.set(e.node, { ...cur, cordoned: true, reclaim: cur?.reclaim ?? "awaiting" });
-          }
-        }
-      }
-    }
-    return m;
-  }, [reclamations, run.state]);
+  const observed = useObserved(reclamations, run.state);
 
   const greenSteps = useMemo(() => steps.filter((s) => s.impact === "Green"), [steps]);
 

@@ -163,16 +163,23 @@ func TestOidcUsesTheIdTokenAsTheCredential(t *testing.T) {
 // The fix is a poll, and a poll is one deleted line away from being a fetch
 // again, with no compile error and no visible symptom until an hour in.
 func TestPlanConfirmationIsPolledRatherThanFetchedOnce(t *testing.T) {
-	app := read(t, "App.tsx")
-
 	// The version fetch and a setInterval must live in the same effect. A
 	// bare api.version() somewhere plus an unrelated interval elsewhere would
 	// satisfy a naive substring check while leaving the value frozen.
+	ver := read(t, "useVersion.ts")
 	poll := regexp.MustCompile(`api\s*\n?\s*\.version\(\)[\s\S]{0,600}?setInterval\(`)
-	if !poll.MatchString(app) {
-		t.Error("App fetches the version once instead of polling it; " +
+	if !poll.MatchString(ver) {
+		t.Error("useVersion fetches the version once instead of polling it; " +
 			"planConfirmedAt will freeze at page load and the plan will " +
 			"appear to go stale while the planner is still confirming it")
+	}
+
+	// And App must actually use the polling hook — extracting it and then
+	// fetching directly in App would satisfy the check above while the page
+	// froze anyway.
+	app := read(t, "App.tsx")
+	if !strings.Contains(app, "useVersion()") {
+		t.Error("App does not use the useVersion poll; the confirmation freezes at load")
 	}
 
 	// Ageing the displayed plan by another plan's confirmation would be worse
@@ -231,21 +238,28 @@ func TestObservedNodeStatesAreDrawnNotJustParsed(t *testing.T) {
 			"ready field; NotReady nodes are invisible again")
 	}
 
-	app := read(t, "App.tsx")
+	obs := read(t, "useObserved.ts")
 
 	// A rehearsal must never mark a node as actually drained. Dry runs emit
 	// the same event stream on purpose (the UI renders both with one
 	// component), so the observed overlay has to filter them or a dry run
 	// paints the field with drains that never happened.
-	if !regexp.MustCompile(`(?s)const observed = useMemo.{0,900}?!run\.state\.run\.dryRun`).MatchString(app) {
+	if !regexp.MustCompile(`(?s)return useMemo.{0,900}?!runState\.run\.dryRun`).MatchString(obs) {
 		t.Error("the observed overlay does not exclude dry runs; a rehearsal " +
 			"would mark nodes as genuinely drained")
 	}
 
 	// The reclamation lists must reach the overlay as names, not just counts.
 	// The counts-only version shipped and the first question was "which node?".
-	if !strings.Contains(app, `{ reclaim: "awaiting" }`) {
-		t.Error("App no longer maps awaiting reclamations onto named nodes; " +
-			"the field cannot mark which node is dead weight")
+	if !strings.Contains(obs, `{ reclaim: "awaiting" }`) {
+		t.Error("useObserved no longer maps awaiting reclamations onto named " +
+			"nodes; the field cannot mark which node is dead weight")
+	}
+
+	// And the overlay must actually be mounted: derived in a hook nothing
+	// calls is the parsed-but-never-drawn bug with an extra step.
+	app := read(t, "App.tsx")
+	if !strings.Contains(app, "useObserved(") || !strings.Contains(app, "observed={observed}") {
+		t.Error("App does not wire the observed overlay into the field")
 	}
 }
