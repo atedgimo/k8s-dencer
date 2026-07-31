@@ -32,6 +32,29 @@ CHECK_ONLY=0
 
 command -v gcloud >/dev/null || fail "gcloud is required: https://cloud.google.com/sdk/docs/install"
 
+bold "==> kubectl can authenticate to GKE"
+# Checked first because it is the prerequisite most likely to be missing and
+# the one whose failure reads least like its cause.
+if command -v gke-gcloud-auth-plugin >/dev/null; then
+  green "  gke-gcloud-auth-plugin on PATH"
+else
+  found=""
+  for d in "$(brew --prefix 2>/dev/null)/share/google-cloud-sdk/bin" \
+           "/opt/homebrew/share/google-cloud-sdk/bin" \
+           "/usr/local/share/google-cloud-sdk/bin" \
+           "$HOME/google-cloud-sdk/bin"; do
+    [[ -x "$d/gke-gcloud-auth-plugin" ]] && found="$d" && break
+  done
+  if [[ -n "$found" ]]; then
+    warn "  gke-gcloud-auth-plugin is installed at ${found} but not on PATH."
+    warn "  hack/e2e.sh finds it anyway. To use kubectl against GKE by hand, add:"
+    warn "    export PATH=\"${found}:\$PATH\""
+  else
+    fail "gke-gcloud-auth-plugin is not installed. kubectl cannot authenticate to GKE.
+  gcloud components install gke-gcloud-auth-plugin"
+  fi
+fi
+
 bold "==> account and project"
 account="$(gcloud config get-value account 2>/dev/null || true)"
 [[ -n "$account" && "$account" != "(unset)" ]] || fail "not logged in. Run: gcloud auth login"

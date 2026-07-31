@@ -107,6 +107,31 @@ trap cleanup EXIT
 
 # ------------------------------------------------------------- provider
 
+# kubectl cannot talk to GKE without gke-gcloud-auth-plugin, and Homebrew
+# installs it into the SDK's own bin directory rather than linking it alongside
+# gcloud — so it is present, installed, and invisible.
+#
+# The failure it produces is genuinely misleading: the first few kubectl calls
+# succeed on the token get-credentials leaves behind, and only later ones fail,
+# so it looks like something broke mid-run rather than a prerequisite never
+# having been met.
+ensure_gke_auth_plugin() {
+  command -v gke-gcloud-auth-plugin >/dev/null && return 0
+  local d
+  for d in \
+    "$(dirname "$(command -v gcloud 2>/dev/null || echo /nonexistent)")" \
+    "$(brew --prefix 2>/dev/null)/share/google-cloud-sdk/bin" \
+    "/opt/homebrew/share/google-cloud-sdk/bin" \
+    "/usr/local/share/google-cloud-sdk/bin" \
+    "$HOME/google-cloud-sdk/bin"; do
+    if [[ -x "$d/gke-gcloud-auth-plugin" ]]; then
+      PATH="$d:$PATH"; export PATH
+      return 0
+    fi
+  done
+  return 1
+}
+
 cluster_create() {
   if [[ "$PROVIDER" == "k3d" ]]; then
     k3d cluster delete "$CLUSTER" >/dev/null 2>&1 || true
@@ -117,6 +142,11 @@ cluster_create() {
       -p "${INGRESS_PORT}:80@loadbalancer" --wait --timeout 300s >/dev/null
     return
   fi
+
+  ensure_gke_auth_plugin \
+    || fail "gke-gcloud-auth-plugin not found. kubectl cannot authenticate to GKE without it.
+  Install:  gcloud components install gke-gcloud-auth-plugin
+  Homebrew: it ships with the SDK at \$(brew --prefix)/share/google-cloud-sdk/bin — add that to PATH"
 
   local project
   project="$(gcloud config get-value project 2>/dev/null)"
@@ -166,6 +196,16 @@ except Exception: print(0)')"
 
   gcloud container clusters get-credentials "$CLUSTER" --zone "$GCP_ZONE" --quiet 2>/dev/null
   kubectl config rename-context "$(kubectl config current-context)" "$CTX" >/dev/null 2>&1 || true
+
+  # Hand the current context straight back.
+  #
+  # get-credentials does not just write a context, it makes it current — which
+  # silently redirects every kubectl and helm command in every other terminal
+  # on the machine for as long as this runs. Restoring only on exit is too
+  # late: a 25-minute run is 25 minutes of the operator's own commands landing
+  # on a throwaway cloud cluster. This script addresses the cluster by
+  # --context everywhere, so it needs no help from the global setting.
+  restore_context
 }
 
 cluster_delete() {
