@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FieldPanel, FieldWells, FILL_TITLE, NodeDrawState, spreadFill } from "./FieldViews";
+import {
+  FieldPanel,
+  FieldWells,
+  FILL_TITLE,
+  NodeDrawState,
+  ObservedNode,
+  STATE_TITLES,
+  observedWord,
+  spreadFill,
+} from "./FieldViews";
 import { FieldView } from "../view";
 import { GraphPayload, PlanStep } from "../api";
 import {
@@ -61,6 +70,12 @@ interface Props {
   awaiting?: number;
   /** Nodes whose Node object actually disappeared. Observed, not planned. */
   reclaimedForReal?: number;
+  /**
+   * Per-node observed facts from outside the plan's snapshot: the reclamation
+   * tracker and a run's own event trail. Merged over the snapshot here, once,
+   * so all three views agree on what is real.
+   */
+  observed?: Map<string, ObservedNode>;
 }
 
 export default function PackingField({
@@ -75,6 +90,7 @@ export default function PackingField({
   view = "rack",
   awaiting = 0,
   reclaimedForReal = 0,
+  observed,
 }: Props) {
   const model: Model = useMemo(() => toModel(graph), [graph]);
   const peak = useMemo(() => peakOccupancy(model, steps), [model, steps]);
@@ -204,16 +220,24 @@ export default function PackingField({
 
   const drawStates: NodeDrawState[] = useMemo(
     () =>
-      model.nodes.map((n) => ({
-        name: n.name,
-        ...spreadFill(layout.nodeFill.get(n.name)),
-        pods: podsByNode.get(n.name) ?? 0,
-        cordoned: n.cordoned,
-        drained: reclaimed.has(n.name),
-        targeted: stepTarget === n.name,
-        selected: selectedNode === n.name,
-      })),
-    [model, layout, podsByNode, reclaimed, stepTarget, selectedNode],
+      model.nodes.map((n) => {
+        // The snapshot's facts, then anything fresher layered over them. The
+        // snapshot ages between plan publishes; a run's event trail and the
+        // reclamation tracker do not, so where they speak, they win.
+        const obs = observed?.get(n.name);
+        return {
+          name: n.name,
+          ...spreadFill(layout.nodeFill.get(n.name)),
+          pods: podsByNode.get(n.name) ?? 0,
+          cordoned: n.cordoned || (obs?.cordoned ?? false),
+          notReady: !n.ready || (obs?.notReady ?? false),
+          reclaim: obs?.reclaim,
+          drained: reclaimed.has(n.name),
+          targeted: stepTarget === n.name,
+          selected: selectedNode === n.name,
+        };
+      }),
+    [model, layout, podsByNode, reclaimed, stepTarget, selectedNode, observed],
   );
 
   if (view !== "rack") {
@@ -248,9 +272,16 @@ export default function PackingField({
             const pos = layout.nodes.get(node.id);
             if (!pos) return null;
             if (!inView(index)) return null;
-            const fill = layout.nodeFill.get(node.name)?.dominant ?? 0;
-            const gone = reclaimed.has(node.name);
+            // drawStates is built from the same model.nodes, so it is
+            // index-aligned by construction. This is the one source of truth
+            // for what is observed; the rack must not re-derive it.
+            const ds = drawStates[index];
+            const fill = ds.fill;
+            // Predicted by the scrubber, or actually observed gone. The first
+            // moves as the scrubber moves; the second never does.
+            const gone = reclaimed.has(node.name) || ds.reclaim === "reclaimed";
             const count = podsByNode.get(node.name) ?? 0;
+            const seen = observedWord(ds);
 
             return (
               <div
@@ -262,7 +293,9 @@ export default function PackingField({
                   // *would* do at the scrubber's current position. The field
                   // showed only the prediction, so a node you had genuinely
                   // just drained looked identical to an untouched one.
-                  node.cordoned ? "box-cordoned" : "",
+                  ds.cordoned ? "box-cordoned" : "",
+                  ds.notReady ? "box-notready" : "",
+                  ds.reclaim === "reclaimed" ? "box-gone" : "",
                   gone ? "box-reclaimed" : "",
                   selectedNode === node.name ? "box-selected" : "",
                   stepTarget === node.name ? "box-targeted" : "",
@@ -290,18 +323,20 @@ export default function PackingField({
                   }
                 }}
                 aria-label={`${node.name}, ${Math.round(fill * 100)} percent requested, ${count} pods${
-                  node.cordoned ? ", cordoned" : ""
-                }${gone ? ", reclaimed" : ""}`}
+                  seen ? `, ${seen}` : gone ? ", drained in this plan" : ""
+                }`}
               >
                 <div className="box-head">
                   <span className="box-name mono">{shortName(node.name)}</span>
-                  {/* The word, not just the hatching. Colour is reserved for
+                  {/* The word, not just the texture. Colour is reserved for
                       risk on this surface, so a state has to be legible
-                      without it — and "cordoned" is a fact an operator needs
-                      to read, not infer from a texture. */}
-                  {node.cordoned && !gone && (
-                    <span className="box-cordoned-tag mono" title="Cordoned: unschedulable">
-                      cordoned
+                      without it — and an observed fact is something an
+                      operator needs to read, not infer from a pattern. The
+                      tag holds still while the scrubber runs, because these
+                      words are facts about the cluster, not about the plan. */}
+                  {seen && (
+                    <span className="box-state-tag mono" title={STATE_TITLES[seen]}>
+                      {seen}
                     </span>
                   )}
                   <span className="box-pct num" title={FILL_TITLE}>

@@ -33,6 +33,29 @@ export function spreadFill(f?: { cpu: number; mem: number; dominant: number; bou
   };
 }
 
+/**
+ * What is *known* about a node, as opposed to what the plan projects.
+ *
+ * Every field here is observed: it came from the cluster (via the snapshot),
+ * from the reclamation tracker (the planner watching nodes disappear), or from
+ * a run's own event trail (the executor reporting what it just did). None of
+ * it moves when the scrubber moves — that is the entire point. The scrubber
+ * animates a forecast; these facts sit underneath it and do not budge.
+ */
+export interface ObservedNode {
+  /** `spec.unschedulable` is set right now. */
+  cordoned?: boolean;
+  /** The node's Ready condition is false or unknown — it may not be running pods properly. */
+  notReady?: boolean;
+  /**
+   * Where the node is in its afterlife. `awaiting`: drained for real and still
+   * present — the machine is costing money and nothing has removed it yet.
+   * `reclaimed`: the Node object actually disappeared; the one outcome that
+   * saves anything.
+   */
+  reclaim?: "awaiting" | "reclaimed";
+}
+
 export interface NodeDrawState {
   name: string;
   /**
@@ -48,6 +71,10 @@ export interface NodeDrawState {
   pods: number;
   /** Cordoned in the cluster right now — observed, not predicted. */
   cordoned: boolean;
+  /** The node's Ready condition is false — observed, and never good news. */
+  notReady: boolean;
+  /** Observed reclamation state, when the node has one. */
+  reclaim?: "awaiting" | "reclaimed";
   /** The plan drains this node at or before the current step — predicted. */
   drained: boolean;
   /** This step is the one being hovered in the ledger. */
@@ -81,6 +108,8 @@ export function FieldWells({ nodes, onSelectNode }: Props) {
           className={[
             "well",
             n.cordoned ? "well-cordoned" : "",
+            n.notReady ? "well-notready" : "",
+            n.reclaim === "reclaimed" ? "well-gone" : "",
             n.drained ? "well-drained" : "",
             n.targeted ? "well-targeted" : "",
             n.selected ? "well-selected" : "",
@@ -89,7 +118,7 @@ export function FieldWells({ nodes, onSelectNode }: Props) {
             .join(" ")}
           onClick={() => onSelectNode(n.name)}
           aria-label={`${n.name}, ${Math.round(n.fill * 100)} percent requested, ${n.pods} pods${
-            n.cordoned ? ", cordoned" : ""
+            stateWord(n) ? `, ${stateWord(n)}` : ""
           }`}
         >
           <span className="well-cap">
@@ -99,7 +128,7 @@ export function FieldWells({ nodes, onSelectNode }: Props) {
             </span>
           </span>
           <span className="well-foot mono">
-            {n.cordoned ? "cordoned" : n.pods === 0 ? "empty" : `${n.pods} pods`}
+            {stateWord(n) || (n.pods === 0 ? "empty" : `${n.pods} pods`)}
           </span>
           {/* Inline height because it is data, not styling: this is the
               measurement the view exists to show. */}
@@ -144,6 +173,8 @@ export function FieldPanel({ nodes, onSelectNode }: Props) {
           className={[
             "panel-row",
             n.cordoned ? "panel-row-cordoned" : "",
+            n.notReady ? "panel-row-notready" : "",
+            n.reclaim === "reclaimed" ? "panel-row-gone" : "",
             n.targeted ? "panel-row-targeted" : "",
             n.selected ? "panel-row-selected" : "",
           ]
@@ -167,16 +198,50 @@ export function FieldPanel({ nodes, onSelectNode }: Props) {
             {Math.round(n.mem * 100)}
           </span>
           <span className="panel-pods num">{n.pods}</span>
-          <span className="panel-state mono">{stateWord(n)}</span>
+          <span className="panel-state mono" title={STATE_TITLES[stateWord(n)]}>
+            {stateWord(n)}
+          </span>
         </button>
       ))}
     </div>
   );
 }
 
-/** Observed states win over predicted ones: what is beats what would be. */
-function stateWord(n: NodeDrawState): string {
+/**
+ * The observed facts only, most consequential first.
+ *
+ * The ordering is by what an operator must act on: a node that actually
+ * disappeared outranks one that is misbehaving, which outranks one that was
+ * drained and is now dead weight, which outranks one that is merely fenced
+ * off. Nothing predicted appears here — that is the function's contract, and
+ * why the rack view can use it for the tag it refuses to move during a scrub.
+ */
+export function observedWord(n: NodeDrawState): string {
+  if (n.reclaim === "reclaimed") return "reclaimed";
+  if (n.notReady) return "NotReady";
+  if (n.reclaim === "awaiting") return "awaiting removal";
   if (n.cordoned) return "cordoned";
+  return "";
+}
+
+/** What each observed word means, for the hover an unfamiliar operator needs. */
+export const STATE_TITLES: Record<string, string> = {
+  reclaimed: "Observed: the Node object is gone. The capacity was actually returned.",
+  NotReady: "Observed: the node's Ready condition is false. It may not be running its pods.",
+  "awaiting removal":
+    "Observed: drained for real, but the machine is still present — it is " +
+    "costing money until something removes it.",
+  cordoned: "Observed: unschedulable right now (spec.unschedulable is set).",
+};
+
+/**
+ * One word per node. Observed states win over predicted ones: what is beats
+ * what would be. "drained" is the only predicted word, and it only appears
+ * when the scrubber is ahead of reality.
+ */
+export function stateWord(n: NodeDrawState): string {
+  const seen = observedWord(n);
+  if (seen) return seen;
   if (n.drained) return "drained";
   if (n.pods === 0) return "empty";
   return "";
