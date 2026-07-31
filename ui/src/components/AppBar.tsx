@@ -33,6 +33,26 @@ export default function AppBar({ clusterLabel, identity, onSignOut, view, onView
   return (
     <header className="appbar">
       <div className="appbar-brand">
+        {/* The 1a mark in monochrome, on currentColor. The brand's blue
+            deliberately stays off this surface: colour here means risk and
+            nothing else, and the handoff ships mono variants for exactly
+            this context. Inline so it costs no fetch and inherits theme. */}
+        <svg
+          className="appbar-icon"
+          viewBox="0 0 512 512"
+          width="20"
+          height="20"
+          aria-hidden="true"
+        >
+          <polygon
+            points="238,174 330.3,218.4 353,318.3 289.2,398.3 186.8,398.3 123,318.3 145.7,218.4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="40"
+            strokeLinejoin="round"
+          />
+          <rect x="332" y="96" width="40" height="322" rx="20" fill="currentColor" />
+        </svg>
         <span className="appbar-mark">k8s-dencer</span>
         {clusterLabel && (
           <>
