@@ -1,0 +1,109 @@
+# Dependency updates.
+#
+# Four ecosystems, because that is what the repository actually contains: a Go
+# module at the root, an npm project under ui/, the workflows in
+# .github/workflows, and two Dockerfiles under build/.
+#
+# Everything is grouped. Ungrouped Dependabot on a repo this size opens a
+# stream of single-dependency pull requests, each one costing a full CI run —
+# and this repository's CI stands up a five-node k3d cluster and drains a node,
+# so a run is minutes, not seconds. Grouping turns a dozen patch bumps into one
+# reviewable change.
+
+version: 2
+updates:
+  # ------------------------------------------------------------------- Go
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    labels: [dependencies, go]
+    groups:
+      # The Kubernetes libraries are version-locked to each other: client-go
+      # v0.36 expects apimachinery v0.36, and controller-runtime pins its own
+      # compatible pair. Updating any one of them alone does not produce a
+      # failing test — it produces a repository that will not compile. They
+      # move together or not at all.
+      kubernetes:
+        patterns:
+          - "k8s.io/*"
+          - "sigs.k8s.io/*"
+      # Everything else, minor and patch only. A Go major version is an import
+      # path change and deserves a human deciding to do it.
+      go-minor-and-patch:
+        patterns: ["*"]
+        exclude-patterns:
+          - "k8s.io/*"
+          - "sigs.k8s.io/*"
+        update-types: [minor, patch]
+
+  # ------------------------------------------------------------------ npm
+  - package-ecosystem: npm
+    directory: "/ui"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    labels: [dependencies, ui]
+    groups:
+      # The bundled typefaces are a deliberate, pinned choice — Archivo and IBM
+      # Plex, latin subsets only, vendored so an air-gapped cluster still gets
+      # designed type. Grouped so a font bump is visibly a font bump rather
+      # than hiding among build-tool churn.
+      fonts:
+        patterns: ["@fontsource*"]
+      npm-minor-and-patch:
+        patterns: ["*"]
+        exclude-patterns: ["@fontsource*"]
+        update-types: [minor, patch]
+
+  # -------------------------------------------------------- GitHub Actions
+  # Directory is "/" regardless of where the workflows live; Dependabot always
+  # reads .github/workflows from the repository root.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    labels: [dependencies, ci]
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # --------------------------------------------------------------- Docker
+  #
+  # Worth being honest about what this can reach. Of the four base images:
+  #
+  #   nginxinc/nginx-unprivileged:1.27-alpine   updatable
+  #   gcr.io/distroless/static-debian12:nonroot pinned to a floating tag, so
+  #                                             there is no version to bump
+  #   golang:${GO_VERSION}-alpine               built from an ARG
+  #   node:${NODE_VERSION}-alpine               built from an ARG
+  #
+  # Dependabot does not resolve build arguments, so the last two are invisible
+  # to it and the Go and Node versions still have to be bumped by hand in
+  # build/*.Dockerfile. Keeping this entry is still worth it for nginx, and
+  # inlining the two ARGs purely to satisfy a bot would trade a deliberate
+  # single-source-of-truth for automation of a version this project pins on
+  # purpose.
+  - package-ecosystem: docker
+    directory: "/build"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    labels: [dependencies, docker]
+    groups:
+      base-images:
+        patterns: ["*"]
