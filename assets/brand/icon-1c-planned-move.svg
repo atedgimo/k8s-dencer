@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="k8s-dencer">
+  <title>k8s-dencer icon — planned move</title>
+  <circle cx="256" cy="256" r="256" fill="#2A5FE0"></circle>
+  <polygon points="240,196 318.5,233.9 337.9,318.7 283.5,386.7 196.5,386.7 142.1,318.7 161.5,233.9" fill="none" stroke="#ffffff" stroke-width="34" stroke-linejoin="round"></polygon>
+  <circle cx="240" cy="298" r="26" fill="#ffffff"></circle>
+  <rect x="332" y="96" width="40" height="322" rx="20" fill="#ffffff"></rect>
+  <circle cx="108" cy="140" r="26" fill="#EFB324"></circle>
+  <line x1="130" y1="166" x2="192" y2="238" stroke="#EFB324" stroke-width="16" stroke-linecap="round" stroke-dasharray="4 32"></line>
+</svg>

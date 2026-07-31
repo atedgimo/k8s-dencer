@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="k8s-dencer">
+  <title>k8s-dencer icon — seven pods</title>
+  <circle cx="256" cy="256" r="256" fill="#17284A"></circle>
+  <polygon points="238,174 330.3,218.4 353,318.3 289.2,398.3 186.8,398.3 123,318.3 145.7,218.4" fill="none" stroke="#46C2E8" stroke-opacity="0.4" stroke-width="9" stroke-linejoin="round"></polygon>
+  <rect x="332" y="96" width="40" height="322" rx="20" fill="#ffffff"></rect>
+  <circle cx="238" cy="174" r="27" fill="#46C2E8"></circle>
+  <circle cx="330.3" cy="218.4" r="27" fill="#46C2E8"></circle>
+  <circle cx="353" cy="318.3" r="27" fill="#46C2E8"></circle>
+  <circle cx="289.2" cy="398.3" r="27" fill="#46C2E8"></circle>
+  <circle cx="186.8" cy="398.3" r="27" fill="#46C2E8"></circle>
+  <circle cx="123" cy="318.3" r="27" fill="#46C2E8"></circle>
+  <circle cx="145.7" cy="218.4" r="27" fill="#46C2E8"></circle>
+</svg>

@@ -2253,3 +2253,11 @@
   background: transparent;
   border: 1px dashed var(--border-strong);
 }
+
+/* The brand mark beside the wordmark: currentColor, so it is exactly as
+   quiet as the text it accompanies and follows the theme for free. */
+.appbar-icon {
+  display: block;
+  flex-shrink: 0;
+  opacity: 0.9;
+}

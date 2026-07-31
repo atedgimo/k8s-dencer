@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="k8s-dencer">
+  <title>k8s-dencer icon — monochrome</title>
+  <circle cx="256" cy="256" r="256" fill="#0B1220"></circle>
+  <polygon points="238,174 330.3,218.4 353,318.3 289.2,398.3 186.8,398.3 123,318.3 145.7,218.4" fill="none" stroke="#ffffff" stroke-width="40" stroke-linejoin="round"></polygon>
+  <rect x="332" y="96" width="40" height="322" rx="20" fill="#ffffff"></rect>
+</svg>
