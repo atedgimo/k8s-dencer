@@ -166,6 +166,16 @@ except Exception: print(0)')"
 
   gcloud container clusters get-credentials "$CLUSTER" --zone "$GCP_ZONE" --quiet 2>/dev/null
   kubectl config rename-context "$(kubectl config current-context)" "$CTX" >/dev/null 2>&1 || true
+
+  # Hand the current context straight back.
+  #
+  # get-credentials does not just write a context, it makes it current — which
+  # silently redirects every kubectl and helm command in every other terminal
+  # on the machine for as long as this runs. Restoring only on exit is too
+  # late: a 25-minute run is 25 minutes of the operator's own commands landing
+  # on a throwaway cloud cluster. This script addresses the cluster by
+  # --context everywhere, so it needs no help from the global setting.
+  restore_context
 }
 
 cluster_delete() {
