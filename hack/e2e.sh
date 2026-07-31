@@ -43,6 +43,8 @@ RELEASE="k8s-dencer"
 # testing a configuration nobody runs; adding nodes tests the real one.
 AGENTS="${AGENTS:-4}"
 PF_PORT="${PF_PORT:-18099}"
+INGRESS_PORT="${INGRESS_PORT:-18080}"
+INGRESS_HOST="${INGRESS_HOST:-k8s-dencer.e2e}"
 
 red()   { printf '\033[31m%s\033[0m\n' "$*"; }
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
@@ -84,7 +86,11 @@ done
 
 bold "==> multi-node cluster"
 k3d cluster delete "$CLUSTER" >/dev/null 2>&1 || true
-k3d cluster create "$CLUSTER" --servers 1 --agents "$AGENTS" --wait --timeout 300s >/dev/null
+# The loadbalancer port is published so a request can actually traverse the
+# ingress controller. Rendering an Ingress proves nothing; k3s bundles Traefik,
+# so the only missing piece was a way in.
+k3d cluster create "$CLUSTER" --servers 1 --agents "$AGENTS" \
+  -p "${INGRESS_PORT}:80@loadbalancer" --wait --timeout 300s >/dev/null
 nodes="$(kubectl --context "$CTX" get nodes --no-headers | wc -l | tr -d ' ')"
 [[ "$nodes" -ge 4 ]] || fail "expected at least 4 nodes for the guard's floor, got $nodes"
 green "  ${nodes} nodes"
@@ -172,6 +178,12 @@ helm --kube-context "$CTX" upgrade --install "$RELEASE" "$REPO/charts/k8s-dencer
   --namespace "$NS" \
   --set auth.enabled=true \
   --set persistence.enabled=true \
+  --set-string persistence.storageClass=local-path \
+  --set ingress.enabled=true \
+  --set-string ingress.className=traefik \
+  --set-string "ingress.hosts[0].host=${INGRESS_HOST}" \
+  --set-string "ingress.hosts[0].paths[0].path=/" \
+  --set-string "ingress.hosts[0].paths[0].pathType=Prefix" \
   --set executor.enabled=true \
   --set planner.minNodeAge=0s \
   --set-string planner.image.tag="$TAG" \
@@ -204,6 +216,42 @@ green "  installed, executor readiness=${mode:-Ready} (default)"
 
 # Admission had its say: every pod is running under enforced restricted PSS.
 green "  all pods admitted under enforced restricted PodSecurity"
+
+# The chart has always claimed these three; none was ever checked against a
+# cluster that could disprove them.
+bold "==> storage, on a named StorageClass"
+pvc="$(kubectl --context "$CTX" -n "$NS" get pvc -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+[[ -n "$pvc" ]] || fail "persistence is on but no PersistentVolumeClaim was created"
+phase="$(kubectl --context "$CTX" -n "$NS" get pvc "$pvc" -o jsonpath='{.status.phase}')"
+[[ "$phase" == "Bound" ]] || fail "PVC ${pvc} is ${phase}, not Bound"
+sc="$(kubectl --context "$CTX" -n "$NS" get pvc "$pvc" -o jsonpath='{.spec.storageClassName}')"
+[[ "$sc" == "local-path" ]] || fail "PVC bound to StorageClass '${sc}', not the requested local-path"
+green "  ${pvc} Bound on ${sc}"
+
+bold "==> the ReadWriteOnce claim keeps its two readers together"
+# SQLite is single-writer and the volume is ReadWriteOnce, so the chart
+# co-schedules the planner with ui-backend through a required podAffinity. On
+# one node that constraint is free; this is the first cluster that could
+# violate it.
+pnode="$(kubectl --context "$CTX" -n "$NS" get pod -l app.kubernetes.io/component=planner \
+  -o jsonpath='{.items[0].spec.nodeName}')"
+bnode="$(kubectl --context "$CTX" -n "$NS" get pod -l app.kubernetes.io/component=ui-backend \
+  -o jsonpath='{.items[0].spec.nodeName}')"
+[[ -n "$pnode" && "$pnode" == "$bnode" ]] \
+  || fail "planner is on '${pnode}' and ui-backend on '${bnode}'; a ReadWriteOnce volume cannot span nodes"
+green "  planner and ui-backend co-scheduled on ${pnode}"
+
+bold "==> a request actually traverses the ingress controller"
+code=""
+for _ in $(seq 1 30); do
+  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
+    -H "Host: ${INGRESS_HOST}" "http://localhost:${INGRESS_PORT}/" || true)"
+  [[ "$code" == "200" ]] && break
+  sleep 4
+done
+[[ "$code" == "200" ]] \
+  || fail "GET / through the ingress returned '${code}', not 200"
+green "  Traefik routed ${INGRESS_HOST} to the frontend (HTTP 200)"
 
 # ---------------------------------------------------------------- plan
 
@@ -408,5 +456,5 @@ observed="$(grep -E "^dencer_reclamation_seconds_count " <<<"$series" | awk "{pr
 green "  dencer_reclamation_seconds observed ${observed} reclamation(s)"
 
 echo
-green "e2e passed: multi-node, PodSecurity enforced, real pods evicted and recovered,"
-green "and the reclamation loop observed a node actually going away."
+green "e2e passed: multi-node, PodSecurity enforced, a real ingress and StorageClass,"
+green "real pods evicted and recovered, and a node observed actually going away."
