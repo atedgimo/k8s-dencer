@@ -221,6 +221,12 @@ export default function PackingField({
                 key={node.id}
                 className={[
                   "box",
+                  // Actually cordoned, right now, according to the cluster —
+                  // as distinct from box-reclaimed, which is what the plan
+                  // *would* do at the scrubber's current position. The field
+                  // showed only the prediction, so a node you had genuinely
+                  // just drained looked identical to an untouched one.
+                  node.cordoned ? "box-cordoned" : "",
                   gone ? "box-reclaimed" : "",
                   selectedNode === node.name ? "box-selected" : "",
                   stepTarget === node.name ? "box-targeted" : "",
@@ -248,11 +254,20 @@ export default function PackingField({
                   }
                 }}
                 aria-label={`${node.name}, ${Math.round(fill * 100)} percent requested, ${count} pods${
-                  gone ? ", reclaimed" : ""
-                }`}
+                  node.cordoned ? ", cordoned" : ""
+                }${gone ? ", reclaimed" : ""}`}
               >
                 <div className="box-head">
                   <span className="box-name mono">{shortName(node.name)}</span>
+                  {/* The word, not just the hatching. Colour is reserved for
+                      risk on this surface, so a state has to be legible
+                      without it — and "cordoned" is a fact an operator needs
+                      to read, not infer from a texture. */}
+                  {node.cordoned && !gone && (
+                    <span className="box-cordoned-tag mono" title="Cordoned: unschedulable">
+                      cordoned
+                    </span>
+                  )}
                   <span className="box-pct num">
                     {gone ? "—" : `${Math.round(fill * 100)}`}
                   </span>

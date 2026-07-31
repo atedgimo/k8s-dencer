@@ -1770,3 +1770,32 @@
   color: var(--graphite-dim);
   font-size: var(--text-xs);
 }
+
+/* A node that is cordoned in the cluster right now.
+   Distinct from .box-reclaimed, which reflects the plan at the scrubber's
+   position — one is what happened, the other is what would. Conflating them is
+   how the field managed to show nothing after a real drain.
+   Hatching rather than a hue: colour on this surface means risk, and being
+   unschedulable is a state, not a danger. */
+.box-cordoned {
+  border-style: dashed;
+  border-color: var(--border-strong);
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent,
+    transparent 5px,
+    var(--edge-soft) 5px,
+    var(--edge-soft) 10px
+  );
+}
+
+.box-cordoned-tag {
+  margin-left: auto;
+  padding: 0 var(--space-1);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-size: 0.55rem;
+  letter-spacing: 0.04em;
+  color: var(--graphite);
+  text-transform: uppercase;
+}
