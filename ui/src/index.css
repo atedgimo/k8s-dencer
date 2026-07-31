@@ -2164,3 +2164,92 @@
   font-size: var(--text-2xs);
   letter-spacing: 0.01em;
 }
+
+/* ------------------------------------------------- converge consent sheet */
+
+/* Quieter than .btn: the closed loop's door should be discoverable, not
+   competing with the primary action beside it. */
+.btn-quiet {
+  border-style: dashed;
+  color: var(--graphite);
+}
+
+.btn-quiet:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-style: solid;
+}
+
+.sheet-bounds {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: var(--space-5) 0;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-1);
+}
+
+.sheet-bound {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.sheet-input {
+  width: 4.5rem;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-0);
+  color: var(--text-primary);
+  font-size: var(--text-lg);
+  text-align: center;
+}
+
+.sheet-input:focus {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.sheet-seg {
+  display: inline-flex;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.sheet-seg button {
+  padding: var(--space-1) var(--space-3);
+  border: 0;
+  background: transparent;
+  color: var(--graphite);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.sheet-seg .sheet-seg-on {
+  background: var(--surface-3);
+  color: var(--text-primary);
+}
+
+.sheet-bound-unit {
+  color: var(--graphite);
+  font-size: var(--text-sm);
+}
+
+.sheet-context {
+  margin: 0 0 var(--space-4);
+  color: var(--graphite-dim);
+  font-size: var(--text-xs);
+}
+
+/* A pod the run has actually evicted, ghosted at its origin. Distinct in
+   kind from .blk-orphan (the scrubber's forecast): dashed and hollow, the
+   texture this surface uses for observed facts, held until the next
+   snapshot says where the pod landed. */
+.blk-inflight {
+  opacity: 0.35;
+  background: transparent;
+  border: 1px dashed var(--border-strong);
+}

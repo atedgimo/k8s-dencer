@@ -29,6 +29,11 @@ deciding what to build next and telling users what they get.
   5,026 pods, measured; no cluster required to benchmark
 
 ### Execution
+- **Closed-loop consolidation** — "Run to optimum" in the UI and `dencer
+  converge` in the CLI: the executor re-plans from *observed* state after
+  every drain, inside an explicit envelope (max nodes, impact ceiling), with
+  three mutation-tested termination rails. Consent is to a policy, and both
+  surfaces say so in those words
 - **Off by default**, and the chart refuses to enable it without
   authentication and persistence
 - **Runs only the steps a human picked**, through the eviction API — the API
@@ -94,12 +99,6 @@ what it already records and packs. Chosen because they reuse the machinery
 as it stands, and two of them serve audiences far larger than
 consolidation's.
 
-1. **Closed-loop consolidation** (M25, designed) — re-plan from observed state
-   after every step instead of executing a forecast; bounded by an explicit
-   operator-approved envelope (max nodes, window, impact ceiling). Ends the
-   gap where a run aborts on divergence a fresh plan would simply absorb.
-   Includes per-pod placement during a run, the first consumer of its live
-   data.
 4. **Right-sizing signal** — requests versus actual usage per workload:
    "your top 10 over-requested workloads are holding 6 nodes hostage."
    Multiplies the core value, because consolidation packs requests and most

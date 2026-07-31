@@ -79,6 +79,9 @@ interface Props {
    * so all three views agree on what is real.
    */
   observed?: Map<string, ObservedNode>;
+  /** Pods the current run genuinely evicted; ghosted at origin until the
+   *  next snapshot says where they landed. Observed, never predicted. */
+  evictedPods?: Set<string>;
 }
 
 export default function PackingField({
@@ -96,6 +99,7 @@ export default function PackingField({
   ledgerCpuMilli = 0,
   ledgerMemBytes = 0,
   observed,
+  evictedPods,
 }: Props) {
   const model: Model = useMemo(() => toModel(graph), [graph]);
   const peak = useMemo(() => peakOccupancy(model, steps), [model, steps]);
@@ -390,6 +394,10 @@ export default function PackingField({
             if (!pos) return null;
             const host = placement.get(pod.key) ?? pod.homeNode;
             const leaving = reclaimed.has(host);
+            // Actually evicted by the run in flight — as opposed to
+            // "leaving", which is the scrubber's forecast. The block ghosts
+            // in place: gone from here, landing not yet observed.
+            const inFlight = evictedPods?.has(pod.key) ?? false;
 
             return (
               <div
@@ -400,6 +408,7 @@ export default function PackingField({
                   !pod.movable ? "blk-pinned" : "",
                   selectedPod === pod.key ? "blk-selected" : "",
                   leaving ? "blk-orphan" : "",
+                  inFlight ? "blk-inflight" : "",
                 ]
                   .filter(Boolean)
                   .join(" ")}
@@ -416,7 +425,7 @@ export default function PackingField({
                 tabIndex={-1}
                 title={`${pod.key}${pod.blocked ? " — blocked" : ""}${
                   !pod.movable ? " — pinned to this node" : ""
-                }`}
+                }${inFlight ? " — evicted; where it landed arrives with the next snapshot" : ""}`}
               />
             );
           })}
