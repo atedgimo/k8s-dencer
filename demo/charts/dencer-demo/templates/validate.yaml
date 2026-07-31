@@ -3,7 +3,7 @@ Fail loudly on an unknown scenario. Without this a typo would silently install
 only the base workload, and the missing constraint would look like a planner
 bug rather than a values mistake.
 */}}
-{{- $valid := list "a-fragmented" "b-pdb-blocked" "c-topology-spread" "d-anti-affinity" "e-tainted-pool" "f-stateful" -}}
+{{- $valid := list "a-fragmented" "b-pdb-blocked" "c-topology-spread" "d-anti-affinity" "e-tainted-pool" "f-stateful" "g-showcase" -}}
 {{- if not (has .Values.scenario $valid) -}}
 {{- fail (printf "unknown scenario %q; valid scenarios are: %s" .Values.scenario (join ", " $valid)) -}}
 {{- end -}}

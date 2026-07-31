@@ -10,11 +10,16 @@
 #   d-anti-affinity   required pod anti-affinity singletons
 #   e-tainted-pool    dedicated tainted node pool
 #   f-stateful        StatefulSet + an unmanaged pod; the only scenario that
+#   g-showcase        everything at once on a heterogeneous fleet — the demo
+#                     default. Green, Yellow and Red steps; audit findings; a
+#                     preflight blocker; memory-bound wells; a spot/on-demand
+#                     split. Use a single-letter scenario to isolate one
+#                     behaviour for testing.
 #                     produces Red-rated steps
 #
 # The base workload is always deployed so every scenario has something to
 # consolidate; the scenario adds the constraint that should change the ratings.
-scenario: a-fragmented
+scenario: g-showcase
 
 # Ceiling on how large a fabric this chart will build.
 #
@@ -38,6 +43,15 @@ nodes:
   # 30 fake nodes cost nothing to run (no kubelets) but give the bin-packer a
   # problem worth solving. Each is deliberately larger than the real node.
   count: 30
+  # Heterogeneous pools, used when set (the showcase default). A fleet where
+  # every node is identical hides half the product: capacity-type breakdowns,
+  # memory-bound fills and instance types all render as trivia when every
+  # machine is the same. Spot fractions mirror a realistic mixed estate.
+  pools:
+    - { name: std,   count: 12, cpu: "8",  memory: 32Gi,  instanceType: kwok-standard-8, spot: false }
+    - { name: spot,  count: 8,  cpu: "8",  memory: 32Gi,  instanceType: kwok-standard-8, spot: true }
+    - { name: himem, count: 4,  cpu: "4",  memory: 64Gi,  instanceType: kwok-highmem-4,  spot: false }
+    - { name: small, count: 2,  cpu: "4",  memory: 16Gi,  instanceType: kwok-small-4,    spot: true }
   zones:
     - zone-a
     - zone-b
@@ -58,9 +72,11 @@ taintedPool:
     value: batch
 
 base:
-  # 90 pods over 30 nodes at 1 CPU each is ~37% requested: fragmented enough
-  # that a bin-packer should collapse it to roughly a third of the nodes.
-  replicas: 90
+  # Sized so the whole estate (filler + scenario workloads) sits near a third
+  # requested: fragmented enough that the bin-packer's answer is dramatic. On
+  # the showcase's 184-core fleet, 40 fillers plus ~21 cores of scenario
+  # workloads is ~33%.
+  replicas: 40
   resources:
     cpu: "1"
     memory: 2Gi
