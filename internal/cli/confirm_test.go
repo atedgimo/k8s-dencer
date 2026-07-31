@@ -37,10 +37,10 @@ func TestConfirmOnlyExplicitYesConsents(t *testing.T) {
 		{" yes \n", true},
 		{"n\n", false},
 		{"no\n", false},
-		{"\n", false},        // bare enter: the [y/N] default is N
-		{"", false},          // EOF: closed stdin is not consent
-		{"yep\n", false},     // almost is not yes
-		{"y n\n", false},     // ambiguity is not yes
+		{"\n", false},    // bare enter: the [y/N] default is N
+		{"", false},      // EOF: closed stdin is not consent
+		{"yep\n", false}, // almost is not yes
+		{"y n\n", false}, // ambiguity is not yes
 		{"continue\n", false},
 	}
 	for _, c := range cases {
@@ -65,7 +65,7 @@ func TestConfirmShowsWhatWillActuallyHappen(t *testing.T) {
 	text := out.String()
 
 	for _, must := range []string{
-		"node-a",            // the machines, named
+		"node-a", // the machines, named
 		"node-b",
 		"3 pod(s) will be evicted", // 2 moves + 1 move, steps 1 and 2 only
 		"1 step(s) are Red",        // the Red warning

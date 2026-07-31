@@ -368,7 +368,6 @@ func cmdStatus(ctx context.Context, args []string) error {
 	return nil
 }
 
-
 func cmdReclamations(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("reclamations", flag.ExitOnError)
 	g := bind(fs)
