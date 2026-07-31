@@ -207,6 +207,7 @@ CREATE TABLE IF NOT EXISTS reclamations (
 CREATE INDEX IF NOT EXISTS reclamations_pending ON reclamations (resolved_at);
 CREATE INDEX IF NOT EXISTS reclamations_recent ON reclamations (drained_at DESC);
 `
+
 // Schema v4 — M25: converge runs. A run gains a mode and, for converge, the
 // envelope the operator consented to. Stored as columns-plus-blob in the
 // established shape: mode is queried (the executor logs it), the envelope is
@@ -215,7 +216,6 @@ const schemaV4 = `
 ALTER TABLE runs ADD COLUMN mode TEXT NOT NULL DEFAULT '';
 ALTER TABLE runs ADD COLUMN envelope BLOB;
 `
-
 
 // Save persists a record unless it duplicates the latest plan.
 func (s *Store) Save(ctx context.Context, rec store.Record) (bool, error) {
