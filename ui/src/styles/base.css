@@ -1,0 +1,13 @@
+@import "../theme.css";
+
+/*
+ * Layout: verdict on top, packing field and sidebar in the middle, scrubber
+ * and status pinned below. The field is the only thing that scrolls.
+ */
+
+.shell {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto auto;
+  height: 100%;
+  background: var(--ink);
+}

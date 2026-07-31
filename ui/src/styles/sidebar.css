@@ -1,0 +1,436 @@
+/* --------------------------------------------------------------- sidebar */
+
+.sidebar {
+  display: grid;
+  grid-template-rows: minmax(0, 1.15fr) minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+  background: var(--panel);
+  border-left: 1px solid var(--edge);
+}
+
+.panel-title {
+  margin: 0;
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--graphite-dim);
+}
+
+.ledger {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  border-bottom: 1px solid var(--edge);
+}
+
+.ledger-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4) var(--space-2);
+}
+
+.ledger-clear {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-2xs);
+  color: var(--graphite);
+  background: transparent;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+}
+
+.ledger-list {
+  margin: 0;
+  padding: 0 0 var(--space-3);
+  overflow-y: auto;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1.6rem 0.9rem minmax(0, 1fr) 1.6rem auto;
+  gap: var(--space-2);
+  align-items: baseline;
+  width: 100%;
+  padding: var(--space-1) var(--space-4);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-left: 2px solid transparent;
+  transition: background var(--step-fast);
+}
+
+.row:hover {
+  background: var(--panel-raised);
+}
+
+.row-selected {
+  background: var(--panel-raised);
+  border-left-color: var(--chalk);
+}
+
+.row-done {
+  opacity: 0.42;
+}
+
+.row-seq {
+  font-size: var(--text-2xs);
+  color: var(--graphite-dim);
+}
+
+.row-glyph {
+  font-size: var(--text-2xs);
+  line-height: 1;
+}
+
+.row-node {
+  overflow: hidden;
+  font-size: var(--text-xs);
+  color: var(--chalk);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-moves {
+  font-size: var(--text-2xs);
+  color: var(--graphite-dim);
+  text-align: right;
+}
+
+.row-rating {
+  font-size: var(--text-2xs);
+  font-weight: 600;
+}
+
+.row-green .row-glyph,
+.row-green .row-rating {
+  color: var(--risk-green);
+}
+.row-yellow .row-glyph,
+.row-yellow .row-rating {
+  color: var(--risk-yellow);
+}
+.row-red .row-glyph,
+.row-red .row-rating {
+  color: var(--risk-red);
+}
+
+/* The classifier's own words, quoted verbatim. */
+.row-why {
+  margin: 0 1rem 0.6rem 3rem;
+  color: var(--graphite);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+.ledger-empty {
+  padding: 0 var(--space-4) var(--space-4);
+  color: var(--graphite-dim);
+  font-size: var(--text-xs);
+}
+
+/* -------------------------------------------------------------- scrubber */
+
+.scrub {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--space-4);
+  align-items: center;
+  padding: var(--space-3) var(--space-6);
+  background: var(--panel);
+  border-top: 1px solid var(--edge);
+}
+
+.scrub-track {
+  position: relative;
+}
+
+.scrub-ticks {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  left: 0;
+  display: flex;
+  gap: 1px;
+  height: 14px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.tick {
+  flex: 1;
+  opacity: 0.34;
+  transition: opacity var(--step-fast);
+}
+
+.tick-past {
+  opacity: 0.9;
+}
+
+.tick-green {
+  background: var(--risk-green);
+}
+.tick-yellow {
+  background: var(--risk-yellow);
+}
+.tick-red {
+  background: var(--risk-red);
+}
+
+.scrub-track input[type="range"] {
+  position: relative;
+  width: 100%;
+  margin: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.scrub-track input[type="range"]::-webkit-slider-runnable-track {
+  height: 14px;
+  background: transparent;
+}
+
+.scrub-track input[type="range"]::-webkit-slider-thumb {
+  width: 3px;
+  height: 22px;
+  background: var(--chalk);
+  border: 0;
+  border-radius: 1px;
+  -webkit-appearance: none;
+  appearance: none;
+  margin-top: -4px;
+}
+
+.scrub-track input[type="range"]::-moz-range-thumb {
+  width: 3px;
+  height: 22px;
+  background: var(--chalk);
+  border: 0;
+  border-radius: 1px;
+}
+
+.scrub-read {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+  margin: 0;
+  font-size: var(--text-xs);
+}
+
+.scrub-now {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--chalk);
+}
+
+.scrub-of {
+  color: var(--graphite-dim);
+}
+
+.scrub-label {
+  margin-left: 0.4rem;
+  min-width: 16ch;
+  color: var(--graphite);
+}
+
+/* ------------------------------------------------------------ status bar */
+
+.statusbar {
+  display: flex;
+  gap: var(--space-6);
+  align-items: center;
+  padding: var(--space-2) var(--space-6);
+  font-size: var(--text-2xs);
+  color: var(--graphite-dim);
+  background: var(--panel-sunken);
+  border-top: 1px solid var(--edge);
+}
+
+.statusbar-link {
+  margin-left: auto;
+  color: var(--graphite);
+  text-decoration: none;
+}
+
+.statusbar-link:hover {
+  color: var(--chalk);
+}
+
+/* ----------------------------------------------------------- placeholder */
+
+.placeholder {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  max-width: 52ch;
+  margin-inline: auto;
+  gap: var(--space-2);
+  grid-row: 1 / -1;
+  padding: var(--space-8);
+  text-align: center;
+}
+
+/* Quieter than the detail above it, and monospaced where it carries a command
+   or a threshold — those are values to read exactly, not prose. */
+.placeholder-hint {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-1);
+  color: var(--graphite);
+  font-size: var(--text-sm);
+  text-align: left;
+}
+
+.placeholder h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.placeholder p {
+  margin: 0;
+  max-width: 34rem;
+  color: var(--graphite);
+  font-size: var(--text-md);
+  /* A 403 carries the kubectl command that grants the permission; collapsing
+     it onto one line would make it unreadable and un-copyable. */
+  white-space: pre-line;
+}
+
+.placeholder-error h2 {
+  color: var(--risk-red);
+}
+
+/* --------------------------------------------------------------- sign-in */
+
+.signin {
+  grid-row: 1 / -1;
+  align-self: center;
+  justify-self: center;
+  width: min(30rem, calc(100vw - 3rem));
+  padding: var(--space-6);
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+}
+
+.signin h2 {
+  margin: 0 0 0.65rem;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.signin-detail {
+  margin: 0 0 0.9rem;
+  color: var(--graphite);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+
+.signin form {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.signin label {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--graphite-dim);
+}
+
+.signin input {
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--chalk);
+  background: var(--panel-sunken);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+}
+
+.signin button {
+  justify-self: start;
+  margin-top: 0.35rem;
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--chalk);
+  border: 0;
+  border-radius: var(--radius-sm);
+}
+
+.signin button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.signin-help {
+  margin-top: 1.1rem;
+  font-size: var(--text-sm);
+  color: var(--graphite);
+}
+
+.signin-help summary {
+  cursor: pointer;
+  color: var(--graphite-dim);
+}
+
+.signin-help pre {
+  margin: 0.6rem 0;
+  padding: var(--space-2) var(--space-3);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  background: var(--panel-sunken);
+  border-radius: var(--radius-sm);
+}
+
+.signin code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+/* ------------------------------------------------------------ responsive */
+
+@media (max-width: 1100px) {
+  .verdict {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+  .verdict-breakdown {
+    flex-wrap: wrap;
+  }
+  .workspace {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+  .sidebar {
+    grid-template-rows: auto auto;
+    border-top: 1px solid var(--edge);
+    border-left: 0;
+    max-height: 22rem;
+    overflow-y: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .verdict,
+  .scrub,
+  .statusbar {
+    padding-inline: var(--space-4);
+  }
+  .scrub-label {
+    display: none;
+  }
+}
