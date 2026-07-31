@@ -126,8 +126,7 @@ consolidation's.
 9. **Reclaimer detection** — warn *before* draining when no autoscaler or
    Karpenter is present to remove the emptied node (drained-but-not-removed
    is pure cost).
-10. **Planner lookahead** — evaluate whether draining A forecloses draining B
-    and C; adopt only if measurably better plans result.
+
 
 ## Explicitly not planned
 
@@ -139,6 +138,12 @@ Decisions, not omissions — recorded so they are not re-litigated by accident:
   approves eviction; scheduled unattended execution stays out until the
   closed-loop envelope model proves itself
 - **Multi-cluster orchestration** — one cluster per install
+- **Planner lookahead** — measured before building, 2026-08: greedy already
+  averages 0.2 nodes *below* the constraint-free capacity bound across 15
+  synthetic runs (worst case +2, small clusters only). A lookahead can only
+  recover the gap to that bound, and there is essentially none. The measuring
+  test stays in the suite and reopens the question automatically if the
+  planner ever drifts
 
 ---
 
