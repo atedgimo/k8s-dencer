@@ -114,11 +114,21 @@ type Stats struct {
 	Ratings     map[string]int `json:"ratings"`
 	PodsMoved   int            `json:"podsMoved"`
 
-	// nodesAfter, cpuReclaimedMilli and memoryReclaimedBytes used to live
-	// here. Nothing read any of them, and the freed-capacity pair were
-	// plan-time predictions dressed in the past tense besides. Removed when a
-	// guard over this struct was finally written; they can come back the day
-	// something reads them.
+	// What the reclaimable nodes are actually worth: the summed allocatable
+	// of every node the plan drains. Nodes are not fungible — "reclaim 15
+	// nodes" may be a rack of 96-core machines or a drawer of 2-core ones,
+	// and the count alone cannot say whether the plan is worth running.
+	//
+	// A near-identical pair lived here once, past-tensed as "reclaimed", and
+	// was removed because nothing read them — the contract test over this
+	// struct enforces that in both directions. They return under the plan's
+	// honest tense and with a reader in the verdict, which is exactly the
+	// bar the removal comment set: "they can come back the day something
+	// reads them."
+	CPUReclaimableMilli int64 `json:"cpuReclaimableMilli"`
+	MemReclaimableBytes int64 `json:"memReclaimableBytes"`
+
+	// nodesAfter also lived here once; still nothing reads it.
 }
 
 // Build renders the payload at default detail.
@@ -197,7 +207,7 @@ func BuildWith(plan *model.Plan, snap *model.ClusterSnapshot, analysis *constrai
 	if p.Aggregated {
 		// The node elements above already carry everything the density view
 		// draws. Skipping the pod loop is the entire saving.
-		p.Stats = buildStats(plan, targets)
+		p.Stats = buildStats(plan, snap, targets)
 		return p
 	}
 
@@ -230,16 +240,20 @@ func BuildWith(plan *model.Plan, snap *model.ClusterSnapshot, analysis *constrai
 		p.Elements = append(p.Elements, Element{Data: data})
 	}
 
-	p.Stats = buildStats(plan, targets)
+	p.Stats = buildStats(plan, snap, targets)
 	return p
 }
 
-func buildStats(plan *model.Plan, targets map[string]model.Move) Stats {
+func buildStats(plan *model.Plan, snap *model.ClusterSnapshot, targets map[string]model.Move) Stats {
 	ratings := plan.CountByRating()
+	cpu, mem := model.ReclaimableCapacity(plan, snap)
+
 	return Stats{
-		NodesBefore: plan.NodesBefore,
-		Reclaimable: plan.ReclaimedNodes(),
-		Steps:       len(plan.Steps),
+		NodesBefore:         plan.NodesBefore,
+		Reclaimable:         plan.ReclaimedNodes(),
+		CPUReclaimableMilli: cpu,
+		MemReclaimableBytes: mem,
+		Steps:               len(plan.Steps),
 		Ratings: map[string]int{
 			"Green":  ratings[model.ImpactGreen],
 			"Yellow": ratings[model.ImpactYellow],

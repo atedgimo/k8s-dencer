@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { GraphStats, Impact, PlanStep } from "../api";
+import { formatBytes, formatCPU, GraphStats, Impact, PlanStep } from "../api";
 import { GLYPH } from "./Impact";
 
 /**
@@ -76,6 +76,19 @@ export default function Verdict({
         <h1 className="verdict-line">
           Reclaim <span className="verdict-figure num">{stats.reclaimable}</span> of{" "}
           <span className="num">{stats.nodesBefore}</span> nodes
+          {/* What the count is worth. Nodes are not fungible: "15 nodes" may
+              be a rack of 96-core machines or a drawer of 2-core ones, and
+              the count alone cannot say whether this plan matters. Zero is
+              omitted rather than rendered — "0 cores" under a real headline
+              would read as a bug, and the one honest case for it (a plan
+              with no steps) already says so in words. */}
+          {stats.cpuReclaimableMilli > 0 && (
+            <span className="verdict-capacity num">
+              {" "}
+              · {formatCPU(stats.cpuReclaimableMilli)} cores ·{" "}
+              {formatBytes(stats.memReclaimableBytes)}
+            </span>
+          )}
         </h1>
         {/* The nodes, named. "Run the 5 safe steps" is abstract; a list of
             machines is something an operator can picture and sanity-check

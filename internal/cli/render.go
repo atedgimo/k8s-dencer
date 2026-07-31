@@ -106,6 +106,19 @@ func Encode(w io.Writer, f Format, v any) error {
 	return fmt.Errorf("unknown format %q", f)
 }
 
+// reclaimSummary states what the reclaimable count is worth. A node count
+// alone cannot say whether a plan matters — 15 nodes may be a rack of 96-core
+// machines or a drawer of 2-core ones. Older servers do not send the capacity
+// fields; a bare count is then the honest fallback, not a zero.
+func reclaimSummary(env *PlanEnvelope) string {
+	n := env.Plan.ReclaimedNodes()
+	if env.CPUReclaimableMilli <= 0 {
+		return fmt.Sprintf("%d reclaimable", n)
+	}
+	return fmt.Sprintf("%d reclaimable (%s cores, %s)",
+		n, formatMilli(env.CPUReclaimableMilli), formatBytes(env.MemReclaimableBytes))
+}
+
 // PrintPlan renders a plan as a table.
 func PrintPlan(w io.Writer, env *PlanEnvelope, awaiting int) {
 	p := env.Plan
@@ -113,7 +126,7 @@ func PrintPlan(w io.Writer, env *PlanEnvelope, awaiting int) {
 
 	fmt.Fprintf(w, "%s  %s\n", bold("plan "+p.ID), dim(fmt.Sprintf("%s old, %s", age, env.Strategy)))
 	fmt.Fprintf(w, "%d nodes now, %d after, %s\n\n",
-		p.NodesBefore, p.NodesAfter, bold(fmt.Sprintf("%d reclaimable", p.ReclaimedNodes())))
+		p.NodesBefore, p.NodesAfter, bold(reclaimSummary(env)))
 
 	if len(p.Steps) == 0 {
 		fmt.Fprintln(w, "No steps. Nothing to consolidate — every node is either needed or undrainable.")
@@ -425,4 +438,29 @@ func humanDuration(d time.Duration) string {
 	default:
 		return fmt.Sprintf("%ds", int(d.Seconds()))
 	}
+}
+
+func formatMilli(milli int64) string {
+	if milli%1000 == 0 {
+		return fmt.Sprintf("%d", milli/1000)
+	}
+	return fmt.Sprintf("%.1f", float64(milli)/1000)
+}
+
+func formatBytes(b int64) string {
+	const unit = 1024
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	v := float64(b) / float64(div)
+	units := []string{"KiB", "MiB", "GiB", "TiB"}
+	if v == float64(int64(v)) {
+		return fmt.Sprintf("%d %s", int64(v), units[exp])
+	}
+	return fmt.Sprintf("%.1f %s", v, units[exp])
 }

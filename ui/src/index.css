@@ -150,6 +150,15 @@
   font-weight: 600;
 }
 
+/* What the node count is worth, in capacity. Quieter than the headline it
+   qualifies — the count is the verdict, this is its denomination. */
+.verdict-capacity {
+  font-size: 0.55em;
+  font-weight: 400;
+  color: var(--graphite);
+  letter-spacing: 0.01em;
+}
+
 .verdict-sub {
   margin: 0.5rem 0 0;
   max-width: 46ch;

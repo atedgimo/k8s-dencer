@@ -19,6 +19,11 @@ type PlanEnvelope struct {
 	Strategy string         `json:"strategy"`
 	StoredAt time.Time      `json:"storedAt"`
 	Ratings  map[string]int `json:"ratings"`
+	// What the reclaimable count is worth — the summed allocatable of every
+	// node the plan drains. Server-computed, so the CLI and the UI cannot
+	// disagree about it.
+	CPUReclaimableMilli int64 `json:"cpuReclaimableMilli"`
+	MemReclaimableBytes int64 `json:"memReclaimableBytes"`
 }
 
 type RunEnvelope struct {
