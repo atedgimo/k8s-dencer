@@ -67,6 +67,18 @@ updates:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
     groups:
+      # react and react-dom are version-locked to each other and to their
+      # @types, exactly as the Kubernetes libraries are. Ungrouped, Dependabot
+      # split them across two PRs and each failed with ERESOLVE before any code
+      # was compiled — @types/react@19 meeting @types/react-dom@18. The failure
+      # looked like a breaking upgrade and was really a broken split.
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+
       # The bundled typefaces are a deliberate, pinned choice — Archivo and IBM
       # Plex, latin subsets only, vendored so an air-gapped cluster still gets
       # designed type. Grouped so a font bump is visibly a font bump rather
@@ -75,7 +87,12 @@ updates:
         patterns: ["@fontsource*"]
       npm-minor-and-patch:
         patterns: ["*"]
-        exclude-patterns: ["@fontsource*"]
+        exclude-patterns:
+          - "@fontsource*"
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
         update-types: [minor, patch]
 
   # -------------------------------------------------------- GitHub Actions
