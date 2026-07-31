@@ -12,8 +12,12 @@ only thing that has ever removed a drained node is our own test script.
 
 ## What it will cost
 
-**Nothing, on a new account.** The $300 / 90-day free trial covers it many
-thousand times over.
+**Nothing, on the free trial.** The $300 / 90-day credit covers it many
+thousand times over. Check what you have left with:
+
+```bash
+gcloud billing accounts list
+```
 
 | | |
 |---|---|
@@ -71,6 +75,21 @@ brew install --cask google-cloud-sdk     # macOS
 
 Anything else: <https://cloud.google.com/sdk/docs/install>
 
+**Do not skip the Homebrew caveat.** The cask links `gcloud` into `bin` but
+leaves the SDK's other components — including `gke-gcloud-auth-plugin`, which
+kubectl needs to authenticate to GKE at all — in a directory that is not on
+`PATH`. `make gke-setup` checks for it, and `hack/e2e.sh` finds it regardless,
+but for your own `kubectl` against the cluster:
+
+```bash
+export PATH="$(brew --prefix)/share/google-cloud-sdk/bin:$PATH"
+```
+
+Left unfixed this produces a confusing failure rather than a clear one: the
+first few kubectl calls succeed on the token `get-credentials` leaves behind,
+so a run gets several minutes in and only then reports that it cannot reach the
+API server.
+
 ## 5. Log in and select the project
 
 ```bash
@@ -88,9 +107,12 @@ Idempotent, and safe to re-run. It:
 
 - confirms you are logged in and billing is linked
 - enables `container.googleapis.com` and `compute.googleapis.com`
-- **checks your preemptible-CPU quota** — a brand-new project can have zero,
-  and without this check the failure arrives several minutes into cluster
-  creation with a message that reads like a bug in our script
+- **checks your preemptible-CPU quota.** A new project's `PREEMPTIBLE_CPUS`
+  limit is **zero** — this is normal, not a misconfiguration, and it has to be
+  requested. Rather than block on that, the run falls back to on-demand nodes:
+  about 7 cents for 25 minutes instead of 2. Request Spot at
+  [IAM & Admin → Quotas](https://console.cloud.google.com/iam-admin/quotas) if
+  you plan to run this often
 - offers to create a **$1 budget alert**
 - prints what a run costs
 
@@ -138,9 +160,11 @@ make cloud-e2e-clean                # if it is not
 
 ### Failures I would expect first
 
-**`PREEMPTIBLE_CPUS` quota exceeded.** New projects often start at zero. Either
-request an increase at
-<https://console.cloud.google.com/iam-admin/quotas>, or run smaller:
+**Nothing to fix — the run says "using on-demand nodes".** That is the
+preemptible quota being zero, which is the default on a new project. It costs a
+few cents more and is otherwise identical.
+
+**Genuinely out of quota.** If on-demand `CPUS` is also short, run smaller:
 
 ```bash
 AGENTS=2 GCP_MACHINE=e2-small make cloud-e2e
