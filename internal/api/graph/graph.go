@@ -102,14 +102,23 @@ type Data struct {
 
 // Stats are the headline figures for the UI's tile row.
 type Stats struct {
-	NodesBefore     int            `json:"nodesBefore"`
-	NodesAfter      int            `json:"nodesAfter"`
-	Reclaimed       int            `json:"reclaimed"`
-	Steps           int            `json:"steps"`
-	Ratings         map[string]int `json:"ratings"`
-	PodsMoved       int            `json:"podsMoved"`
-	CPUReclaimed    int64          `json:"cpuReclaimedMilli"`
-	MemoryReclaimed int64          `json:"memoryReclaimedBytes"`
+	NodesBefore int `json:"nodesBefore"`
+
+	// Reclaimable, not "reclaimed": what the plan *would* free if executed in
+	// full. Whether anything actually removed a drained node is a separate,
+	// observed fact — see /api/v1/reclamations. This field was called
+	// "reclaimed" until the reclamation loop landed, which is precisely how
+	// the product came to report a prediction in the language of an outcome.
+	Reclaimable int            `json:"reclaimable"`
+	Steps       int            `json:"steps"`
+	Ratings     map[string]int `json:"ratings"`
+	PodsMoved   int            `json:"podsMoved"`
+
+	// nodesAfter, cpuReclaimedMilli and memoryReclaimedBytes used to live
+	// here. Nothing read any of them, and the freed-capacity pair were
+	// plan-time predictions dressed in the past tense besides. Removed when a
+	// guard over this struct was finally written; they can come back the day
+	// something reads them.
 }
 
 // Build renders the payload at default detail.
@@ -163,15 +172,8 @@ func BuildWith(plan *model.Plan, snap *model.ClusterSnapshot, analysis *constrai
 		}
 	}
 
-	var reclaimedCPU, reclaimedMem int64
-
 	for _, n := range snap.Nodes {
 		requested := snap.RequestedOnNode(n.Name)
-		_, isDrained := drainStep[n.Name]
-		if isDrained {
-			reclaimedCPU += n.Allocatable.MilliCPU
-			reclaimedMem += n.Allocatable.MemoryBytes
-		}
 		p.Elements = append(p.Elements, Element{
 			Data: Data{
 				ID:             nodeID(n.Name),
@@ -195,7 +197,7 @@ func BuildWith(plan *model.Plan, snap *model.ClusterSnapshot, analysis *constrai
 	if p.Aggregated {
 		// The node elements above already carry everything the density view
 		// draws. Skipping the pod loop is the entire saving.
-		p.Stats = buildStats(plan, targets, reclaimedCPU, reclaimedMem)
+		p.Stats = buildStats(plan, targets)
 		return p
 	}
 
@@ -228,25 +230,22 @@ func BuildWith(plan *model.Plan, snap *model.ClusterSnapshot, analysis *constrai
 		p.Elements = append(p.Elements, Element{Data: data})
 	}
 
-	p.Stats = buildStats(plan, targets, reclaimedCPU, reclaimedMem)
+	p.Stats = buildStats(plan, targets)
 	return p
 }
 
-func buildStats(plan *model.Plan, targets map[string]model.Move, reclaimedCPU, reclaimedMem int64) Stats {
+func buildStats(plan *model.Plan, targets map[string]model.Move) Stats {
 	ratings := plan.CountByRating()
 	return Stats{
 		NodesBefore: plan.NodesBefore,
-		NodesAfter:  plan.NodesAfter,
-		Reclaimed:   plan.ReclaimedNodes(),
+		Reclaimable: plan.ReclaimedNodes(),
 		Steps:       len(plan.Steps),
 		Ratings: map[string]int{
 			"Green":  ratings[model.ImpactGreen],
 			"Yellow": ratings[model.ImpactYellow],
 			"Red":    ratings[model.ImpactRed],
 		},
-		PodsMoved:       len(targets),
-		CPUReclaimed:    reclaimedCPU,
-		MemoryReclaimed: reclaimedMem,
+		PodsMoved: len(targets),
 	}
 }
 

@@ -78,17 +78,40 @@ func TestUITypeDoesNotDeclareFieldsThePayloadNoLongerSends(t *testing.T) {
 	}
 }
 
+// jsonTags collects the json field names off a struct in graph.go.
 func jsonTags(t *testing.T) []string {
+	return jsonTagsOf(t, "Data")
+}
+
+// Stats is checked too. It was not, and the omission cost something real: the
+// M22 rename of Stats.Reclaimed to Reclaimable passed every test while
+// ui/src/api.ts still declared "reclaimed", which would have read as undefined
+// at runtime and rendered the headline figure blank. Data was guarded and
+// Stats was not, for no reason other than Data being the one that had gone
+// wrong before.
+func TestEveryStatsFieldIsReadByTheUI(t *testing.T) {
+	ui := uiSources(t)
+	for _, f := range jsonTagsOf(t, "Stats") {
+		pat := regexp.MustCompile(`[.\[]\s*["']?` + regexp.QuoteMeta(f) + `\b`)
+		if !pat.MatchString(ui) {
+			t.Errorf("Stats.%s is sent to every client but the UI never reads it; "+
+				"remove it, or wire it up", f)
+		}
+	}
+}
+
+func jsonTagsOf(t *testing.T, typeName string) []string {
 	t.Helper()
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "graph.go", nil, 0)
 	if err != nil {
 		t.Fatalf("parse graph.go: %v", err)
 	}
+	_ = typeName
 	var out []string
 	ast.Inspect(f, func(n ast.Node) bool {
 		ts, ok := n.(*ast.TypeSpec)
-		if !ok || ts.Name.Name != "Data" {
+		if !ok || ts.Name.Name != typeName {
 			return true
 		}
 		st, ok := ts.Type.(*ast.StructType)

@@ -46,6 +46,10 @@ type Options struct {
 	// leave it nil.
 	Metrics *telemetry.Metrics
 
+	// Reclamations records drained nodes so the planner can later observe
+	// whether anything removed them. Nil disables tracking.
+	Reclamations store.ReclamationStore
+
 	// StepTimeout bounds a single step end to end. Exceeding it aborts.
 	StepTimeout time.Duration
 
@@ -101,6 +105,9 @@ type Executor struct {
 	log     *slog.Logger
 	opts    Options
 	metrics *telemetry.Metrics
+	// reclamations is optional: nil disables tracking rather than failing, so
+	// a caller that has not wired a store still drains.
+	reclamations store.ReclamationStore
 }
 
 // New builds an executor.
@@ -111,13 +118,14 @@ func New(cluster Cluster, runs store.ExecutionStore, plans store.Store, log *slo
 		guard = guard.WithWindows(opts.Windows)
 	}
 	return &Executor{
-		cluster: cluster,
-		runs:    runs,
-		plans:   plans,
-		guard:   guard,
-		log:     log,
-		opts:    opts,
-		metrics: opts.Metrics,
+		cluster:      cluster,
+		runs:         runs,
+		plans:        plans,
+		guard:        guard,
+		log:          log,
+		opts:         opts,
+		metrics:      opts.Metrics,
+		reclamations: opts.Reclamations,
 	}
 }
 
@@ -356,7 +364,41 @@ func (e *Executor) drain(ctx context.Context, run store.Run, step model.PlanStep
 	}
 	e.metrics.RecoveryWaitSeconds.Observe(time.Since(recoverStart).Seconds())
 	e.metrics.NodesDrainedTotal.Inc()
+	e.recordDrain(ctx, run, step)
 	return nil
+}
+
+// recordDrain opens a reclamation record for the node just emptied.
+//
+// Draining is where this component's responsibility ends: something else
+// removes the machine, and whether anything does is the question the product
+// could not previously answer. The record is opened here, at the one moment we
+// know for certain the node is empty and cordoned, and the planner closes it
+// when the node disappears or comes back.
+//
+// A store failure is logged and swallowed, exactly as the audit trail is: the
+// node is already drained, and abandoning a completed step to preserve a
+// measurement would be the worse trade.
+func (e *Executor) recordDrain(ctx context.Context, run store.Run, step model.PlanStep) {
+	if e.reclamations == nil || step.TargetNode == "" {
+		return
+	}
+	// Detached: a cancelled context must not lose the record of work that
+	// already happened.
+	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+
+	err := e.reclamations.RecordDrain(writeCtx, store.Reclamation{
+		Node:      step.TargetNode,
+		DrainedAt: time.Now().UTC(),
+		RunID:     run.ID,
+		PlanID:    run.PlanID,
+		Step:      step.SequenceNumber,
+	})
+	if err != nil {
+		e.log.Error("could not record the drain for reclamation tracking",
+			"node", step.TargetNode, "run", run.ID, "error", err)
+	}
 }
 
 // waitGone blocks until the pod has left the API server's view.

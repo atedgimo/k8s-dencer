@@ -53,6 +53,10 @@ interface Props {
   onSelectPod: (key: string | null) => void;
   selectedNode: string | null;
   selectedPod: string | null;
+  /** Nodes drained earlier whose machine is still present. Observed, not planned. */
+  awaiting?: number;
+  /** Nodes whose Node object actually disappeared. Observed, not planned. */
+  reclaimedForReal?: number;
 }
 
 export default function PackingField({
@@ -64,6 +68,8 @@ export default function PackingField({
   onSelectPod,
   selectedNode,
   selectedPod,
+  awaiting = 0,
+  reclaimedForReal = 0,
 }: Props) {
   const model: Model = useMemo(() => toModel(graph), [graph]);
   const peak = useMemo(() => peakOccupancy(model, steps), [model, steps]);
@@ -324,7 +330,7 @@ export default function PackingField({
         </div>
       </div>
 
-      <ReclaimedTray count={reclaimed.size} total={plannedDrains} />
+      <ReclaimedTray count={reclaimed.size} total={plannedDrains} awaiting={awaiting} reclaimedForReal={reclaimedForReal} />
     </div>
   );
 }
@@ -339,14 +345,43 @@ export default function PackingField({
  * your autoscaler or your node-pool tooling to take away", and the label has
  * to say that rather than implying the capacity is already gone.
  */
-function ReclaimedTray({ count, total }: { count: number; total: number }) {
+function ReclaimedTray({
+  count,
+  total,
+  awaiting,
+  reclaimedForReal,
+}: {
+  count: number;
+  total: number;
+  awaiting: number;
+  reclaimedForReal: number;
+}) {
   return (
     <div className="tray" aria-live="polite">
       <span className="tray-label mono">drained</span>
       <span className="tray-count num">{count}</span>
       <span className="tray-of mono">of {total}</span>
-      {count > 0 && (
+      {count > 0 && awaiting === 0 && reclaimedForReal === 0 && (
         <span className="tray-hint">empty and cordoned — ready to remove</span>
+      )}
+      {/* Observed, not planned. Separated from the scrubber tally above
+          because that one answers "what would this plan do" and these answer
+          "what actually happened last time", and merging them is exactly how
+          a prediction ends up being read as a result. */}
+      {reclaimedForReal > 0 && (
+        <span className="tray-observed">
+          <span className="tray-observed-count num">{reclaimedForReal}</span>
+          <span className="mono"> reclaimed</span>
+        </span>
+      )}
+      {awaiting > 0 && (
+        <span
+          className="tray-awaiting"
+          title="Drained earlier; the machine is still there. Something else has to remove it."
+        >
+          <span className="tray-awaiting-count num">{awaiting}</span>
+          <span className="mono"> awaiting</span>
+        </span>
       )}
       <div className="tray-marks" aria-hidden="true">
         {Array.from({ length: total }, (_, i) => (

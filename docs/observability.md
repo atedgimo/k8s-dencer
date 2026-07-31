@@ -38,7 +38,14 @@ series is a question; a series pinned at zero is a wrong answer.
 **Planner** — `dencer_plan_age_seconds`, `dencer_plan_steps{impact}`,
 `dencer_plan_nodes_reclaimable`, `dencer_snapshot_nodes`,
 `dencer_snapshot_pods`, `dencer_plan_cycle_seconds`,
-`dencer_snapshot_failures_total`
+`dencer_snapshot_failures_total`, `dencer_nodes_awaiting_reclamation`,
+`dencer_reclamation_seconds`, `dencer_nodes_returned_total`
+
+The reclamation series are the only ones that describe an outcome rather than a
+plan. **`dencer_nodes_awaiting_reclamation` is the one to alert on**: it counts
+nodes this product told someone to drain whose machine is still there. Rising
+without falling means nothing is reclaiming them, and the capacity is
+unavailable and still being paid for.
 
 **Executor** — `dencer_runs_total{status}`, `dencer_guard_refusals_total{rule}`,
 `dencer_eviction_duration_seconds`, `dencer_evictions_total{outcome}`,

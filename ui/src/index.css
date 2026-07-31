@@ -1477,3 +1477,34 @@
 .box-reclaimed .box-density-count {
   color: var(--muted);
 }
+
+/* Observed reclamation, in the tray.
+   Deliberately quieter than the drained tally beside it. That number answers
+   "what would this plan do"; these answer "what actually happened", and the
+   two must not read as one figure — conflating them is how the product came
+   to report a prediction as a result. */
+.tray-observed,
+.tray-awaiting {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.2rem;
+  margin-left: 0.75rem;
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+.tray-observed-count {
+  color: var(--chalk);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Yellow, and only here, because a node drained-but-never-removed is capacity
+   you are still paying for. Never colour alone: the word "awaiting" carries
+   the same meaning for anyone who cannot see it. */
+.tray-awaiting {
+  color: var(--risk-yellow);
+}
+
+.tray-awaiting-count {
+  font-variant-numeric: tabular-nums;
+}

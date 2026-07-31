@@ -40,7 +40,6 @@ export interface Plan {
   status: string;
   steps: PlanStep[];
   nodesBefore: number;
-  nodesAfter: number;
 }
 
 export interface PlanResponse {
@@ -92,13 +91,10 @@ export interface GraphElement {
 
 export interface GraphStats {
   nodesBefore: number;
-  nodesAfter: number;
-  reclaimed: number;
+  reclaimable: number;
   steps: number;
   ratings: Record<Impact, number>;
   podsMoved: number;
-  cpuReclaimedMilli: number;
-  memoryReclaimedBytes: number;
 }
 
 export interface GraphPayload {
@@ -253,8 +249,41 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return (await res.json()) as T;
 }
 
+/**
+ * What actually became of a drained node.
+ *
+ * Every other reclamation figure in this app is a plan-time prediction. This
+ * one is observed: the planner watches nodes, and a drained node either
+ * disappears (something removed it) or comes back (someone uncordoned it).
+ */
+export interface Reclamation {
+  node: string;
+  drainedAt: string;
+  runId?: string;
+  planId?: string;
+  step?: number;
+  resolvedAt?: string;
+  outcome?: "reclaimed" | "returned";
+}
+
+export interface ReclamationsResponse {
+  tracking: boolean;
+  awaiting: Reclamation[];
+  recent: Reclamation[];
+  stats: {
+    awaiting: number;
+    reclaimed: number;
+    returned: number;
+    medianReclamationSeconds: number;
+    windowDays: number;
+  };
+}
+
 export const api = {
   latestPlan: (signal?: AbortSignal) => get<PlanResponse>("/api/v1/plans/latest", signal),
+
+  reclamations: (signal?: AbortSignal) =>
+    get<ReclamationsResponse>("/api/v1/reclamations", signal),
 
   /** A specific plan by id. Used to keep a pinned view on the plan an operator
    *  is actually working against, rather than whatever is newest. */

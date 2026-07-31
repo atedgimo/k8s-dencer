@@ -98,6 +98,7 @@ func run(ctx context.Context, log *slog.Logger) error {
 		Windows:       windows,
 		Readiness:     executor.Readiness(env("EXECUTOR_READINESS", string(executor.ReadinessReady))),
 		Metrics:       metrics,
+		Reclamations:  db,
 	})
 
 	health := &httpserver.Health{}

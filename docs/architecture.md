@@ -130,6 +130,7 @@ GET /api/v1/plans/{id}/graph                         Cytoscape elements + stat t
 GET /api/v1/plans/{id}/snapshot                      the cluster state it was planned against
 GET /api/v1/plans/{id}/constraints[/{ns}/{pod}]      constraint analysis
 GET /api/v1/events                                   live plan changes and run progress (SSE)
+GET /api/v1/reclamations                             what became of drained nodes (observed)
 GET /api/v1/runs                                     the in-flight run, if any
 GET /api/v1/runs/{runId}                             one run plus its full audit trail
 GET /api/v1/plans/{id}/runs                          runs against a plan

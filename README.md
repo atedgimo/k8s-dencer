@@ -41,6 +41,9 @@ happens to be able to execute, not an autoscaler with a UI.
   API server itself enforces your PodDisruptionBudgets.
 - **Refuses steps that became unsafe** between planning and execution, naming
   the rule that stopped it.
+- **Checks whether draining actually saved anything.** k8s-dencer never deletes
+  a node — something else does — so it watches, and tells you when a node you
+  drained is still sitting there.
 - **Answers questions in natural language** through an optional Kagent agent
   that quotes the analyzer rather than re-deriving anything.
 - **Works without the UI.** `dencer` (also a `kubectl` plugin) does everything

@@ -7,6 +7,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -27,6 +28,7 @@ import (
 	"github.com/atedgimo/k8s-dencer/internal/impact"
 	"github.com/atedgimo/k8s-dencer/internal/model"
 	"github.com/atedgimo/k8s-dencer/internal/planner"
+	"github.com/atedgimo/k8s-dencer/internal/reclaim"
 	"github.com/atedgimo/k8s-dencer/internal/store"
 	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlite"
 	"github.com/atedgimo/k8s-dencer/internal/telemetry"
@@ -272,6 +274,11 @@ func collect(
 	m.PlanProduced(time.Now())
 	m.PlanCycleTime.Observe(time.Since(cycleStart).Seconds())
 
+	// The planner is the only component watching nodes continuously, so it is
+	// the one that can tell whether a node the executor drained was actually
+	// removed. Done against the snapshot just taken, so it costs no API calls.
+	observeReclamations(ctx, log, db, snap, m)
+
 	stored, err := db.Save(ctx, store.Record{
 		Plan:     plan,
 		Snapshot: snap,
@@ -369,4 +376,60 @@ func duration(log *slog.Logger, key string, fallback time.Duration) time.Duratio
 		return fallback
 	}
 	return d
+}
+
+// observeReclamations closes out drained nodes that have since been removed or
+// put back into service.
+//
+// Runs every cycle against the snapshot already in hand. The whole rule lives
+// in internal/reclaim as a pure function so it is testable without a cluster;
+// this is only the plumbing around it.
+//
+// Failures are logged and dropped. Reclamation tracking is a measurement laid
+// over the product, and a database hiccup must not stop the planner planning.
+func observeReclamations(ctx context.Context, log *slog.Logger, db store.Store,
+	snap *model.ClusterSnapshot, m *telemetry.Metrics) {
+	tracker, ok := db.(store.ReclamationStore)
+	if !ok {
+		return
+	}
+
+	pending, err := tracker.PendingReclamations(ctx)
+	if err != nil {
+		log.Error("could not read pending reclamations", "error", err)
+		return
+	}
+	m.NodesAwaitingReclamation.Set(float64(len(pending)))
+	if len(pending) == 0 {
+		return
+	}
+
+	now := time.Now().UTC()
+	for _, t := range reclaim.Resolve(pending, snap, now) {
+		if err := tracker.ResolveReclamation(ctx, t.Reclamation.Node, t.Reclamation.DrainedAt, t.Outcome, t.At); err != nil {
+			if !errors.Is(err, store.ErrNotFound) {
+				log.Error("could not resolve reclamation", "node", t.Reclamation.Node, "error", err)
+			}
+			continue
+		}
+		switch t.Outcome {
+		case store.ReclaimedGone:
+			// The moment the product exists to produce, and the first time it
+			// has ever been recorded rather than assumed.
+			log.Info("node reclaimed", "node", t.Reclamation.Node,
+				"after", t.Took.Round(time.Second), "run", t.Reclamation.RunID)
+			m.ReclamationSeconds.Observe(t.Took.Seconds())
+		case store.ReclaimedReturned:
+			log.Info("drained node returned to service", "node", t.Reclamation.Node,
+				"run", t.Reclamation.RunID)
+			m.NodesReturnedTotal.Inc()
+		}
+	}
+
+	// Recount rather than subtract: a drain recorded by the executor between
+	// the read above and now would make arithmetic wrong, and this gauge is
+	// the one an operator alerts on.
+	if remaining, err := tracker.PendingReclamations(ctx); err == nil {
+		m.NodesAwaitingReclamation.Set(float64(len(remaining)))
+	}
 }

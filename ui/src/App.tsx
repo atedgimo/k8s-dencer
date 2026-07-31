@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Impact, PlanStep } from "./api";
+import { api, Impact, PlanStep } from "./api";
 import Inspector, { Selection } from "./components/Inspector";
 import PackingField from "./components/PackingField";
 import { ConfirmRun, RunTrail } from "./components/RunPanel";
@@ -24,6 +24,33 @@ export default function App() {
 
   const [step, setStep] = useState(0);
   const [playing, setPlaying] = useState(false);
+
+  // Observed reclamation, as distinct from what the plan predicts. Polled
+  // rather than pushed: it changes on the planner's resync, which is tens of
+  // seconds, and it is never the reason someone is watching the screen.
+  const [reclaimed, setReclaimed] = useState({ awaiting: 0, reclaimed: 0 });
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const r = await api.reclamations();
+        if (!cancelled && r.tracking) {
+          setReclaimed({ awaiting: r.stats.awaiting, reclaimed: r.stats.reclaimed });
+        }
+      } catch {
+        // Reclamation tracking is supplementary. A backend that does not have
+        // it, or a transient failure, must never blank the page — the field
+        // and the ledger are what the operator came for.
+      }
+    };
+    void load();
+    const t = setInterval(load, 30_000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, []);
   const [selectedStep, setSelectedStep] = useState<number | null>(null);
   const [selection, setSelection] = useState<Selection>(null);
   const [focusedRating, setFocusedRating] = useState<Impact | null>(null);
@@ -184,6 +211,8 @@ export default function App() {
 
           <main className="workspace">
             <PackingField
+              awaiting={reclaimed.awaiting}
+              reclaimedForReal={reclaimed.reclaimed}
               graph={state.graph}
               steps={steps}
               step={step}

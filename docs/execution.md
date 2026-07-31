@@ -161,6 +161,50 @@ To put a drained node back into service:
 kubectl uncordon <node>      # or: make fabric-reset, for the whole KWOK fabric
 ```
 
+### And k8s-dencer checks whether it happened
+
+The handoff used to be where the product stopped caring. It reported
+"15 reclaimable" and the UI called a drained node reclaimed, so a prediction
+was presented as an outcome and nothing ever verified it. On a cluster with no
+reclaimer at all — the KWOK fabric, a fixed node pool, a cluster whose
+autoscaler is at its minimum size — every one of those numbers was wrong and
+nothing said so.
+
+Three states now, and only the last is a saving:
+
+| State | Means |
+|---|---|
+| **reclaimable** | the plan would free this node, if executed |
+| **awaiting reclamation** | drained and cordoned; the machine is still there |
+| **reclaimed** | the `Node` object is gone — something removed it |
+| **returned** | someone uncordoned it instead; not a saving |
+
+The executor opens a record the moment a node is emptied. The planner, which
+watches nodes continuously anyway, closes it: a node absent from the snapshot
+was reclaimed, a node that is present and schedulable again was returned, and a
+node that is present and still cordoned is still waiting. No cloud API, no
+autoscaler-specific detection, nothing to configure.
+
+```bash
+dencer reclamations
+```
+
+```
+Awaiting reclamation
+  NODE            DRAINED   RUN
+▲ ip-10-0-4-21    3d ago    9d251edd
+
+▲ 1 node(s) drained over a day ago and still present.
+  Draining frees capacity; something else has to remove the machine.
+  If nothing is going to, uncordon them: kubectl uncordon <node>
+
+Observed (last 30 days)
+  6 reclaimed, median 3m
+```
+
+`dencer_nodes_awaiting_reclamation` is the metric to alert on. Rising without
+falling means nothing is reclaiming what you drained.
+
 ## Abort means uncordon, not rollback
 
 **Evicted pods are not restored.** Eviction cannot be undone, and calling the

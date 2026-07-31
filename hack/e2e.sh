@@ -305,5 +305,108 @@ after_ready="$(kubectl --context "$CTX" -n "$APP_NS" get deploy web -o jsonpath=
   || fail "readyReplicas ${before_ready} -> ${after_ready}: the workload did not fully recover"
 green "  all ${after_ready} replicas Ready again — on the Ready path, with real probes"
 
+# ------------------------------------------------------- reclamation loop
+
+# Draining is not removing. k8s-dencer empties a node and something else takes
+# the machine away — and until the reclamation loop existed, nothing checked
+# whether anything ever did, so "15 reclaimable" was a prediction reported as
+# an outcome.
+#
+# k3d lets us play both parts, which no cloud test would do as cheaply.
+
+reclamation_outcome() {
+  api /api/v1/reclamations | python3 -c "
+import json,sys
+d = json.load(sys.stdin)
+node = sys.argv[1]
+for r in d.get('recent') or []:
+    if r['node'] == node:
+        print(r.get('outcome') or 'pending'); break
+else:
+    print('missing')
+" "$1"
+}
+
+bold "==> the drain was recorded as awaiting reclamation"
+for _ in $(seq 1 20); do
+  [[ "$(reclamation_outcome "$TARGET")" == "pending" ]] && break
+  sleep 3
+done
+[[ "$(reclamation_outcome "$TARGET")" == "pending" ]] \
+  || fail "the drain of ${TARGET} was never recorded; got '$(reclamation_outcome "$TARGET")'"
+green "  ${TARGET} is awaiting reclamation"
+
+bold "==> an autoscaler removes it"
+kubectl --context "$CTX" delete node "$TARGET" --wait=true >/dev/null
+# The planner observes on its resync, so this waits a cycle rather than a tick.
+for _ in $(seq 1 30); do
+  [[ "$(reclamation_outcome "$TARGET")" == "reclaimed" ]] && break
+  sleep 5
+done
+[[ "$(reclamation_outcome "$TARGET")" == "reclaimed" ]] \
+  || fail "${TARGET} was deleted but never observed as reclaimed; got '$(reclamation_outcome "$TARGET")'"
+green "  observed as reclaimed — the loop closes"
+
+# The other branch. An operator who uncordons a drained node is never getting a
+# reclamation, and leaving that row pending forever would make the awaiting
+# count grow without bound and mean nothing.
+bold "==> the other branch: a drained node put back into service"
+SECOND="$(api /api/v1/plans/latest | python3 -c '
+import json,sys
+d = json.load(sys.stdin)
+p = d.get("plan") or d
+for s in p.get("steps") or []:
+    if s.get("impact") != "Red" and s.get("moves"):
+        print(s["sequenceNumber"]); break
+else:
+    print("")
+')"
+if [[ -z "$SECOND" ]]; then
+  green "  skipped: no second runnable step on this cluster"
+else
+  planid2="$(api /api/v1/plans/latest | python3 -c 'import json,sys; d=json.load(sys.stdin); print((d.get("plan") or d)["id"])')"
+  node2="$(api "/api/v1/plans/${planid2}" | python3 -c "
+import json,sys
+d = json.load(sys.stdin)
+for s in (d.get('plan') or d).get('steps') or []:
+    if s['sequenceNumber'] == int(sys.argv[1]):
+        print(s.get('targetNode','')); break
+" "$SECOND")"
+
+  run2="$(api "/api/v1/plans/${planid2}/execute" -X POST -H 'Content-Type: application/json' \
+    -d "{\"steps\":[${SECOND}]}")"
+  runid2="$(printf '%s' "$run2" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("runId",""))')"
+  for _ in $(seq 1 60); do
+    st="$(api "/api/v1/runs/${runid2}" | python3 -c 'import json,sys; d=json.load(sys.stdin); print((d.get("run") or d).get("status",""))' 2>/dev/null || true)"
+    case "$st" in Succeeded|Failed|Blocked) break;; esac
+    sleep 5
+  done
+  if [[ "$st" != "Succeeded" ]]; then
+    green "  skipped: second run ended ${st}, which is a guard doing its job rather than a failure here"
+  else
+    kubectl --context "$CTX" uncordon "$node2" >/dev/null
+    for _ in $(seq 1 30); do
+      [[ "$(reclamation_outcome "$node2")" == "returned" ]] && break
+      sleep 5
+    done
+    [[ "$(reclamation_outcome "$node2")" == "returned" ]] \
+      || fail "${node2} was uncordoned but recorded as '$(reclamation_outcome "$node2")', not returned"
+    green "  ${node2} observed as returned to service, not counted as a saving"
+  fi
+fi
+
+bold "==> the metrics agree"
+kubectl --context "$CTX" -n "$NS" port-forward "deploy/${RELEASE}-planner" 18100:8081 >/dev/null 2>&1 &
+MPF=$!
+sleep 4
+series="$(curl -s --max-time 10 http://localhost:18100/metrics || true)"
+kill $MPF 2>/dev/null || true
+grep -q "dencer_reclamation_seconds_count" <<<"$series" \
+  || fail "the planner publishes no dencer_reclamation_seconds"
+observed="$(grep -E "^dencer_reclamation_seconds_count " <<<"$series" | awk "{print \$2}")"
+[[ "${observed%.*}" -ge 1 ]] || fail "dencer_reclamation_seconds_count is ${observed}; the reclamation was never timed"
+green "  dencer_reclamation_seconds observed ${observed} reclamation(s)"
+
 echo
-green "e2e passed: multi-node, PodSecurity enforced, real pods evicted and recovered."
+green "e2e passed: multi-node, PodSecurity enforced, real pods evicted and recovered,"
+green "and the reclamation loop observed a node actually going away."

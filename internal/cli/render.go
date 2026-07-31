@@ -107,7 +107,7 @@ func Encode(w io.Writer, f Format, v any) error {
 }
 
 // PrintPlan renders a plan as a table.
-func PrintPlan(w io.Writer, env *PlanEnvelope) {
+func PrintPlan(w io.Writer, env *PlanEnvelope, awaiting int) {
 	p := env.Plan
 	age := time.Since(p.GeneratedAt).Round(time.Second)
 
@@ -137,6 +137,14 @@ func PrintPlan(w io.Writer, env *PlanEnvelope) {
 	}
 	if n := countRed(p); n > 0 {
 		fmt.Fprintf(w, "\n%s %d step(s) are Red and need an open MaintenanceWindow.\n", red("■"), n)
+	}
+	if awaiting > 0 {
+		// Worth saying on this page rather than only under `reclamations`:
+		// planning to drain more nodes while previously drained ones were
+		// never removed is the situation an operator most needs pointed out.
+		fmt.Fprintf(w, "\n%s %d previously drained node(s) are still awaiting reclamation.\n",
+			yellow("▲"), awaiting)
+		fmt.Fprintln(w, "  dencer reclamations")
 	}
 }
 
@@ -335,5 +343,86 @@ func stripANSI(s string) string {
 			return s
 		}
 		s = s[:i] + s[i+j+1:]
+	}
+}
+
+// PrintReclamations renders what actually became of drained nodes.
+//
+// The awaiting list comes first and is the point. Those are nodes this product
+// told someone to drain, which nothing has removed — capacity that is
+// unavailable and still being paid for. Everything else on this page is
+// reassurance; that list is the bill.
+func PrintReclamations(w io.Writer, env *ReclamationsEnvelope) {
+	if !env.Tracking {
+		fmt.Fprintln(w, "Reclamation tracking is not available on this backend.")
+		return
+	}
+	s := env.Stats
+	now := time.Now()
+
+	if len(env.Awaiting) == 0 && s.Reclaimed == 0 && s.Returned == 0 {
+		fmt.Fprintln(w, "No nodes have been drained yet.")
+		return
+	}
+
+	if len(env.Awaiting) > 0 {
+		fmt.Fprintf(w, "%s\n", bold("Awaiting reclamation"))
+		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(tw, "  NODE\tDRAINED\tRUN")
+		for _, r := range env.Awaiting {
+			age := r.Age(now)
+			mark := "  "
+			// A node that has sat for a day is not waiting for an autoscaler
+			// that is about to act. Something is not coming, and the operator
+			// is paying for a machine doing nothing.
+			if age > 24*time.Hour {
+				mark = yellow("▲ ")
+			}
+			fmt.Fprintf(tw, "%s%s\t%s ago\t%s\n", mark, r.Node, humanDuration(age), r.RunID)
+		}
+		tw.Flush()
+
+		if stale := countOlderThan(env.Awaiting, 24*time.Hour, now); stale > 0 {
+			fmt.Fprintf(w, "\n%s %d node(s) drained over a day ago and still present.\n",
+				yellow("▲"), stale)
+			fmt.Fprintln(w, "  Draining frees capacity; something else has to remove the machine.")
+			fmt.Fprintln(w, "  If nothing is going to, uncordon them: kubectl uncordon <node>")
+		}
+		fmt.Fprintln(w)
+	}
+
+	fmt.Fprintf(w, "%s (last %d days)\n", bold("Observed"), s.WindowDays)
+	fmt.Fprintf(w, "  %s reclaimed", green(fmt.Sprintf("%d", s.Reclaimed)))
+	if s.Reclaimed > 0 && s.MedianReclamationSeconds > 0 {
+		fmt.Fprintf(w, ", median %s", humanDuration(time.Duration(s.MedianReclamationSeconds)*time.Second))
+	}
+	fmt.Fprintln(w)
+	if s.Returned > 0 {
+		fmt.Fprintf(w, "  %d returned to service instead\n", s.Returned)
+	}
+}
+
+func countOlderThan(rs []store.Reclamation, d time.Duration, now time.Time) int {
+	n := 0
+	for _, r := range rs {
+		if r.Age(now) > d {
+			n++
+		}
+	}
+	return n
+}
+
+// humanDuration prefers coarse units. "3d" reads faster than "76h12m9s", and
+// nobody chasing a stuck reclamation cares about the seconds.
+func humanDuration(d time.Duration) string {
+	switch {
+	case d >= 48*time.Hour:
+		return fmt.Sprintf("%dd", int(d.Hours()/24))
+	case d >= 2*time.Hour:
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	case d >= time.Minute:
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	default:
+		return fmt.Sprintf("%ds", int(d.Seconds()))
 	}
 }

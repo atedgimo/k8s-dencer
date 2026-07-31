@@ -106,6 +106,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/authinfo", s.handleAuthInfo)
 
 	read("/api/v1/version", s.handleVersion)
+	read("/api/v1/reclamations", s.handleReclamations)
 	read("/api/v1/plans", s.handleListPlans)
 	read("/api/v1/plans/latest", s.handleLatestPlan)
 	read("/api/v1/plans/{id}", s.handlePlan)
