@@ -16,6 +16,8 @@ ui/dist/
 # Stray binaries from `go build ./cmd/<x>` without -o.
 /planner
 /executor
+/dencer
+*.test
 /ui-backend
 bin/
 .e2e-images.log

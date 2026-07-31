@@ -197,6 +197,29 @@ anywhere in it.
 
 [← Documentation index](README.md) · [Project README](../README.md)
 
+## What a run costs, exactly
+
+Stated so nobody has to guess, using list prices as of mid-2026 — verify
+against [GCP's pricing page](https://cloud.google.com/compute/all-pricing)
+before relying on them:
+
+| Item | Rate | A full run (~45 min) |
+|---|---|---|
+| 5 × `e2-small` **Spot** nodes | ≈ $0.007/h each | **≈ $0.03** |
+| 5 × `e2-small` on-demand (the quota fallback) | ≈ $0.017/h each | ≈ $0.07 |
+| GKE control plane, one **zonal** cluster | covered by GKE's free tier credit for one cluster | $0 |
+| Egress, images, API calls | pennies at this scale | ≈ $0 |
+
+So a complete cloud test is **a few cents on Spot, under ten on-demand** —
+provided teardown ran. The one real cost risk is not the run; it is a
+leftover: a cluster that never tore down bills ~$3.50/day on-demand, and a
+forgotten load balancer ~$0.60/day.
+
+That is what `make gke-leftovers` is for: a **read-only** audit (every
+command is a `list`) of clusters, instances, disks, load balancers, static
+IPs and snapshots. Run it after any cloud session; an empty report is the
+receipt. It deletes nothing, ever.
+
 ## The second run
 
 The first cloud test (M23) proved one thing: a reclaimer nobody here wrote

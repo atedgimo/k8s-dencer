@@ -216,6 +216,10 @@ guard-context:
 gke-setup: ## One-time GCP bootstrap for the cloud test (APIs, quota, budget alert)
 	./hack/gke-setup.sh
 
+.PHONY: gke-leftovers
+gke-leftovers: ## Read-only audit: anything billable left in the GCP project?
+	./hack/gke-leftovers.sh
+
 .PHONY: cloud-e2e
 cloud-e2e: ## The same e2e on a real GKE cluster, so a real autoscaler reclaims the node
 	@echo "This creates a billable GKE cluster (~2-3 cents) and destroys it afterwards."
