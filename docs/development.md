@@ -75,6 +75,66 @@ Two things it needs that are worth knowing, because both look like bugs:
   earlier. On a genuinely fresh cluster, expect no plan for the first ten
   minutes.
 
+## The cloud test
+
+```bash
+make gke-setup     # once: APIs, quota check, budget alert, cost preview
+make cloud-e2e     # ~25 minutes, mostly waiting on GKE's autoscaler
+```
+
+The same script, the same assertions, `PROVIDER=gke`. One script rather than
+two on purpose: the assertions are the valuable part of `hack/e2e.sh`, and a
+forked cloud copy would drift from them inside two milestones. Only cluster
+lifecycle, image delivery, storage class, ingress and the reclamation trigger
+branch.
+
+**It exists for one thing k3d structurally cannot do.** The reclamation loop
+observes whether a drained node actually disappeared — and on k3d the only
+thing that has ever made one disappear is `kubectl delete node` in our own
+script, us playing the part of an autoscaler. On GKE nothing here touches the
+node: the cluster autoscaler decides, on its own schedule, for its own reasons.
+That is the first independent confirmation the loop closes.
+
+Three other things come free with a real cluster: the **published ghcr images**
+are pulled rather than side-loaded, which is the first check that what we ship
+installs for someone who is not us; the PVC binds on a **cloud StorageClass**
+with real zonal topology rather than node-local `local-path`; and the control
+plane is a managed one, with a different API server build and its own admission
+webhooks.
+
+### What it does not prove
+
+Workload Identity is only half-testable. The chart's `serviceAccount.annotations`
+render and GKE accepts them, but **k8s-dencer makes no GCP API calls**, so there
+is no credential path to exercise. A green run means the annotation is accepted,
+not that IRSA or Workload Identity work. The same is true of EKS.
+
+### Cost
+
+Roughly **two to three cents a run**: the GKE free-tier credit covers one zonal
+cluster's control plane, and the nodes are Spot with 20GB `pd-standard` disks.
+On a new account the $300 / 90-day trial covers it outright, and the trial does
+not auto-charge when it runs out.
+
+The one real risk is a cluster left running — four idle nodes is about
+$100/month — so the script deletes it on every exit path, including `Ctrl-C`,
+and reports loudly rather than silently if deletion fails. If a run is ever
+interrupted hard enough to skip the trap:
+
+```bash
+make cloud-e2e-clean
+gcloud container clusters list     # should be empty
+```
+
+### Two things that look like failures
+
+- **Scale-down takes about ten minutes.** GKE's `scale-down-unneeded-time`
+  default. Shortening it would test a configuration nobody runs.
+- **A `kube-system` pod with no PDB pins its node**, and the autoscaler
+  correctly refuses to remove it. If the drained node happens to host one the
+  run times out; the failure output lists the pods still on the node so the
+  cause is visible rather than guessed at.
+
 ## Test fabric (KWOK)
 
 A node-consolidation planner cannot be tested on a single-node cluster. [KWOK](https://kwok.sigs.k8s.io/) provides fake nodes with no kubelet, so a laptop presents a 30-node topology while the **real** scheduler, PDB accounting and eviction API all apply.
