@@ -292,6 +292,15 @@ export interface VersionResponse {
   readOnly: boolean;
   latestPlanId?: string;
   planGeneratedAt?: string;
+  /**
+   * When the cluster was last seen to still match the latest plan.
+   *
+   * Refreshed every planner resync even when the plan does not change, which
+   * is the whole reason it is polled: the plan itself only re-publishes on a
+   * content change, so on a steady cluster this is the only signal that
+   * anything is still watching.
+   */
+  planConfirmedAt?: string;
   identity?: string;
   clusterLabel?: string;
 }

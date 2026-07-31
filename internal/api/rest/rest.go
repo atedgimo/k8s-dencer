@@ -156,6 +156,17 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		resp["latestPlanId"] = latest.Plan.ID
 		resp["planGeneratedAt"] = latest.Plan.GeneratedAt
+		// When the cluster was last observed to still match this plan, as
+		// distinct from when the plan was computed. The store touches it every
+		// resync whether or not the plan changed, so on a steady cluster it is
+		// always seconds old — which is the honest reading, because an
+		// unchanged plan is the strongest evidence there is that it is current.
+		//
+		// Sent here because this is the endpoint the client can cheaply re-poll.
+		// The plan itself only re-publishes when its *content* changes, so a
+		// steady cluster leaves the client holding the storedAt it was given at
+		// load, watching it age, while the planner re-confirms in silence.
+		resp["planConfirmedAt"] = latest.StoredAt
 	}
 
 	// Who is asking, and which cluster they are looking at.

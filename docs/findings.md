@@ -40,6 +40,39 @@ The product's central claim was a guess wearing the clothes of a measurement.
   into a prediction that happened to match reality. First slice fixed; the rest
   is [M24](roadmap.md).
 
+### Signals that meant the opposite of what they said
+
+**The staleness warning fired hardest when nothing was wrong.** The verdict line
+read *"confirmed 72 minutes ago — the cluster may have moved on."* Measured on
+the live cluster at that moment:
+
+```
+planGeneratedAt:  4648s old   ← what was displayed
+planConfirmedAt:    12s old   ← the truth
+```
+
+Every part had been built correctly and in isolation. The store deliberately
+touches `stored_at` on an unchanged plan — with a comment explaining that not
+doing so had already made a re-verified plan read as nineteen hours old. The UI
+deliberately ages against `storedAt` rather than `generatedAt`, with a comment
+saying why. **Neither was wrong. Nothing connected them.** A plan only
+re-publishes when its *content* changes, so the client kept the `storedAt` it
+was handed at page load while the column behind it was refreshed every 30
+seconds.
+
+The result inverted the signal: a steady cluster with a healthy planner
+confirming continuously was *the one state guaranteed to trip the warning*,
+because stability is exactly what stops a plan from being republished.
+
+Fixed by polling the version endpoint — the client's only liveness signal — and
+carrying `planConfirmedAt` on it. The wording changed too, because the old text
+described a different failure: silence here never meant the cluster drifted, it
+meant **nothing is watching it any more**. It now says so.
+
+The lesson is not "add a poll". It is that **two correct components with correct
+comments can still compose into a lie**, and no test of either one catches it.
+Guarded now by mutation-tested assertions on both halves.
+
 ### Data shipped that nothing read
 
 - **45% of the graph payload was edges** — move, anti-affinity, PDB — unread
