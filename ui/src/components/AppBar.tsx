@@ -17,6 +17,7 @@
 
 import { useState } from "react";
 import { Theme, applyTheme, storedTheme } from "../theme";
+import { FieldView, VIEW_LABELS } from "../view";
 
 interface Props {
   /** Operator-set. Empty renders nothing rather than a guess. */
@@ -24,9 +25,11 @@ interface Props {
   /** The identity the API server verified, not one the browser asserted. */
   identity?: string;
   onSignOut?: () => void;
+  view?: FieldView;
+  onView?: (v: FieldView) => void;
 }
 
-export default function AppBar({ clusterLabel, identity, onSignOut }: Props) {
+export default function AppBar({ clusterLabel, identity, onSignOut, view, onView }: Props) {
   return (
     <header className="appbar">
       <div className="appbar-brand">
@@ -46,6 +49,24 @@ export default function AppBar({ clusterLabel, identity, onSignOut }: Props) {
       </div>
 
       <div className="appbar-actions">
+        {view && onView && (
+          /* Three renderings of the same data, not three themes. Which one
+             suits depends mostly on cluster size, so the default follows it —
+             this is the override for when it guesses wrong. */
+          <div className="viewswitch" role="group" aria-label="Field view">
+            {(Object.keys(VIEW_LABELS) as FieldView[]).map((v) => (
+              <button
+                key={v}
+                type="button"
+                className={"viewswitch-btn" + (v === view ? " is-on" : "")}
+                aria-pressed={v === view}
+                onClick={() => onView(v)}
+              >
+                {VIEW_LABELS[v]}
+              </button>
+            ))}
+          </div>
+        )}
         <ThemeToggle />
         {identity && (
           /* The full RBAC principal, which for a ServiceAccount is long and

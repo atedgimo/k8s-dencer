@@ -8,6 +8,7 @@ import { SignIn } from "./components/SignIn";
 import StepLedger from "./components/StepLedger";
 import Verdict from "./components/Verdict";
 import AppBar from "./components/AppBar";
+import { FieldView, defaultView, rememberView, storedView } from "./view";
 import { authInfo, token as tokenStore } from "./auth";
 import { onRenewed } from "./oidc";
 import { runtimeConfig } from "./runtime-config";
@@ -34,6 +35,9 @@ export default function App() {
   // Identity and cluster, for the header. Fetched once — neither changes
   // within a session, and re-polling them would be noise.
   const [server, setServer] = useState<VersionResponse | null>(null);
+
+  // null means "follow cluster size", which is right until someone disagrees.
+  const [viewPref, setViewPref] = useState<FieldView | null>(storedView);
   useEffect(() => {
     let cancelled = false;
     api
@@ -191,12 +195,22 @@ export default function App() {
     setSelection(key ? { kind: "pod", key } : null);
   }, []);
 
+  // Node count drives the default: individual pods stop being worth drawing
+  // long before a vessel per node does.
+  const nodeCount = state.status === "ready" ? (state.graph.elements.filter((e) => e.data.kind === "node").length) : 0;
+  const view: FieldView = viewPref ?? defaultView(nodeCount);
+
   const selectedNode = selection?.kind === "node" ? selection.name : null;
   const selectedPod = selection?.kind === "pod" ? selection.key : null;
 
   return (
     <div className="shell">
       <AppBar
+        view={view}
+        onView={(v) => {
+          setViewPref(v);
+          rememberView(v);
+        }}
         clusterLabel={server?.clusterLabel}
         identity={server?.identity}
         onSignOut={handleSignOut}
@@ -258,6 +272,7 @@ export default function App() {
 
           <main className="workspace">
             <PackingField
+              view={view}
               awaiting={reclaimed.awaiting}
               reclaimedForReal={reclaimed.reclaimed}
               graph={state.graph}

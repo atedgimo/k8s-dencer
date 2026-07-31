@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { FieldPanel, FieldWells, NodeDrawState } from "./FieldViews";
+import { FieldView } from "../view";
 import { GraphPayload, PlanStep } from "../api";
 import {
   NODE_GAP_X,
@@ -53,6 +55,8 @@ interface Props {
   onSelectPod: (key: string | null) => void;
   selectedNode: string | null;
   selectedPod: string | null;
+  /** Which rendering of the field to draw. */
+  view?: FieldView;
   /** Nodes drained earlier whose machine is still present. Observed, not planned. */
   awaiting?: number;
   /** Nodes whose Node object actually disappeared. Observed, not planned. */
@@ -68,6 +72,7 @@ export default function PackingField({
   onSelectPod,
   selectedNode,
   selectedPod,
+  view = "rack",
   awaiting = 0,
   reclaimedForReal = 0,
 }: Props) {
@@ -196,6 +201,37 @@ export default function PackingField({
     }
     return out;
   }, [model, placement, steps, step]);
+
+  const drawStates: NodeDrawState[] = useMemo(
+    () =>
+      model.nodes.map((n) => ({
+        name: n.name,
+        fill: layout.nodeFill.get(n.name) ?? 0,
+        pods: podsByNode.get(n.name) ?? 0,
+        cordoned: n.cordoned,
+        drained: reclaimed.has(n.name),
+        targeted: stepTarget === n.name,
+        selected: selectedNode === n.name,
+      })),
+    [model, layout, podsByNode, reclaimed, stepTarget, selectedNode],
+  );
+
+  if (view !== "rack") {
+    const Renderer = view === "wells" ? FieldWells : FieldPanel;
+    return (
+      <div className="field-wrap">
+        <div className="field-scroll" ref={scrollRef}>
+          <Renderer nodes={drawStates} model={model} onSelectNode={onSelectNode} />
+        </div>
+        <ReclaimedTray
+          count={reclaimed.size}
+          total={plannedDrains}
+          awaiting={awaiting}
+          reclaimedForReal={reclaimedForReal}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="field-wrap">
