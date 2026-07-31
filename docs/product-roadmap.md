@@ -10,6 +10,9 @@ deciding what to build next and telling users what they get.
 ## Shipped
 
 ### Analysis and planning
+- **Upgrade preflight** — `dencer preflight`: will a node-pool rotation
+  wedge, on which node, because of which pod, and why — answered before
+  anything is touched, by the same analyzer that plans consolidations
 - **Full constraint analysis** — PDBs, topology spread, pod/node affinity,
   taints and tolerations, controller ownership, local storage; every immovable
   pod explained in words, not codes
@@ -98,15 +101,17 @@ consolidation's.
    savings number a consolidation tool can show, and it compounds — every day
    unshipped is data lost. Optional `$/node/month` chart value turns it into
    money.
-3. **Upgrade preflight** — `dencer preflight`: will this node-pool rotation
-   wedge, on which node, because of which pod, and what is the fix — answered
-   *before* anyone touches anything. The analyzer unchanged, printed for a
-   different question. Everyone upgrades; not everyone consolidates — this is
-   the adoption wedge.
 4. **Right-sizing signal** — requests versus actual usage per workload:
    "your top 10 over-requested workloads are holding 6 nodes hostage."
    Multiplies the core value, because consolidation packs requests and most
    clusters' requests are 2–3× usage.
+   *Scoped 2026-08: the plumbing exists end to end (`metrics.Source`,
+   collector wiring, `Usage` on the model, `HasUsageData`) but the only
+   implementation is `Noop` — a `metrics.k8s.io` client is the actual work,
+   plus read-only RBAC. Deliberately not built against KWOK: fake nodes have
+   no kubelets, so the feature could not be verified here, and shipping an
+   unverifiable feature is how confident wrong numbers happen. First
+   verifiable on k3d with metrics-server or the GCP run.*
 5. **Resilience audit** — the analyzer's never-evictable list, re-sorted into
    an availability risk report: zero-headroom PDBs, single replicas,
    controller-less pods — the cluster's inability to survive a node loss,

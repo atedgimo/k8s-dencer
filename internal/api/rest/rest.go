@@ -118,6 +118,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 
 	read("/api/v1/version", s.handleVersion)
 	read("/api/v1/reclamations", s.handleReclamations)
+	read("/api/v1/preflight", s.handlePreflight)
 	read("/api/v1/plans", s.handleListPlans)
 	read("/api/v1/plans/latest", s.handleLatestPlan)
 	read("/api/v1/plans/{id}", s.handlePlan)

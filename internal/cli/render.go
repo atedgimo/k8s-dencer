@@ -464,3 +464,34 @@ func formatBytes(b int64) string {
 	}
 	return fmt.Sprintf("%.1f %s", v, units[exp])
 }
+
+// PrintPreflight renders per-node drainability — the answer to "will my
+// node-pool rotation wedge?", given before anything is touched instead of
+// discovered mid-upgrade via a stuck PDB.
+//
+// Blocked nodes come first and get the detail; they are the reason anyone
+// runs a preflight. Drainable nodes are a one-line reassurance.
+func PrintPreflight(w io.Writer, env *PreflightEnvelope) {
+	fmt.Fprintf(w, "%s  %s\n\n",
+		bold(fmt.Sprintf("%d of %d nodes will drain cleanly", env.Drainable, env.Total)),
+		dim("as of "+humanDuration(time.Since(env.TakenAt))+" ago"))
+
+	blocked := 0
+	for _, n := range env.Nodes {
+		if n.Drainable {
+			continue
+		}
+		blocked++
+		fmt.Fprintf(w, "%s %s  (%d pods)\n", red("■"), bold(n.Node), n.Pods)
+		for _, b := range n.Blockers {
+			fmt.Fprintf(w, "    %s  %s\n", b.Pod, dim("["+b.Kind+"]"))
+			fmt.Fprintf(w, "      %s\n", b.Explanation)
+		}
+	}
+	if blocked == 0 {
+		fmt.Fprintln(w, "Every node can be drained. A rolling node replacement will not wedge on today's state.")
+		return
+	}
+	fmt.Fprintf(w, "\nA rotation will stall at %d node(s) unless the blockers above are resolved first.\n", blocked)
+	fmt.Fprintln(w, "State changes; re-run this immediately before upgrading.")
+}
