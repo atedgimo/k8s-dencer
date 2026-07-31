@@ -217,6 +217,9 @@ func TestComponentsPublishOnlyTheirOwnSeries(t *testing.T) {
 		m.SnapshotPods.Set(1)
 		m.PlanCycleTime.Observe(1)
 		m.SnapshotFailure.Inc()
+		m.NodesAwaitingReclamation.Set(1)
+		m.ReclamationSeconds.Observe(1)
+		m.NodesReturnedTotal.Inc()
 		m.RunsTotal.WithLabelValues("Succeeded").Inc()
 		m.GuardRefusalsTotal.WithLabelValues("PDBHeadroom").Inc()
 		m.EvictionDuration.Observe(1)
@@ -233,6 +236,10 @@ func TestComponentsPublishOnlyTheirOwnSeries(t *testing.T) {
 		"dencer_plan_age_seconds", "dencer_plan_steps", "dencer_snapshot_pods",
 		"dencer_snapshot_nodes", "dencer_plan_cycle_seconds", "dencer_snapshot_failures_total",
 		"dencer_plan_nodes_reclaimable",
+		// The planner observes reclamation because it is the only component
+		// watching nodes continuously; the executor drains and moves on.
+		"dencer_nodes_awaiting_reclamation", "dencer_reclamation_seconds",
+		"dencer_nodes_returned_total",
 	}
 	executorOnly := []string{
 		"dencer_runs_total", "dencer_eviction_duration_seconds", "dencer_nodes_drained_total",

@@ -69,7 +69,7 @@ export default function Verdict({
           consolidation plan <PlanAge generatedAt={generatedAt} />
         </p>
         <h1 className="verdict-line">
-          Reclaim <span className="verdict-figure num">{stats.reclaimed}</span> of{" "}
+          Reclaim <span className="verdict-figure num">{stats.reclaimable}</span> of{" "}
           <span className="num">{stats.nodesBefore}</span> nodes
         </h1>
         {/* The nodes, named. "Run the 5 safe steps" is abstract; a list of

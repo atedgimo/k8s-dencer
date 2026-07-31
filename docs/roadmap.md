@@ -51,16 +51,14 @@ estimated — every milestone here starts from a number in
 | **M20** | `/metrics` on all three components; monitors that scrape a real path; CI; published images | **done** |
 | **M21** | Multi-node k3d e2e in CI, PodSecurity **enforcing**, `readiness: Ready` on real pods | **done** |
 | **M21b** | Real ingress controller and StorageClass | planned |
+| **M22** | Reclamation loop — observe whether a drained node was actually removed | **done** |
 
 High availability and a Postgres store were **dropped, not deferred**: a
 consolidation planner is not a serving path. The run queue is already crash-safe
 and resumes, the planner replans on restart, and a minute of UI downtime costs
 nothing.
 
-Deferred: scheduled automatic execution,
-Postgres store, multi-agent orchestration, and **closing the reclamation loop**
-— today a drained node looks the same whether an autoscaler is about to remove
-it or nothing ever will (see [Draining is not removing](execution.md#draining-is-not-removing)).
+Deferred: scheduled automatic execution and multi-agent orchestration.
 
 ## What actually runs today
 

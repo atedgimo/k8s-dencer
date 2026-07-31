@@ -44,6 +44,14 @@ type Metrics struct {
 	PlanCycleTime   prometheus.Histogram
 	SnapshotFailure prometheus.Counter
 
+	// Reclamation. Draining is not removing: k8s-dencer empties a node and
+	// something else removes the machine. These are the only series that say
+	// whether anything did — the difference between "we drained nodes" and
+	// "you are paying for fewer nodes".
+	NodesAwaitingReclamation prometheus.Gauge
+	ReclamationSeconds       prometheus.Histogram
+	NodesReturnedTotal       prometheus.Counter
+
 	// Executor.
 	RunsTotal           *prometheus.CounterVec
 	GuardRefusalsTotal  *prometheus.CounterVec
@@ -115,6 +123,23 @@ func NewMetrics(component Component) *Metrics {
 			Name: "dencer_snapshot_failures_total",
 			Help: "Snapshots that could not be taken.",
 		}),
+		NodesAwaitingReclamation: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "dencer_nodes_awaiting_reclamation",
+			Help: "Nodes drained and cordoned whose Node object is still present. Rising without falling means nothing is reclaiming them.",
+		}),
+		ReclamationSeconds: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name: "dencer_reclamation_seconds",
+			Help: "Time from a node being drained to its Node object disappearing.",
+			// Spans a Karpenter consolidation, which is often under a minute,
+			// to a cluster-autoscaler scale-down delay, which defaults to ten
+			// minutes and is routinely raised — and then out to the timescale
+			// where the honest reading is that nothing is coming.
+			Buckets: []float64{30, 60, 300, 600, 1800, 3600, 21600, 86400},
+		}),
+		NodesReturnedTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "dencer_nodes_returned_total",
+			Help: "Drained nodes that were uncordoned and put back into service instead of being reclaimed.",
+		}),
 
 		RunsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "dencer_runs_total",
@@ -165,6 +190,7 @@ func NewMetrics(component Component) *Metrics {
 		reg.MustRegister(
 			m.PlanSteps, m.NodesReclaimed, m.SnapshotNodes, m.SnapshotPods,
 			m.PlanCycleTime, m.SnapshotFailure,
+			m.NodesAwaitingReclamation, m.ReclamationSeconds, m.NodesReturnedTotal,
 		)
 	case ComponentExecutor:
 		reg.MustRegister(

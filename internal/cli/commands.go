@@ -177,3 +177,30 @@ func min(a, b int) int {
 	}
 	return b
 }
+
+// ReclamationsEnvelope is what GET /api/v1/reclamations returns.
+type ReclamationsEnvelope struct {
+	Tracking bool                `json:"tracking"`
+	Awaiting []store.Reclamation `json:"awaiting"`
+	Recent   []store.Reclamation `json:"recent"`
+	Stats    ReclamationStats    `json:"stats"`
+}
+
+// ReclamationStats mirrors the API's summary. Seconds, not a Go duration: the
+// wire format is what jq and the browser see.
+type ReclamationStats struct {
+	Awaiting                 int     `json:"awaiting"`
+	Reclaimed                int     `json:"reclaimed"`
+	Returned                 int     `json:"returned"`
+	MedianReclamationSeconds float64 `json:"medianReclamationSeconds"`
+	WindowDays               int     `json:"windowDays"`
+}
+
+// Reclamations reports what became of drained nodes.
+func (c *Client) Reclamations(ctx context.Context) (*ReclamationsEnvelope, error) {
+	var out ReclamationsEnvelope
+	if err := c.get(ctx, "/api/v1/reclamations", &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}

@@ -101,6 +101,16 @@ non-zero, because a pipeline must not treat a refused consolidation as a
 completed one. Ctrl-C stops watching but does not stop the run — the executor
 owns it, and the CLI says so on the way out.
 
+### `dencer reclamations`
+
+What actually became of the nodes you drained — the only figure in the product
+derived from observation rather than from the plan.
+
+The awaiting list comes first because it is the one with teeth: those are nodes
+this tool told someone to drain, which nothing has removed. Anything over a day
+old is flagged, since a node still sitting there after 24 hours is not waiting
+for an autoscaler that is about to act.
+
 ### `dencer status`
 
 The run in flight, or a specific one with `--run <id>`, plus its audit trail.

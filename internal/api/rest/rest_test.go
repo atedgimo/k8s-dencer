@@ -218,8 +218,14 @@ func TestGraphPayloadShape(t *testing.T) {
 	}
 
 	stats, _ := body["stats"].(map[string]any)
-	if stats["reclaimed"] != float64(1) {
-		t.Errorf("stats.reclaimed = %v, want 1", stats["reclaimed"])
+	// "reclaimable", not "reclaimed": this is what the plan would free, and
+	// whether anything removed the node is observed separately at
+	// /api/v1/reclamations. The old name reported a prediction as an outcome.
+	if stats["reclaimable"] != float64(1) {
+		t.Errorf("stats.reclaimable = %v, want 1", stats["reclaimable"])
+	}
+	if _, gone := stats["reclaimed"]; gone {
+		t.Error("stats still carries the old 'reclaimed' key")
 	}
 }
 

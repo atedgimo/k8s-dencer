@@ -48,6 +48,93 @@ type Summary struct {
 	StoredAt        time.Time        `json:"storedAt"`
 }
 
+// ReclamationOutcome is how a drained node's story ended.
+type ReclamationOutcome string
+
+const (
+	// ReclaimedGone means the Node object disappeared: something actually
+	// removed the machine, which is the outcome the product exists to produce.
+	ReclaimedGone ReclamationOutcome = "reclaimed"
+
+	// ReclaimedReturned means the node was uncordoned and put back into
+	// service instead. Not a failure — an operator changed their mind, or an
+	// abort reversed the cordon — but it is emphatically not a saving, and
+	// counting it as one would be the same overstatement this whole mechanism
+	// exists to remove.
+	ReclaimedReturned ReclamationOutcome = "returned"
+)
+
+// Reclamation records what happened to a node after it was drained.
+//
+// Draining is not removing. k8s-dencer cordons a node and empties it; something
+// else — Karpenter, cluster-autoscaler, a managed node pool, a human — removes
+// the machine, and until this existed nothing ever checked whether anything
+// did. A plan reporting "15 reclaimable" was a prediction presented as an
+// outcome.
+//
+// Rather than predict which reclaimer will act, which is vendor-specific and
+// can be wrong in ways a user cannot check, this observes whether one did.
+type Reclamation struct {
+	Node      string    `json:"node"`
+	DrainedAt time.Time `json:"drainedAt"`
+
+	// Provenance, so a pending reclamation can be traced to the run that
+	// caused it.
+	RunID  string `json:"runId,omitempty"`
+	PlanID string `json:"planId,omitempty"`
+	Step   int    `json:"step,omitempty"`
+
+	// ResolvedAt and Outcome are zero while the node is still awaiting
+	// reclamation.
+	ResolvedAt *time.Time         `json:"resolvedAt,omitempty"`
+	Outcome    ReclamationOutcome `json:"outcome,omitempty"`
+}
+
+// Pending reports whether this node is still drained and still present.
+func (r Reclamation) Pending() bool { return r.ResolvedAt == nil }
+
+// Age is how long the node has been waiting, or how long it waited.
+func (r Reclamation) Age(now time.Time) time.Duration {
+	if r.ResolvedAt != nil {
+		return r.ResolvedAt.Sub(r.DrainedAt)
+	}
+	return now.Sub(r.DrainedAt)
+}
+
+// ReclamationStats summarises observed reclamations over a window.
+type ReclamationStats struct {
+	Awaiting  int `json:"awaiting"`
+	Reclaimed int `json:"reclaimed"`
+	Returned  int `json:"returned"`
+	// Median rather than mean: one node that sat for a week before someone
+	// noticed would drag an average into uselessness, and the question being
+	// answered is "how long does this normally take".
+	MedianTime time.Duration `json:"medianReclamationSeconds"`
+}
+
+// ReclamationStore tracks drained nodes until something removes them.
+//
+// Separate from Store and ExecutionStore because the writers differ: the
+// executor records a drain, and the planner — the only component watching nodes
+// continuously — observes the outcome.
+type ReclamationStore interface {
+	// RecordDrain notes that a node was drained and is now awaiting
+	// reclamation. Idempotent on (node, drainedAt).
+	RecordDrain(ctx context.Context, r Reclamation) error
+
+	// PendingReclamations returns every node still awaiting an outcome.
+	PendingReclamations(ctx context.Context) ([]Reclamation, error)
+
+	// ResolveReclamation closes out one pending record.
+	ResolveReclamation(ctx context.Context, node string, drainedAt time.Time, outcome ReclamationOutcome, at time.Time) error
+
+	// Reclamations returns recent records, newest first.
+	Reclamations(ctx context.Context, limit int) ([]Reclamation, error)
+
+	// ReclamationSummary aggregates records resolved since the given time.
+	ReclamationSummary(ctx context.Context, since time.Time) (ReclamationStats, error)
+}
+
 // Store persists and retrieves plans.
 //
 // Implementations must be safe for concurrent readers. The planner is the only

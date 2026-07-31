@@ -37,6 +37,7 @@ Commands:
   why <ns>/<pod>        why a pod can or cannot move
   run --steps 1,3-5     execute selected steps and watch them
   status                the run in flight, or the last one
+  reclamations          what actually became of the nodes you drained
   version
 
 Global flags:
@@ -54,6 +55,7 @@ Examples:
   dencer explain 3
   dencer why shop/web-7d9f-abcde
   dencer run --steps 1,2 --dry-run
+  dencer reclamations
   dencer plan -o json | jq '.plan.steps[] | select(.impact=="Red")'
 `
 
@@ -105,6 +107,8 @@ func run() error {
 		return cmdRun(ctx, args)
 	case "status":
 		return cmdStatus(ctx, args)
+	case "reclamations", "reclaim":
+		return cmdReclamations(ctx, args)
 	default:
 		return fmt.Errorf("unknown command %q\n\n%s", cmd, usage)
 	}
@@ -165,7 +169,13 @@ func cmdPlan(ctx context.Context, args []string) error {
 	if g.format != cli.FormatText {
 		return cli.Encode(os.Stdout, g.format, env)
 	}
-	cli.PrintPlan(os.Stdout, env)
+	// Best-effort: a backend without tracking, or an older one, must not stop
+	// the plan printing.
+	awaiting := 0
+	if rec, err := c.Reclamations(ctx); err == nil && rec.Tracking {
+		awaiting = rec.Stats.Awaiting
+	}
+	cli.PrintPlan(os.Stdout, env, awaiting)
 	return nil
 }
 
@@ -386,4 +396,27 @@ func confirm(plan *cli.PlanEnvelope, want []int) (bool, error) {
 	_, _ = fmt.Scanln(&answer)
 	answer = strings.ToLower(strings.TrimSpace(answer))
 	return answer == "y" || answer == "yes", nil
+}
+
+func cmdReclamations(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("reclamations", flag.ExitOnError)
+	g := bind(fs)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	c, err := connect(ctx, g)
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+
+	env, err := c.Reclamations(ctx)
+	if err != nil {
+		return err
+	}
+	if g.format != cli.FormatText {
+		return cli.Encode(os.Stdout, g.format, env)
+	}
+	cli.PrintReclamations(os.Stdout, env)
+	return nil
 }

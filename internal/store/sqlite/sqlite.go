@@ -56,7 +56,7 @@ func Open(path string) (*Store, error) {
 // Close releases the database handle.
 func (s *Store) Close() error { return s.db.Close() }
 
-const schemaVersion = 2
+const schemaVersion = 3
 
 // Migrate creates or upgrades the schema.
 func (s *Store) Migrate(ctx context.Context) error {
@@ -82,6 +82,11 @@ func (s *Store) Migrate(ctx context.Context) error {
 	if current < 2 {
 		if _, err := tx.ExecContext(ctx, schemaV2); err != nil {
 			return fmt.Errorf("apply schema v2: %w", err)
+		}
+	}
+	if current < 3 {
+		if _, err := tx.ExecContext(ctx, schemaV3); err != nil {
+			return fmt.Errorf("apply schema v3: %w", err)
 		}
 	}
 
@@ -170,6 +175,32 @@ CREATE TABLE IF NOT EXISTS run_events (
     message   TEXT NOT NULL,
     PRIMARY KEY (run_id, sequence)
 );
+`
+
+// Phase 4. Closing the reclamation loop: what happened to a node after it was
+// drained.
+//
+// No foreign key to runs, and no cascade. A reclamation outlives the run that
+// caused it — the interesting records are precisely the ones still pending
+// weeks later, and Prune must not silently delete the evidence that a node was
+// drained and never removed.
+const schemaV3 = `
+CREATE TABLE IF NOT EXISTS reclamations (
+    node         TEXT NOT NULL,
+    drained_at   TEXT NOT NULL,
+    run_id       TEXT,
+    plan_id      TEXT,
+    step         INTEGER,
+    -- NULL while the node is still drained and still present.
+    resolved_at  TEXT,
+    outcome      TEXT,
+    -- Keyed on the attempt, not the node: the same node can be drained,
+    -- uncordoned and drained again, and each attempt is its own observation.
+    PRIMARY KEY (node, drained_at)
+);
+
+CREATE INDEX IF NOT EXISTS reclamations_pending ON reclamations (resolved_at);
+CREATE INDEX IF NOT EXISTS reclamations_recent ON reclamations (drained_at DESC);
 `
 
 // Save persists a record unless it duplicates the latest plan.
