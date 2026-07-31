@@ -74,6 +74,26 @@ export function useRun(onFinished?: () => void) {
     [follow, stop],
   );
 
+  // Converge shares everything with start except the request: same follow,
+  // same trail, same rejoin-on-reload. The run mode lives server-side.
+  const startConverge = useCallback(
+    async (maxNodes: number, maxImpact: "Green" | "Yellow", dryRun: boolean) => {
+      stop();
+      setState({ status: "starting" });
+      try {
+        const { runId } = await api.converge(maxNodes, maxImpact, dryRun);
+        follow(runId);
+      } catch (err) {
+        setState({
+          status: "error",
+          message: describe(err),
+          grantWith: err instanceof ApiError ? err.grantWith : undefined,
+        });
+      }
+    },
+    [follow, stop],
+  );
+
   const dismiss = useCallback(() => {
     stop();
     setState({ status: "idle" });
@@ -98,7 +118,7 @@ export function useRun(onFinished?: () => void) {
     };
   }, [follow, stop]);
 
-  return { state, start, dismiss };
+  return { state, start, startConverge, dismiss };
 }
 
 function describe(err: unknown): string {

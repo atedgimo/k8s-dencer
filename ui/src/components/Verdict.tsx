@@ -37,6 +37,8 @@ interface Props {
   onFocusRating: (impact: Impact | null) => void;
   focusedRating: Impact | null;
   onRun: (dryRun: boolean) => void;
+  /** Opens the closed-loop consent sheet. */
+  onConverge: () => void;
   busy: boolean;
   /** Steps ticked in the ledger. Empty means "the Green ones". */
   picked: PlanStep[];
@@ -50,6 +52,7 @@ export default function Verdict({
   onFocusRating,
   focusedRating,
   onRun,
+  onConverge,
   busy,
   picked,
   onClearPicked,
@@ -156,6 +159,17 @@ export default function Verdict({
           title="Run the full Safety Guard and show the same trail, without touching anything."
         >
           Dry run
+        </button>
+        {/* The closed loop's door. Quieter than the primary action on
+            purpose: approving a policy deserves a deliberate step through
+            the consent sheet, not a one-click reflex beside it. */}
+        <button
+          className="btn btn-quiet"
+          onClick={onConverge}
+          disabled={busy}
+          title="Approve a bounded policy: re-plan after every drain until nothing worthwhile remains."
+        >
+          Run to optimum…
         </button>
 
         {custom ? (

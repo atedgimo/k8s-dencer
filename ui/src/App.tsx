@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Impact, PlanStep } from "./api";
 import Inspector, { Selection } from "./components/Inspector";
 import PackingField from "./components/PackingField";
-import { ConfirmRun, RunTrail } from "./components/RunPanel";
+import { ConfirmConverge, ConfirmRun, RunTrail } from "./components/RunPanel";
 import Scrubber from "./components/Scrubber";
 import { SignIn } from "./components/SignIn";
 import StepLedger from "./components/StepLedger";
@@ -57,6 +57,7 @@ export default function App() {
   const [selection, setSelection] = useState<Selection>(null);
   const [focusedRating, setFocusedRating] = useState<Impact | null>(null);
   const [pending, setPending] = useState<{ steps: PlanStep[]; dryRun: boolean } | null>(null);
+  const [convergeOpen, setConvergeOpen] = useState(false);
   const lastToggled = useRef<number | null>(null);
 
   const planId = state.status === "ready" ? state.plan.plan.id : null;
@@ -223,6 +224,7 @@ export default function App() {
             focusedRating={focusedRating}
             onFocusRating={setFocusedRating}
             onRun={requestRun}
+            onConverge={() => setConvergeOpen(true)}
             busy={busy}
             picked={pickedSteps}
             onClearPicked={() => setChecked(new Set())}
@@ -249,7 +251,8 @@ export default function App() {
               reclaimedForReal={reclamations.stats.reclaimed}
               ledgerCpuMilli={reclamations.stats.reclaimedCpuMilli}
               ledgerMemBytes={reclamations.stats.reclaimedMemBytes}
-              observed={observed}
+              observed={observed.nodes}
+              evictedPods={observed.evictedPods}
               graph={state.graph}
               steps={steps}
               step={step}
@@ -311,6 +314,16 @@ export default function App() {
           dryRun={pending.dryRun}
           onConfirm={confirmRun}
           onCancel={() => setPending(null)}
+        />
+      )}
+      {convergeOpen && state.status === "ready" && (
+        <ConfirmConverge
+          planReclaims={state.graph.stats.reclaimable}
+          onConfirm={(maxNodes, maxImpact, dryRun) => {
+            setConvergeOpen(false);
+            void run.startConverge(maxNodes, maxImpact, dryRun);
+          }}
+          onCancel={() => setConvergeOpen(false)}
         />
       )}
     </div>

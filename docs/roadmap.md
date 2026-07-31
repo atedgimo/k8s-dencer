@@ -53,8 +53,8 @@ estimated — every milestone here starts from a number in
 | **M21b** | Real ingress controller and StorageClass, exercised in the e2e | **done** |
 | **M22** | Reclamation loop — observe whether a drained node was actually removed | **done** |
 | **M23** | Cloud test on GKE — GKE's autoscaler reclaimed a drained node in **11m9s**, observed | **done** |
-| **M24** | The field shows what *is*, not only what *would be* — observed node states overlaid on the plan | **done for nodes**; per-pod placement waits on M25 |
-| **M25** | Closed-loop consolidation — re-plan from observed state after every step, inside an operator-approved envelope | **core shipped**; UI affordance pending |
+| **M24** | The field shows what *is*, not only what *would be* — observed states overlaid on the plan, nodes and pods | **done** |
+| **M25** | Closed-loop consolidation — re-plan from observed state after every step, inside an operator-approved envelope | **done** — engine, CLI and UI |
 
 High availability and a Postgres store were **dropped, not deferred**: a
 consolidation planner is not a serving path. The run queue is already crash-safe
@@ -231,8 +231,13 @@ A converge dry run rehearses exactly one round and says so. Rehearsing further
 rounds would mean pretending to know where evicted pods land — a forecast
 wearing a safety vest, the exact thing this mode exists to retire.
 
-**Still open for M25:** a UI affordance for the envelope (the CLI carries it
-today), and the KWOK fixpoint-vs-forecast comparison.
+**Closed since:** the UI carries the envelope too — "Run to optimum…" opens
+a consent sheet that is deliberately not the steps sheet with different text:
+policy wording, both bounds as explicit inputs with no defaulted node budget,
+rehearse-one-round beside approve. And M24's last gap closed with it: a pod
+the run has actually evicted ghosts at its origin — dashed and hollow, the
+observed-fact texture — until the next snapshot says where it landed, instead
+of being drawn at a destination the scheduler never confirmed.
 
 ## What actually runs today
 

@@ -348,6 +348,16 @@ export const api = {
       signal,
     ),
 
+  /** Queues a closed-loop run: the executor re-plans after every drain,
+   *  inside the envelope. Consent to a policy, not a list — the caller must
+   *  have shown the policy wording before calling this. */
+  converge: (maxNodes: number, maxImpact: "Green" | "Yellow", dryRun: boolean) =>
+    post<{ runId: string; status: RunStatus }>(`/api/v1/converge`, {
+      maxNodes,
+      maxImpact,
+      dryRun,
+    }),
+
   run: (runId: string, signal?: AbortSignal) => get<RunDetail>(`/api/v1/runs/${runId}`, signal),
 
   /** The in-flight run, if any. Lets a page reload rejoin a consolidation

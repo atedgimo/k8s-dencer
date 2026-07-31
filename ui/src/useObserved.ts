@@ -17,12 +17,25 @@ import { RunState } from "./useRun";
  * confusion this overlay exists to end, rebuilt one layer up. Guarded by
  * test/ui, mutation-tested.
  */
+export interface Observed {
+  nodes: Map<string, ObservedNode>;
+  /**
+   * Pods the current run has genuinely evicted, by "namespace/name". Their
+   * drawn position is a lie waiting to happen: the plan says where they were
+   * going, the scheduler decided for itself, and the truth arrives only with
+   * the next snapshot. Until then the field ghosts them at their origin —
+   * gone from here, landed somewhere not yet known.
+   */
+  evictedPods: Set<string>;
+}
+
 export function useObserved(
   reclamations: ReclamationState,
   runState: RunState,
-): Map<string, ObservedNode> {
+): Observed {
   return useMemo(() => {
     const m = new Map<string, ObservedNode>();
+    const evicted = new Set<string>();
     for (const r of reclamations.awaiting) {
       m.set(r.node, { reclaim: "awaiting" });
     }
@@ -34,6 +47,7 @@ export function useObserved(
     if (runState.status === "active" || runState.status === "done") {
       if (!runState.run.dryRun) {
         for (const e of runState.events) {
+          if (e.action === "Evict" && e.pod) evicted.add(e.pod);
           if (!e.node) continue;
           if (e.action === "Cordon") {
             m.set(e.node, { ...m.get(e.node), cordoned: true });
@@ -44,6 +58,6 @@ export function useObserved(
         }
       }
     }
-    return m;
+    return { nodes: m, evictedPods: evicted };
   }, [reclamations, runState]);
 }

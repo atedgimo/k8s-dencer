@@ -259,7 +259,15 @@ func TestObservedNodeStatesAreDrawnNotJustParsed(t *testing.T) {
 	// And the overlay must actually be mounted: derived in a hook nothing
 	// calls is the parsed-but-never-drawn bug with an extra step.
 	app := read(t, "App.tsx")
-	if !strings.Contains(app, "useObserved(") || !strings.Contains(app, "observed={observed}") {
+	if !strings.Contains(app, "useObserved(") || !strings.Contains(app, "observed={observed.nodes}") {
 		t.Error("App does not wire the observed overlay into the field")
+	}
+
+	// The evicted-pod half of the overlay: a run's Evict events must reach
+	// the field, or in-flight pods go back to being drawn at destinations
+	// the scheduler never confirmed.
+	if !strings.Contains(app, "evictedPods={observed.evictedPods}") {
+		t.Error("App does not pass the evicted-pod set to the field; " +
+			"pods evicted mid-run are drawn as if the plan's destination were fact")
 	}
 }
