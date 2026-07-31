@@ -414,3 +414,47 @@ func TestCompressionRoundTripsExactly(t *testing.T) {
 		t.Errorf("stored blob is %d bytes against %d of JSON; it is not compressed", size, len(want))
 	}
 }
+
+// On the dedup path, a snapshot carrying usage data must refresh the stored
+// blob: usage changes every cycle while the plan does not — that is what a
+// steady cluster IS — so without this, the right-sizing report serves
+// measurements from whenever the plan last changed, aging without bound.
+func TestDedupRefreshesSnapshotWhenUsageIsCollected(t *testing.T) {
+	db := openTemp(t)
+	ctx := context.Background()
+
+	snap1 := &model.ClusterSnapshot{
+		TakenAt:      time.Now().UTC(),
+		HasUsageData: true,
+		Nodes:        []model.Node{{Name: "a"}},
+	}
+	plan := &model.Plan{ID: "same-plan", Status: model.PlanValid,
+		GeneratedAt: time.Now().UTC(), SnapshotTakenAt: snap1.TakenAt}
+	if _, err := db.Save(ctx, store.Record{Plan: plan, Snapshot: snap1,
+		Analysis: &constraints.Analysis{}, Strategy: "t"}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Same plan, fresher usage: the dedup path must carry the new snapshot.
+	snap2 := &model.ClusterSnapshot{
+		TakenAt:      time.Now().UTC().Add(30 * time.Second),
+		HasUsageData: true,
+		Nodes:        []model.Node{{Name: "a", Usage: &model.Resources{MilliCPU: 777}}},
+	}
+	stored, err := db.Save(ctx, store.Record{Plan: plan, Snapshot: snap2,
+		Analysis: &constraints.Analysis{}, Strategy: "t"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored {
+		t.Fatal("fixture broke: the second save was not a dedup")
+	}
+
+	rec, err := db.Latest(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.Snapshot.Nodes[0].Usage == nil || rec.Snapshot.Nodes[0].Usage.MilliCPU != 777 {
+		t.Error("the stored snapshot kept its stale usage; the right-sizing report ages without bound on steady clusters")
+	}
+}

@@ -214,3 +214,16 @@ ones with **nowhere legal to go named, with reasons**. Exit status is non-zero
 when the simulated cluster cannot hold its workloads, so it works as a CI
 gate. A fit is the engine's answer, not a promise about the scheduler on the
 day — and the report says so.
+## `dencer rightsizing` — requests vs what is actually used
+
+```
+dencer rightsizing [-o json]
+```
+
+Consolidation packs *requests* — the scheduler's input — so oversized
+requests hold capacity no drain can free: a workload asking 4 cores and using
+200m keeps its slice of every bin it lands in. This report names those
+workloads, **measured on both sides** (requires
+`planner.usageSource=metrics-server`; without measurements it refuses to
+estimate). Usage is a point-in-time sample, not a peak — shrink requests
+against your own percentiles, not this single reading.
