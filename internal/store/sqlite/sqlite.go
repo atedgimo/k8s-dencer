@@ -56,7 +56,7 @@ func Open(path string) (*Store, error) {
 // Close releases the database handle.
 func (s *Store) Close() error { return s.db.Close() }
 
-const schemaVersion = 4
+const schemaVersion = 5
 
 // Migrate creates or upgrades the schema.
 func (s *Store) Migrate(ctx context.Context) error {
@@ -92,6 +92,11 @@ func (s *Store) Migrate(ctx context.Context) error {
 	if current < 4 {
 		if _, err := tx.ExecContext(ctx, schemaV4); err != nil {
 			return fmt.Errorf("apply schema v4: %w", err)
+		}
+	}
+	if current < 5 {
+		if _, err := tx.ExecContext(ctx, schemaV5); err != nil {
+			return fmt.Errorf("apply schema v5: %w", err)
 		}
 	}
 
@@ -215,6 +220,16 @@ CREATE INDEX IF NOT EXISTS reclamations_recent ON reclamations (drained_at DESC)
 const schemaV4 = `
 ALTER TABLE runs ADD COLUMN mode TEXT NOT NULL DEFAULT '';
 ALTER TABLE runs ADD COLUMN envelope BLOB;
+`
+
+// Schema v5 — the savings ledger. A reclamation row gains the node's
+// allocatable, captured at drain time by the executor: the last moment it can
+// be, because a reclaimed node takes its capacity record with it. Old rows
+// keep zeroes and the summary counts them as uncounted rather than silently
+// under-reporting.
+const schemaV5 = `
+ALTER TABLE reclamations ADD COLUMN cpu_milli INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE reclamations ADD COLUMN mem_bytes INTEGER NOT NULL DEFAULT 0;
 `
 
 // Save persists a record unless it duplicates the latest plan.

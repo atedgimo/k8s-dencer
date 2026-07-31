@@ -183,3 +183,49 @@ func TestReclamationSummary(t *testing.T) {
 }
 
 func nodeName(i int) string { return string(rune('a' + i)) }
+
+// The ledger must sum only what was measured, and must say what it could not
+// count. Old rows carry no capacity — summing them as zero would silently
+// under-report the one number this feature exists to state.
+func TestReclamationLedgerSumsDrainTimeCapacity(t *testing.T) {
+	s := reclamationStore(t)
+	ctx := context.Background()
+	drained := time.Now().UTC().Add(-time.Hour)
+
+	// Two measured nodes and one pre-ledger row without capacity.
+	for _, r := range []store.Reclamation{
+		{Node: "m1", DrainedAt: drained, CPUMilli: 8000, MemBytes: 32 << 30},
+		{Node: "m2", DrainedAt: drained, CPUMilli: 4000, MemBytes: 16 << 30},
+		{Node: "old", DrainedAt: drained},
+	} {
+		if err := s.RecordDrain(ctx, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, n := range []string{"m1", "m2", "old"} {
+		if err := s.ResolveReclamation(ctx, n, drained, store.ReclaimedGone, time.Now().UTC()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A returned node must not contribute: it saved nothing.
+	if err := s.RecordDrain(ctx, store.Reclamation{Node: "back", DrainedAt: drained, CPUMilli: 9999, MemBytes: 1 << 40}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ResolveReclamation(ctx, "back", drained, store.ReclaimedReturned, time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+
+	stats, err := s.ReclamationSummary(ctx, time.Now().Add(-24*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := stats.ReclaimedCPUMilli, int64(12000); got != want {
+		t.Errorf("ledger cpu = %d, want %d (measured nodes only)", got, want)
+	}
+	if got, want := stats.ReclaimedMemBytes, int64(48<<30); got != want {
+		t.Errorf("ledger mem = %d, want %d", got, want)
+	}
+	if stats.UncountedNodes != 1 {
+		t.Errorf("uncounted = %d, want 1 — the pre-ledger row must be named, not silently zero", stats.UncountedNodes)
+	}
+}

@@ -283,6 +283,10 @@ export interface ReclamationsResponse {
     returned: number;
     medianReclamationSeconds: number;
     windowDays: number;
+    /** The ledger — measured capacity actually returned, from drain-time records. */
+    reclaimedCpuMilli: number;
+    reclaimedMemBytes: number;
+    uncountedNodes: number;
   };
 }
 

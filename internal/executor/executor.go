@@ -419,12 +419,28 @@ func (e *Executor) recordDrain(ctx context.Context, run store.Run, step model.Pl
 	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
 
+	// The node's allocatable, captured now because there is no later: once
+	// something removes the node, its capacity record goes with it, and the
+	// savings ledger would be left estimating the very number it exists to
+	// measure.
+	var cpuMilli, memBytes int64
+	if snap, err := e.cluster.Snapshot(writeCtx); err == nil {
+		for _, n := range snap.Nodes {
+			if n.Name == step.TargetNode {
+				cpuMilli, memBytes = n.Allocatable.MilliCPU, n.Allocatable.MemoryBytes
+				break
+			}
+		}
+	}
+
 	err := e.reclamations.RecordDrain(writeCtx, store.Reclamation{
 		Node:      step.TargetNode,
 		DrainedAt: time.Now().UTC(),
 		RunID:     run.ID,
 		PlanID:    run.PlanID,
 		Step:      step.SequenceNumber,
+		CPUMilli:  cpuMilli,
+		MemBytes:  memBytes,
 	})
 	if err != nil {
 		e.log.Error("could not record the drain for reclamation tracking",

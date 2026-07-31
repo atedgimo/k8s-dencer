@@ -57,6 +57,11 @@ func (s *Server) handleReclamations(w http.ResponseWriter, r *http.Request) {
 			"returned":                 stats.Returned,
 			"medianReclamationSeconds": stats.MedianTime.Seconds(),
 			"windowDays":               int(reclamationWindow.Hours() / 24),
+			// The ledger: measured, not estimated — summed from capacity
+			// captured at drain time. See store.ReclamationStats.
+			"reclaimedCpuMilli": stats.ReclaimedCPUMilli,
+			"reclaimedMemBytes": stats.ReclaimedMemBytes,
+			"uncountedNodes":    stats.UncountedNodes,
 		},
 	})
 }

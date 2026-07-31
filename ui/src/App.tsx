@@ -247,6 +247,8 @@ export default function App() {
               view={view}
               awaiting={reclamations.stats.awaiting}
               reclaimedForReal={reclamations.stats.reclaimed}
+              ledgerCpuMilli={reclamations.stats.reclaimedCpuMilli}
+              ledgerMemBytes={reclamations.stats.reclaimedMemBytes}
               observed={observed}
               graph={state.graph}
               steps={steps}

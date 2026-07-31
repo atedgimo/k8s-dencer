@@ -199,6 +199,10 @@ type ReclamationStats struct {
 	Returned                 int     `json:"returned"`
 	MedianReclamationSeconds float64 `json:"medianReclamationSeconds"`
 	WindowDays               int     `json:"windowDays"`
+	// The ledger: capacity actually returned, measured from drain-time records.
+	ReclaimedCPUMilli int64 `json:"reclaimedCpuMilli"`
+	ReclaimedMemBytes int64 `json:"reclaimedMemBytes"`
+	UncountedNodes    int   `json:"uncountedNodes"`
 }
 
 // Reclamations reports what became of drained nodes.

@@ -6,13 +6,19 @@ export interface ReclamationState {
   recent: Reclamation[];
   /** The server's own tallies, for the tray. The recent list is windowed;
    *  recounting it client-side would drift from what the server reports. */
-  stats: { awaiting: number; reclaimed: number };
+  stats: {
+    awaiting: number;
+    reclaimed: number;
+    /** The ledger: measured capacity actually returned. */
+    reclaimedCpuMilli: number;
+    reclaimedMemBytes: number;
+  };
 }
 
 const EMPTY: ReclamationState = {
   awaiting: [],
   recent: [],
-  stats: { awaiting: 0, reclaimed: 0 },
+  stats: { awaiting: 0, reclaimed: 0, reclaimedCpuMilli: 0, reclaimedMemBytes: 0 },
 };
 
 /**
@@ -37,7 +43,12 @@ export function useReclamations(): ReclamationState {
           setState({
             awaiting: r.awaiting ?? [],
             recent: r.recent ?? [],
-            stats: { awaiting: r.stats.awaiting, reclaimed: r.stats.reclaimed },
+            stats: {
+              awaiting: r.stats.awaiting,
+              reclaimed: r.stats.reclaimed,
+              reclaimedCpuMilli: r.stats.reclaimedCpuMilli ?? 0,
+              reclaimedMemBytes: r.stats.reclaimedMemBytes ?? 0,
+            },
           });
         }
       } catch {
