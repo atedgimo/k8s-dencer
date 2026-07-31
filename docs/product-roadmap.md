@@ -10,6 +10,10 @@ deciding what to build next and telling users what they get.
 ## Shipped
 
 ### Analysis and planning
+- **What-if simulation** — `dencer whatif --without-zone b`: the latest
+  snapshot minus the removed nodes, every displaced pod re-homed by the
+  constraint engine, the homeless ones named with reasons. Non-zero exit when
+  it does not fit, so it gates CI
 - **Resilience audit** — `dencer audit`: the never-evictable list read as an
   availability report; the PDB that blocks a drain is the PDB a dying node
   violates. Findings quote the analyzer's own explanations
@@ -128,9 +132,6 @@ consolidation's.
    bought — "7 spot, 4 on-demand" — with unpriced nodes omitted rather than
    invented. Turning "fewer nodes" into "cheaper estate" as the *objective*
    is the remaining, deliberately separate, step.
-8. **What-if simulation** — the planner against a modified snapshot: "can I
-   lose zone B? can this workload fit?" Capacity planning as a question, not
-   a spreadsheet.
 
 
 ## Explicitly not planned

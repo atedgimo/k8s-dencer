@@ -41,6 +41,7 @@ Commands:
   reclamations          what actually became of the nodes you drained
   preflight             will every node drain? run before a node-pool rotation
   audit                 what cannot survive a node loss, and why
+  whatif                simulate losing nodes or a zone: does everything still fit?
   drain <node>          guarded drain of one node: the rails, not bare kubectl
   version
 
@@ -118,6 +119,8 @@ func run() error {
 		return cmdPreflight(ctx, os.Args[2:])
 	case "audit", "resilience":
 		return cmdAudit(ctx, os.Args[2:])
+	case "whatif":
+		return cmdWhatif(ctx, os.Args[2:])
 	case "drain":
 		return cmdDrain(ctx, os.Args[2:])
 	case "reclamations", "reclaim":
@@ -332,6 +335,50 @@ func cmdConverge(ctx context.Context, args []string) error {
 	default:
 		return fmt.Errorf("run %s: %s", final.Status, final.Summary)
 	}
+}
+
+func cmdWhatif(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("whatif", flag.ExitOnError)
+	g := bind(fs)
+	nodes := fs.String("without-nodes", "", "comma-separated nodes to simulate losing")
+	zone := fs.String("without-zone", "", "topology zone to simulate losing")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *nodes == "" && *zone == "" {
+		return errors.New("remove something: --without-nodes a,b or --without-zone z")
+	}
+	c, err := connect(ctx, g)
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+
+	env, err := c.Whatif(ctx, splitCommas(*nodes), *zone)
+	if err != nil {
+		return err
+	}
+	if g.format != cli.FormatText {
+		return cli.Encode(os.Stdout, g.format, env)
+	}
+	cli.PrintWhatif(os.Stdout, env)
+	if !env.Fits {
+		return errors.New("the simulated cluster cannot hold its workloads")
+	}
+	return nil
+}
+
+func splitCommas(s string) []string {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	var out []string
+	for _, p := range strings.Split(s, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func cmdAudit(ctx context.Context, args []string) error {

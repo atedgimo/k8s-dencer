@@ -300,3 +300,34 @@ func (c *Client) Drain(ctx context.Context, node string, dryRun bool) (string, e
 	}
 	return out.RunID, nil
 }
+
+// WhatifEnvelope is what POST /api/v1/whatif returns.
+type WhatifEnvelope struct {
+	Removed   []string         `json:"removed"`
+	Displaced int              `json:"displaced"`
+	Fits      bool             `json:"fits"`
+	Homeless  []WhatifHomeless `json:"homeless"`
+	BasedOn   string           `json:"basedOn"`
+	TakenAt   time.Time        `json:"takenAt"`
+}
+
+type WhatifHomeless struct {
+	Pod string   `json:"pod"`
+	Why []string `json:"why"`
+}
+
+// Whatif simulates losing nodes or a zone against the latest snapshot.
+func (c *Client) Whatif(ctx context.Context, nodes []string, zone string) (*WhatifEnvelope, error) {
+	var out WhatifEnvelope
+	body := map[string]any{}
+	if len(nodes) > 0 {
+		body["removeNodes"] = nodes
+	}
+	if zone != "" {
+		body["removeZone"] = zone
+	}
+	if err := c.do(ctx, "POST", "/api/v1/whatif", body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
