@@ -27,6 +27,8 @@ interface Props {
   steps: PlanStep[];
   /** True while the plan on screen is still the run's plan. */
   planMatches: boolean;
+  /** Read-only session: the approve-into-a-real-run path is hidden. */
+  readOnly?: boolean;
   /** node → its reclamation record; capacity measured at drain time. */
   reclaimed: Map<string, Reclamation>;
   onDismiss: () => void;
@@ -174,6 +176,7 @@ function RehearsalResult({
   steps,
   planMatches,
   reclaimed,
+  readOnly,
   onDismiss,
   onDrain,
   onRehearse,
@@ -301,7 +304,7 @@ function RehearsalResult({
           <button type="button" className="btn reviewfooter-rehearse" onClick={onRehearse}>
             Rehearse again
           </button>
-          {allClean && planMatches && (
+          {allClean && planMatches && !readOnly && (
             <button type="button" className="reviewfooter-drain" onClick={onDrain}>
               Drain {mine.length} node{mine.length === 1 ? "" : "s"}
             </button>

@@ -111,3 +111,30 @@ export function authInfo(): Promise<AuthInfo> {
     );
   return cached;
 }
+
+/**
+ * A read-only session hides the drain affordances client-side. This is an
+ * affordance, not a boundary: the server enforces execute permission through
+ * RBAC regardless of what this flag says. It exists for the operator who
+ * wants to review a plan with the safety on — same tab-lifetime as the token,
+ * because outliving the credential it qualifies would be nonsense.
+ */
+const READONLY_KEY = "dencer.readOnly";
+
+export const readOnlySession = {
+  get(): boolean {
+    try {
+      return sessionStorage.getItem(READONLY_KEY) === "1";
+    } catch {
+      return false;
+    }
+  },
+  set(on: boolean) {
+    try {
+      if (on) sessionStorage.setItem(READONLY_KEY, "1");
+      else sessionStorage.removeItem(READONLY_KEY);
+    } catch {
+      // Applies for this page; simply will not survive a reload.
+    }
+  },
+};

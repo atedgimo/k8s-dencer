@@ -18,6 +18,8 @@ import { PlanStep } from "../../api";
 interface Props {
   planId: string;
   picked: PlanStep[];
+  /** A read-only session hides the drain affordances; RBAC enforces anyway. */
+  readOnly?: boolean;
   stale: boolean;
   busy: boolean;
   onRehearse: () => void;
@@ -31,6 +33,7 @@ interface Props {
 export default function ReviewFooter({
   planId,
   picked,
+  readOnly,
   stale,
   busy,
   onRehearse,
@@ -59,7 +62,9 @@ export default function ReviewFooter({
           {pods === 1 ? "" : "s"} move
         </span>
         <span className="reviewfooter-sub">
-          {stale
+          {readOnly
+            ? "Read-only session. Plan and rehearse; draining is hidden by your own choice at sign-in."
+            : stale
             ? "A newer plan exists — Recompute before running."
             : nonGreen > 0
               ? `${nonGreen} non-Green in the selection. The Safety Guard re-runs before every step.`
@@ -88,16 +93,19 @@ export default function ReviewFooter({
         >
           Rehearse
         </button>
-        <button
-          type="button"
-          className={
-            "btn reviewfooter-drain" + (nonGreen > 0 ? " reviewfooter-drain-caution" : "")
-          }
-          disabled={picked.length === 0 || busy || stale}
-          onClick={drain}
-        >
-          Drain {picked.length} node{picked.length === 1 ? "" : "s"}
-        </button>
+        {!readOnly && (
+          <button
+            type="button"
+            className={
+              "btn reviewfooter-drain" + (nonGreen > 0 ? " reviewfooter-drain-caution" : "")
+            }
+            disabled={picked.length === 0 || busy || stale}
+            onClick={drain}
+          >
+            Drain {picked.length} node{picked.length === 1 ? "" : "s"}
+          </button>
+        )}
+        {!readOnly && (
         <div className="reviewfooter-overflow">
           <button
             type="button"
@@ -125,6 +133,7 @@ export default function ReviewFooter({
             </div>
           )}
         </div>
+        )}
       </div>
 
       {confirming && (
