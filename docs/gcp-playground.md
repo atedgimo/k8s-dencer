@@ -43,6 +43,34 @@ Notes: the cluster is zonal — `--zone`, not `--region` — and named
 `dencer-play`. Step 3 is the habit that keeps every other terminal pointed at
 your own cluster instead of the throwaway.
 
+## Token and UI link, on demand
+
+The launch prints both, but tokens expire with the window and terminals get
+closed. While the playground is up, mint a fresh token and reopen the UI from
+any terminal (after the `get-credentials` step above):
+
+```bash
+CTX=gke-play   # or gke_dencer-e2e_us-central1-a_dencer-play if you skipped the rename
+
+# a fresh sign-in token (choose any duration; it outliving the cluster is fine)
+kubectl --context $CTX -n k8s-dencer create token dencer-operator --duration=30m
+
+# the UI doorway, if the script's own port-forward is gone
+kubectl --context $CTX -n k8s-dencer port-forward svc/k8s-dencer-ui-frontend 8092:80 &
+open http://localhost:8092
+```
+
+Paste the token into the sign-in field. The `dencer-operator` ServiceAccount
+and its RoleBinding are created by the launch script; if you ever need them
+by hand:
+
+```bash
+kubectl --context $CTX -n k8s-dencer create serviceaccount dencer-operator
+kubectl --context $CTX -n k8s-dencer create rolebinding dencer-operator \
+  --clusterrole=k8s-dencer-consolidation-operator \
+  --serviceaccount=k8s-dencer:dencer-operator
+```
+
 ## Overrides
 
 ```bash
