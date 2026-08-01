@@ -1,0 +1,43 @@
+{{- if .Values.httpRoute.enabled }}
+{{/*
+Gateway API exposure, beside (not instead of) the Ingress. Clusters standardise
+on one or the other; during a migration both can be enabled and both point at
+the same place, because the routing story is identical either way: all traffic
+goes to the frontend, which reverse-proxies /api to the backend — one route
+keeps cookies, CORS and WebSocket upgrades same-origin.
+
+The chart deliberately does NOT create a Gateway. A Gateway is cluster
+infrastructure with an owner, an address and a TLS story of its own;
+parentRefs is the operator saying which one this route attaches to, and
+values.schema.json requires at least one so an enabled route cannot dangle.
+
+Requires the Gateway API CRDs (gateway.networking.k8s.io/v1, GA since v1.0).
+*/}}
+{{- $fullName := include "k8s-dencer.fullname" . -}}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ $fullName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "k8s-dencer.labels" . | nindent 4 }}
+  {{- with (merge (dict) .Values.httpRoute.annotations .Values.commonAnnotations) }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  parentRefs:
+    {{- toYaml .Values.httpRoute.parentRefs | nindent 4 }}
+  {{- with .Values.httpRoute.hostnames }}
+  hostnames:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: {{ $fullName }}-ui-frontend
+          port: {{ .Values.uiFrontend.service.port }}
+{{- end }}
