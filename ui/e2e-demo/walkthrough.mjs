@@ -60,13 +60,18 @@ await pause(2600);
 await page.getByRole("button", { name: /cancel/i }).click();
 await pause(600);
 
-// Recommendations: open the fix list.
-const recs = page.locator(".recs-toggle");
-if (await recs.isVisible().catch(() => false)) {
-  await recs.click();
+// A pod's own card: identity, movement, constraints.
+const anyPod = page.locator(".blk").first();
+if (await anyPod.isVisible().catch(() => false)) {
+  await anyPod.click();
   await pause(2400);
-  await recs.click();
+  await page.keyboard.press("Escape");
+  await pause(500);
 }
+
+// Advice: the fix list as its own surface.
+await page.getByRole("button", { name: "Advice", exact: true }).click();
+await pause(2600);
 
 // History: the cluster as a line.
 await page.getByRole("button", { name: "History", exact: true }).click();

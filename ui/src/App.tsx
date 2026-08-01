@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Impact, PlanStep } from "./api";
+import { api, Impact, PlanStep } from "./api";
 import Inspector, { Selection } from "./components/Inspector";
 import PackingField from "./components/PackingField";
 import { ConfirmConverge, ConfirmRun, RunTrail } from "./components/RunPanel";
@@ -8,9 +8,11 @@ import { SignIn } from "./components/SignIn";
 import StepLedger from "./components/StepLedger";
 import Verdict from "./components/Verdict";
 import AppBar from "./components/AppBar";
+import NavRail from "./components/NavRail";
+import PodCard from "./components/PodCard";
 import History from "./components/History";
 import Recommendations from "./components/Recommendations";
-import { FieldView, Surface, defaultView, rememberView, storedView } from "./view";
+import { FieldView, Surface, VIEW_LABELS, defaultView, rememberView, storedView } from "./view";
 import { authInfo, token as tokenStore } from "./auth";
 import { onRenewed } from "./oidc";
 import { runtimeConfig } from "./runtime-config";
@@ -63,7 +65,24 @@ export default function App() {
   // Which top-level surface is showing. Deliberately not persisted: History
   // is a place you visit, and reopening the app on it instead of the field
   // would bury the thing the product is for.
-  const [surface, setSurface] = useState<Surface>("field");
+  const [surface, setSurface] = useState<Surface>("plan");
+  const [adviceCount, setAdviceCount] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    const load = () =>
+      api
+        .recommendations()
+        .then((d) => {
+          if (!cancelled) setAdviceCount(d.recommendations.length);
+        })
+        .catch(() => {});
+    load();
+    const t = setInterval(load, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, []);
   const lastToggled = useRef<number | null>(null);
 
   const planId = state.status === "ready" ? state.plan.plan.id : null;
@@ -177,17 +196,14 @@ export default function App() {
   return (
     <div className="shell">
       <AppBar
-        view={view}
-        onView={(v) => {
-          setViewPref(v);
-          rememberView(v);
-        }}
-        surface={surface}
-        onSurface={setSurface}
         clusterLabel={server?.clusterLabel}
         identity={server?.identity}
         onSignOut={handleSignOut}
       />
+
+      <div className="shell-row">
+        <NavRail surface={surface} onSurface={setSurface} adviceCount={adviceCount} />
+        <div className="shell-main">
       {state.status === "loading" && <Placeholder title="Reading the cluster…" />}
 
       {state.status === "empty" && (
@@ -255,8 +271,29 @@ export default function App() {
           <main className="workspace">
             {surface === "history" ? (
               <History />
+            ) : surface === "advice" ? (
+              <Recommendations layout="page" />
             ) : (
               <>
+                {/* The rendering choice lives with the thing it renders. */}
+                <div className="plan-tools">
+                  <div className="viewswitch" role="group" aria-label="Field view">
+                    {(Object.keys(VIEW_LABELS) as FieldView[]).map((v) => (
+                      <button
+                        key={v}
+                        type="button"
+                        className={"viewswitch-btn" + (v === view ? " is-on" : "")}
+                        aria-pressed={v === view}
+                        onClick={() => {
+                          setViewPref(v);
+                          rememberView(v);
+                        }}
+                      >
+                        {VIEW_LABELS[v]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
             <PackingField
               view={view}
               awaiting={reclamations.stats.awaiting}
@@ -286,18 +323,31 @@ export default function App() {
                 checked={checked}
                 onToggle={toggleStep}
               />
+              {/* Nodes inspect in the sidebar; pods open their own card —
+                  the sidebar corner was never big enough for a pod's story. */}
               <Inspector
                 onSelectPod={(key) => setSelection({ kind: "pod", key })}
                 onSelectNode={(name) => setSelection({ kind: "node", name })}
                 planId={planId ?? ""}
                 graph={state.graph}
                 steps={steps}
-                selection={selection}
+                selection={selection?.kind === "node" ? selection : null}
                 onClose={() => setSelection(null)}
                 onSelectStep={handleSelectStep}
               />
+              {selection?.kind === "pod" && (
+                <PodCard
+                  planId={planId ?? ""}
+                  podKey={selection.key}
+                  graph={state.graph}
+                  steps={steps}
+                  evicted={observed.evictedPods.has(selection.key)}
+                  onClose={() => setSelection(null)}
+                  onSelectNode={(name) => setSelection({ kind: "node", name })}
+                  onSelectStep={handleSelectStep}
+                />
+              )}
 
-              <Recommendations />
             </aside>
               </>
             )}
@@ -324,6 +374,9 @@ export default function App() {
           </footer>
         </>
       )}
+
+        </div>
+      </div>
 
       {pending && (
         <ConfirmRun
