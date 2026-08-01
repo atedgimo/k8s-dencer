@@ -359,3 +359,26 @@ func (c *Client) Rightsizing(ctx context.Context) (*RightsizingEnvelope, error) 
 	}
 	return &out, nil
 }
+
+// RecommendationsEnvelope is what GET /api/v1/recommendations returns.
+type RecommendationsEnvelope struct {
+	TakenAt         time.Time        `json:"takenAt"`
+	Recommendations []Recommendation `json:"recommendations"`
+}
+
+type Recommendation struct {
+	Kind     string `json:"kind"`
+	Severity string `json:"severity"`
+	Workload string `json:"workload"`
+	Why      string `json:"why"`
+	Fix      string `json:"fix,omitempty"`
+}
+
+// Recommend reports what is missing, with fixes.
+func (c *Client) Recommend(ctx context.Context) (*RecommendationsEnvelope, error) {
+	var out RecommendationsEnvelope
+	if err := c.get(ctx, "/api/v1/recommendations", &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}

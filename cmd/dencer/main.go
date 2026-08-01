@@ -41,6 +41,7 @@ Commands:
   reclamations          what actually became of the nodes you drained
   preflight             will every node drain? run before a node-pool rotation
   audit                 what cannot survive a node loss, and why
+  recommend             what is missing — PDBs, replicas, requests — with fixes
   rightsizing           requests vs observed usage, per workload
   whatif                simulate losing nodes or a zone: does everything still fit?
   drain <node>          guarded drain of one node: the rails, not bare kubectl
@@ -120,6 +121,8 @@ func run() error {
 		return cmdPreflight(ctx, os.Args[2:])
 	case "audit", "resilience":
 		return cmdAudit(ctx, os.Args[2:])
+	case "recommend", "recommendations":
+		return cmdRecommend(ctx, os.Args[2:])
 	case "rightsizing", "rightsize":
 		return cmdRightsizing(ctx, os.Args[2:])
 	case "whatif":
@@ -403,6 +406,28 @@ func cmdRightsizing(ctx context.Context, args []string) error {
 		return cli.Encode(os.Stdout, g.format, env)
 	}
 	cli.PrintRightsizing(os.Stdout, env)
+	return nil
+}
+
+func cmdRecommend(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("recommend", flag.ExitOnError)
+	g := bind(fs)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	c, err := connect(ctx, g)
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+	env, err := c.Recommend(ctx)
+	if err != nil {
+		return err
+	}
+	if g.format != cli.FormatText {
+		return cli.Encode(os.Stdout, g.format, env)
+	}
+	cli.PrintRecommendations(os.Stdout, env)
 	return nil
 }
 

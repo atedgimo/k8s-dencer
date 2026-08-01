@@ -122,6 +122,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	read("/api/v1/resilience", s.handleResilience)
 	read("/api/v1/rightsizing", s.handleRightsizing)
 	read("/api/v1/history", s.handleHistory)
+	read("/api/v1/recommendations", s.handleRecommendations)
 	// A simulation is a read: it mutates a copy of a stored snapshot and
 	// touches nothing, so it carries the read grant, not the execute one —
 	// registered directly because the read() helper prepends GET.
