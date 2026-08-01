@@ -1,0 +1,683 @@
+/*
+ * Run screens (2a rehearsal result, 2b execution, 2c halted by the guard).
+ * The Review destination becomes the run; measurements from the handoff.
+ */
+
+.runscreen {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ------------------------------------------------------------- run header */
+
+.runhead {
+  height: var(--topbar-h);
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 var(--space-6);
+  background: var(--surface);
+}
+
+.runhead-back {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: var(--text-sm);
+  color: var(--accent-text);
+}
+
+.runhead-sep {
+  width: 1px;
+  height: 22px;
+  background: var(--border-card);
+}
+
+.runhead-title {
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.runhead-meta {
+  font-size: var(--text-xs);
+  color: var(--text-5);
+}
+
+.runhead-when {
+  margin-left: auto;
+  font-size: var(--text-2xs);
+  color: var(--text-faint);
+}
+
+/* --------------------------------------------------------------- run hero */
+
+.runhero {
+  padding: 26px var(--space-6) 22px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-8);
+}
+
+.runhero-col {
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.runhero-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-6);
+  width: 100%;
+}
+
+.runhero-lead {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  flex: 1;
+  min-width: 0;
+}
+
+.runhero-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.runhero-eyedot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.runhero-eyedot-square {
+  border-radius: 2px;
+}
+
+.runhero-eyebrow.is-safe .runhero-eyedot {
+  background: var(--safe);
+}
+
+.runhero-eyebrow.is-safe .eyebrow {
+  color: var(--safe);
+}
+
+.runhero-eyebrow.is-held .runhero-eyedot {
+  background: var(--held);
+}
+
+.runhero-eyebrow.is-held .eyebrow {
+  color: var(--held);
+}
+
+.runhero-headline {
+  margin: 0;
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  letter-spacing: var(--tracking-display);
+  line-height: 1.1;
+}
+
+.runhero-sub {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: 1.55;
+  color: var(--text-3);
+  max-width: 700px;
+  text-wrap: pretty;
+}
+
+.runhero-sub-strong {
+  color: var(--text-2);
+}
+
+.runhero-sub-strong strong {
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.runhero-stats {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  flex-shrink: 0;
+}
+
+.runstat-safe {
+  color: var(--safe);
+}
+
+/* 2a's four tiles. */
+.runhero-tiles {
+  width: 300px;
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.runtile {
+  padding: 11px 12px;
+  border-radius: var(--radius);
+  background: var(--inset);
+  border: 1px solid var(--inset-border);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.runtile-safe {
+  background: var(--safe-bg);
+  border-color: var(--safe-border);
+}
+
+.runtile-safe .runtile-figure {
+  color: var(--safe);
+}
+
+.runtile-held {
+  background: var(--held-bg);
+  border-color: var(--held-border);
+}
+
+.runtile-held .runtile-figure {
+  color: var(--held);
+}
+
+.runtile-figure {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.runtile-label {
+  font-size: var(--text-2xs);
+  color: var(--text-4);
+}
+
+/* 2c's kept/now cards. */
+.runhero-cards {
+  width: 300px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.runcard {
+  padding: 12px 13px;
+  border-radius: var(--radius);
+  background: var(--inset);
+  border: 1px solid var(--inset-border);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.runcard-safe {
+  background: var(--safe-bg);
+  border-color: var(--safe-border);
+}
+
+.runcard-safe .eyebrow {
+  color: var(--safe-text);
+}
+
+.runcard-value {
+  font-size: var(--text-sm);
+  color: var(--text-1);
+}
+
+/* ------------------------------------------------------------ progress bar */
+
+.runprogress {
+  display: flex;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  gap: 2px;
+  background: var(--hairline);
+  width: 100%;
+}
+
+.runprogress-done {
+  background: var(--safe);
+  border-radius: 3px 0 0 3px;
+}
+
+.runprogress-live {
+  background: var(--accent);
+}
+
+.runprogress-rest {
+  background: var(--hairline);
+  border-radius: 0 3px 3px 0;
+}
+
+/* ---------------------------------------------------------------- run body */
+
+.runbody {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.runsteps {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  padding: 18px 20px;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.runstep {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 15px;
+  border-radius: 9px;
+  background: var(--inset);
+  border: 1px solid var(--inset-border);
+}
+
+.runstep-col {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 11px;
+}
+
+.runstep-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.runstep-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.runstep-n {
+  font-size: var(--text-2xs);
+  color: var(--text-faint);
+}
+
+.runstep-node {
+  font-size: var(--text-sm);
+  color: var(--text-1);
+}
+
+.runstep-pods {
+  font-size: var(--text-2xs);
+  color: var(--text-4);
+}
+
+.runstep-meta {
+  font-size: var(--text-xs);
+  color: var(--text-4);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runstep-detail {
+  font-size: var(--text-xs);
+  color: var(--text-4);
+}
+
+.runstep-outcome {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.runstep-outcome.is-safe {
+  color: var(--safe);
+}
+
+.runstep-outcome.is-held {
+  color: var(--held);
+}
+
+.runstep-outcome.is-live {
+  color: var(--accent-text);
+}
+
+.runstep-outcome.is-muted {
+  color: var(--text-5);
+}
+
+/* ------------------------------------------------------------ phase chips */
+
+.runphases {
+  display: flex;
+  gap: 7px;
+}
+
+.runphase {
+  flex: 1;
+  padding: 6px 9px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  text-align: center;
+  background: var(--inset);
+  border: 1px solid var(--border-card);
+  color: var(--text-faint);
+}
+
+.runphase-done {
+  background: var(--safe-bg);
+  border-color: var(--safe-border);
+  color: var(--safe);
+}
+
+.runphase-live {
+  background: var(--nav-active-bg);
+  border-color: var(--border-strong);
+  color: var(--accent-text);
+}
+
+.runphase-refused {
+  background: var(--held-bg);
+  border-color: var(--held-border);
+  color: var(--held-text);
+}
+
+/* --------------------------------------------------------------- the trail */
+
+.trailpane {
+  width: 520px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--group-band);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.trailpane-head {
+  padding: 14px 18px 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.trailpane-streaming {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-2xs);
+  color: var(--accent-text);
+}
+
+.trailpane-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.trailpane-copy {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: var(--text-xs);
+  color: var(--accent-text);
+}
+
+.trailpane-lines {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.trailline {
+  display: flex;
+  gap: 12px;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  line-height: 1.5;
+}
+
+.trailline-t {
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+.trailline-text {
+  color: var(--text-4);
+  white-space: pre-wrap;
+}
+
+.trailline-text.is-strong {
+  color: var(--text-2);
+}
+
+.trailline-text.is-blocked {
+  color: var(--caution-text);
+}
+
+.trailline-text.is-error {
+  color: var(--held-text);
+}
+
+/* --------------------------------------------------------- rehearsal note */
+
+.runnote {
+  margin-top: 6px;
+  padding: 13px 15px;
+  border-radius: 9px;
+  border: 1px dashed var(--border-strong);
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  text-wrap: pretty;
+}
+
+/* --------------------------------------------------------------- refusal */
+
+.refusal {
+  margin-top: 6px;
+  padding: 15px 16px;
+  border-radius: 9px;
+  background: var(--held-bg);
+  border: 1px solid var(--held-border);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.refusal-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.refusal-tag {
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--held-border);
+  color: var(--held);
+}
+
+.refusal-rule {
+  font-size: var(--text-2xs);
+  color: var(--held-text);
+}
+
+.refusal-text {
+  margin: 0;
+  font-size: var(--text-2xs);
+  line-height: 1.55;
+  color: var(--text-2);
+  white-space: pre-wrap;
+}
+
+/* ---------------------------------------------------------- ways forward */
+
+.waysforward {
+  width: 392px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.waysforward-head {
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.waysforward-sub {
+  font-size: var(--text-sm);
+  color: var(--text-3);
+  text-wrap: pretty;
+}
+
+.waysforward-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wayscard {
+  padding: 14px 15px;
+  border-radius: 9px;
+  background: var(--inset);
+  border: 1px solid var(--inset-border);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.wayscard-primary {
+  border-color: var(--border-strong);
+}
+
+.wayscard-refused {
+  background: none;
+  border: 1px dashed var(--border-strong);
+}
+
+.wayscard-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.wayscard-text {
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--text-3);
+  text-wrap: pretty;
+}
+
+.wayscard-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
+  font-size: var(--text-xs);
+  color: var(--accent-text);
+}
+
+.waysforward-foot {
+  flex: 0 0 auto;
+  padding: 14px 20px 18px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* -------------------------------------------------------------- run footer */
+
+.runfooter {
+  height: var(--footer-h);
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 var(--space-6);
+}
+
+.runfooter-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.runfooter-line {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.runfooter-sub {
+  font-size: var(--text-xs);
+  color: var(--text-4);
+}
+
+.runfooter-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* --------------------------------------------------- rail run-status card */
+
+.rail-run {
+  padding: 10px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--nav-active-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rail-run-label {
+  letter-spacing: 0.1em;
+  color: var(--accent-text);
+}
+
+.rail-run-value {
+  font-size: var(--text-xs);
+  color: var(--text-2);
+}

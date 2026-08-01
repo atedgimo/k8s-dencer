@@ -26,6 +26,8 @@ interface Props {
   /** The identity the API server verified, not one the browser asserted. */
   identity?: string;
   onSignOut?: () => void;
+  /** A run in flight — the one fact worth showing on every destination. */
+  runNote?: { label: string; value: string };
 }
 
 const ICONS: Record<Surface, React.ReactNode> = {
@@ -71,6 +73,7 @@ export default function Rail({
   clusterLabel,
   identity,
   onSignOut,
+  runNote,
 }: Props) {
   return (
     <nav className="rail" aria-label="Destinations">
@@ -114,6 +117,12 @@ export default function Rail({
       </div>
 
       <div className="rail-foot">
+        {runNote && (
+          <div className="rail-run" role="status">
+            <span className="rail-run-label eyebrow mono">{runNote.label}</span>
+            <span className="rail-run-value mono">{runNote.value}</span>
+          </div>
+        )}
         {clusterLabel && (
           <div className="rail-cluster" title="The cluster this view is showing">
             <span className="rail-cluster-label eyebrow mono">Cluster</span>

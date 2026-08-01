@@ -13,6 +13,7 @@ import Hero from "./components/review/Hero";
 import StepList from "./components/review/StepList";
 import StepDetail from "./components/review/StepDetail";
 import ReviewFooter from "./components/review/ReviewFooter";
+import RunScreen from "./components/run/RunScreen";
 import { FieldView, Surface, VIEW_LABELS, defaultView, rememberView, storedView } from "./view";
 import { authInfo, token as tokenStore } from "./auth";
 import { onRenewed } from "./oidc";
@@ -279,6 +280,16 @@ export default function App() {
         clusterLabel={server?.clusterLabel}
         identity={server?.identity}
         onSignOut={handleSignOut}
+        runNote={
+          run.state.status === "active"
+            ? {
+                label: run.state.run.dryRun ? "Rehearsing" : "Run in progress",
+                value: `${run.state.events.filter((e) => e.action === "Drained").length} of ${run.state.run.steps.length} steps done`,
+              }
+            : run.state.status === "done" && run.state.run.status === "Blocked"
+              ? { label: "Run halted", value: "the guard refused a step" }
+              : undefined
+        }
       />
 
       <div className="frame-main">
@@ -329,7 +340,35 @@ export default function App() {
             />
           )}
 
-          {state.status === "ready" && surface === "review" && (
+          {state.status === "ready" &&
+            surface === "review" &&
+            (run.state.status === "active" || run.state.status === "done") && (
+              // A run exists: the Review destination IS the run — rehearsal
+              // result, execution in progress, or halted by the guard.
+              <RunScreen
+                run={run.state.run}
+                events={run.state.events}
+                active={run.state.status === "active"}
+                graph={state.graph}
+                steps={steps}
+                planMatches={run.state.run.planId === state.plan.plan.id}
+                reclaimed={new Map(reclamations.recent.map((r) => [r.node, r]))}
+                onDismiss={run.dismiss}
+                onRehearse={() => requestRun(true)}
+                onDrain={() => requestRun(false)}
+                onRecompute={() => {
+                  touched.current = false;
+                  run.dismiss();
+                  (state.superseded ? state.showLatest : state.reload)();
+                }}
+                onOpenRecommendations={() => setSurface("recommendations")}
+              />
+            )}
+
+          {state.status === "ready" &&
+            surface === "review" &&
+            run.state.status !== "active" &&
+            run.state.status !== "done" && (
             <>
               <Hero
                 graph={state.graph}
