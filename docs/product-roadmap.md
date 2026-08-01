@@ -10,6 +10,11 @@ deciding what to build next and telling users what they get.
 ## Shipped
 
 ### Analysis and planning
+- **The ecosystem's hands-off signals are honoured** —
+  `karpenter.sh/do-not-disrupt` and
+  `cluster-autoscaler.kubernetes.io/safe-to-evict: "false"` pin a pod
+  (named constraint, quoted in every explanation) and exclude a node from
+  candidacy, exactly as the autoscalers themselves behave
 - **Right-sizing report** — `dencer rightsizing`: requests versus *measured*
   usage per workload (metrics-server, opt-in via `planner.usageSource`),
   sorted by absolute CPU excess. Refuses to estimate without measurements,

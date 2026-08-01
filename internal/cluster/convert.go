@@ -52,6 +52,8 @@ func convertPod(p *corev1.Pod, ownerOf ownerResolver) model.Pod {
 		NodeSelector: p.Spec.NodeSelector,
 		Terminating:  p.DeletionTimestamp != nil,
 		Ready:        podReady(p),
+		DoNotDisrupt: p.Annotations["karpenter.sh/do-not-disrupt"] == "true" ||
+			p.Annotations["cluster-autoscaler.kubernetes.io/safe-to-evict"] == "false",
 	}
 
 	if p.Spec.Priority != nil {

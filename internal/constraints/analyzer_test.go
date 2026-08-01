@@ -194,3 +194,44 @@ func TestAnalysisIsDeterministic(t *testing.T) {
 		t.Error("analysis is not deterministic across runs on identical input")
 	}
 }
+
+// The ecosystem's hands-off annotations must make a pod immovable, with the
+// convention named in the explanation. Until this landed, the informer
+// transform stripped ALL annotations, so the analyzer was structurally blind
+// to the one signal Karpenter and the cluster autoscaler both honour.
+func TestHandsOffAnnotationsPinThePod(t *testing.T) {
+	snap := &model.ClusterSnapshot{
+		Nodes: []model.Node{
+			{Name: "a", Ready: true, Allocatable: model.Resources{MilliCPU: 8000, MemoryBytes: 32 << 30, Pods: 110}},
+			{Name: "b", Ready: true, Allocatable: model.Resources{MilliCPU: 8000, MemoryBytes: 32 << 30, Pods: 110}},
+		},
+		Pods: []model.Pod{{
+			Namespace: "shop", Name: "pinned-1", NodeName: "a",
+			Phase: model.PodRunning, Ready: true, DoNotDisrupt: true,
+			Requests: model.Resources{MilliCPU: 500, MemoryBytes: 1 << 28},
+			Owner:    &model.OwnerRef{Kind: "ReplicaSet", Name: "shop"},
+		}},
+	}
+
+	analysis := constraints.Analyze(snap)
+	pc, ok := analysis.ForPod("shop/pinned-1")
+	if !ok {
+		t.Fatal("pod not analysed")
+	}
+	if pc.Movable {
+		t.Error("a do-not-disrupt pod is Movable; the owner's explicit opt-out is being ignored")
+	}
+	found := false
+	for _, c := range pc.Of(constraints.KindDoNotDisrupt) {
+		found = true
+		if !c.Blocking || !c.Hard {
+			t.Error("the hands-off constraint must be hard and blocking")
+		}
+	}
+	if !found {
+		t.Error("no DoNotDisrupt constraint; the pod is pinned without its reason being explainable")
+	}
+	if drainable, _ := analysis.NodeDrainable("a"); drainable {
+		t.Error("a node holding a hands-off pod reports drainable")
+	}
+}

@@ -246,7 +246,20 @@ func applyTransform(opts *cache.Options) {
 			return obj, nil
 		}
 		p.ManagedFields = nil
-		p.Annotations = nil
+		// Annotations are stripped for heap discipline (M17) — except the two
+		// the ecosystem uses to say "hands off", which are load-bearing for
+		// movability and cost nothing to keep.
+		var keep map[string]string
+		if v, ok := p.Annotations["karpenter.sh/do-not-disrupt"]; ok {
+			keep = map[string]string{"karpenter.sh/do-not-disrupt": v}
+		}
+		if v, ok := p.Annotations["cluster-autoscaler.kubernetes.io/safe-to-evict"]; ok {
+			if keep == nil {
+				keep = map[string]string{}
+			}
+			keep["cluster-autoscaler.kubernetes.io/safe-to-evict"] = v
+		}
+		p.Annotations = keep
 		p.Status.ContainerStatuses = nil
 		p.Status.InitContainerStatuses = nil
 		p.Status.EphemeralContainerStatuses = nil

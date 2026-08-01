@@ -24,6 +24,9 @@ const (
 	KindPDB              Kind = "PodDisruptionBudget"
 	KindTaint            Kind = "Taint"
 	KindControllerPinned Kind = "ControllerPinned"
+	// KindDoNotDisrupt is the ecosystem's explicit hands-off annotation,
+	// honoured here exactly as Karpenter and the cluster autoscaler honour it.
+	KindDoNotDisrupt     Kind = "DoNotDisrupt"
 	KindPersistentVolume Kind = "PersistentVolume"
 )
 

@@ -330,3 +330,41 @@ func findPod(p *constraints.Placement, nodeName, namespace, name string) (model.
 	}
 	return model.Pod{}, false
 }
+
+// A node carrying karpenter.sh/do-not-disrupt must never be a drain
+// candidate — Karpenter will not consolidate it, and neither may we.
+func TestHandsOffNodeIsNeverACandidate(t *testing.T) {
+	mk := func(name string, annotations map[string]string) model.Node {
+		return model.Node{
+			Name: name, Ready: true, Annotations: annotations,
+			Allocatable: model.Resources{MilliCPU: 8000, MemoryBytes: 32 << 30, Pods: 110},
+		}
+	}
+	pod := func(name, on string) model.Pod {
+		return model.Pod{
+			Namespace: "shop", Name: name, NodeName: on, Phase: model.PodRunning, Ready: true,
+			Requests: model.Resources{MilliCPU: 500, MemoryBytes: 1 << 28},
+			Owner:    &model.OwnerRef{Kind: "ReplicaSet", Name: "web"},
+		}
+	}
+	snap := &model.ClusterSnapshot{
+		Nodes: []model.Node{
+			mk("protected", map[string]string{"karpenter.sh/do-not-disrupt": "true"}),
+			mk("ordinary", nil),
+			mk("receiver", nil),
+		},
+		Pods: []model.Pod{pod("w1", "protected"), pod("w2", "ordinary"), pod("w3", "receiver")},
+	}
+
+	opts := planner.DefaultOptions()
+	opts.MinNodeAge = 0
+	plan, err := planner.Greedy{}.Plan(snap, constraints.Analyze(snap), opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range plan.Steps {
+		if s.TargetNode == "protected" {
+			t.Fatal("the plan drains a node annotated do-not-disrupt")
+		}
+	}
+}

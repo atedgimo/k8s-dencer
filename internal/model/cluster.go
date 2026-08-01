@@ -56,6 +56,14 @@ func (n Node) InstanceType() string { return n.Labels["node.kubernetes.io/instan
 // said. Three-valued for the usual reason — a KWOK node is not "on-demand",
 // it is unpriced, and pretending otherwise would put a made-up word in a
 // cost report.
+
+// DoNotDisrupt reports the node-level hands-off marker
+// (karpenter.sh/do-not-disrupt: "true"). Such a node is not a drain
+// candidate, whatever its utilisation says.
+func (n Node) DoNotDisrupt() bool {
+	return n.Annotations["karpenter.sh/do-not-disrupt"] == "true"
+}
+
 func (n Node) CapacityType() string {
 	switch {
 	case n.Labels["karpenter.sh/capacity-type"] == "spot",
@@ -126,6 +134,14 @@ type Pod struct {
 	Terminating      bool      `json:"terminating,omitempty"`
 	HasPersistentVol bool      `json:"hasPersistentVolume,omitempty"`
 
+	// DoNotDisrupt is the ecosystem's own "hands off" signal, captured from
+	// either karpenter.sh/do-not-disrupt: "true" or
+	// cluster-autoscaler.kubernetes.io/safe-to-evict: "false". The owner has
+	// explicitly opted out of voluntary disruption, and a consolidation tool
+	// that ignores the conventions its neighbours honour is not safe to run
+	// beside them.
+	DoNotDisrupt bool `json:"doNotDisrupt,omitempty"`
+
 	Usage *Resources `json:"usage,omitempty"`
 }
 
@@ -142,6 +158,10 @@ func (p Pod) IsMovable() bool {
 		return false
 	}
 	if p.Owner != nil && p.Owner.Kind == "DaemonSet" {
+		return false
+	}
+	if p.DoNotDisrupt {
+		// The owner said hands off, in the ecosystem's own vocabulary.
 		return false
 	}
 	return true

@@ -206,6 +206,11 @@ func drainCandidates(snap *model.ClusterSnapshot, opts Options, now time.Time) [
 		if excluded, _ := opts.nodeExcluded(n, now); excluded {
 			continue
 		}
+		if n.DoNotDisrupt() {
+			// The node-level hands-off marker. Karpenter will not consolidate
+			// this node; neither will we.
+			continue
+		}
 		out = append(out, n)
 	}
 	return out

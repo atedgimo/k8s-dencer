@@ -294,3 +294,14 @@ func TestCapacityTypeIsThreeValued(t *testing.T) {
 		}
 	}
 }
+
+// The hands-off flag must make IsMovable false on its own. The analyzer's
+// blocking constraint already stops the planner; this rail is what stops the
+// EXECUTOR from evicting such a pod during a named drain, where the moves
+// list comes from IsMovable rather than from an analysis.
+func TestDoNotDisruptPodIsNotMovable(t *testing.T) {
+	p := model.Pod{Phase: model.PodRunning, Owner: &model.OwnerRef{Kind: "ReplicaSet", Name: "x"}, DoNotDisrupt: true}
+	if p.IsMovable() {
+		t.Fatal("a do-not-disrupt pod reports movable; a guarded drain would evict it")
+	}
+}
