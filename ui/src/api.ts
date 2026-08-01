@@ -178,6 +178,12 @@ export interface Recommendation {
   workload: string;
   why: string;
   fix?: string;
+  /**
+   * Plan steps this finding holds back, by sequence number. The queue is
+   * ranked by this: fixing the top finding unlocks the most nodes. Empty or
+   * absent means the finding is advice, not a blocker.
+   */
+  unblocksSteps?: number[];
 }
 
 const base = () => runtimeConfig().apiBaseUrl;

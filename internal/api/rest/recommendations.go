@@ -16,7 +16,11 @@ func (s *Server) handleRecommendations(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
-	recs := recommend.Build(rec.Snapshot)
+	// The queue, not just the advice: the plan's own blocking rules lead,
+	// each carrying the steps it holds back, computed against the same
+	// record so the numbers cannot describe a different moment than the
+	// findings.
+	recs := recommend.Queue(rec.Plan, rec.Snapshot)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"takenAt":         rec.Snapshot.TakenAt,
 		"recommendations": recs,
