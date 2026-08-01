@@ -459,28 +459,12 @@ demo-video: ## Record the scripted UI walkthrough (needs the demo running; outpu
 demo-reclaim: ## Fabric plays the autoscaler: remove drained kwok nodes (WATCH=1 to keep going)
 	@if [ "$(WATCH)" = "1" ]; then ./hack/demo-reclaim.sh --watch; else ./hack/demo-reclaim.sh; fi
 
-# The watcher runs LOCALLY under your own kubeconfig — deliberately not as an
-# in-cluster pod, which would need cluster-wide delete-nodes RBAC that cannot
-# be label-scoped. The script itself refuses non-kwok nodes structurally.
-FABRIC_AUTOSCALER_PID := /tmp/dencer-fabric-autoscaler.pid
-.PHONY: fabric-autoscaler-up fabric-autoscaler-down
-fabric-autoscaler-up: ## Start the background fabric autoscaler (started by make demo)
-	@if [ -f $(FABRIC_AUTOSCALER_PID) ] && kill -0 $$(cat $(FABRIC_AUTOSCALER_PID)) 2>/dev/null; then \
-		echo "fabric-autoscaler already running (pid $$(cat $(FABRIC_AUTOSCALER_PID)))"; \
-	else \
-		nohup ./hack/demo-reclaim.sh --watch > /tmp/dencer-fabric-autoscaler.log 2>&1 & echo $$! > $(FABRIC_AUTOSCALER_PID); \
-		echo "fabric-autoscaler watching (pid $$(cat $(FABRIC_AUTOSCALER_PID)); log /tmp/dencer-fabric-autoscaler.log)"; \
-	fi
-
-fabric-autoscaler-down: ## Stop the background fabric autoscaler
-	@if [ -f $(FABRIC_AUTOSCALER_PID) ]; then kill $$(cat $(FABRIC_AUTOSCALER_PID)) 2>/dev/null || true; rm -f $(FABRIC_AUTOSCALER_PID); echo "fabric-autoscaler stopped"; fi
-
-demo: kwok-up demo-up images images-load deploy fabric-autoscaler-up ## Full POC: fabric + topology + product + fabric autoscaler
+demo: kwok-up demo-up images images-load deploy ## Full POC: fabric + topology + product
 	@echo
 	@echo "==> demo ready. 'make ui' to open it, 'make down' to tear it all down."
 
 .PHONY: down
-down: fabric-autoscaler-down undeploy demo-down kwok-down ## Remove every release this repo installs
+down: undeploy demo-down kwok-down ## Remove every release this repo installs
 
 .PHONY: clean
 clean: ## Remove build artifacts
