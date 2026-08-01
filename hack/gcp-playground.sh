@@ -158,6 +158,18 @@ teardown() {
   [[ -n "$PORT_FORWARD_PID" ]] && kill "$PORT_FORWARD_PID" >/dev/null 2>&1 || true
   cluster_delete
   restore_context
+  # Deleting the cluster orphans its PVC-backed disks: the CSI driver that
+  # would release them dies with the control plane. Found live — three 1GB
+  # pvc-* disks quietly billing across runs. GKE labels every dynamically
+  # provisioned disk with its cluster name, so ours are addressable exactly.
+  orphans="$(gcloud compute disks list \
+    --filter="labels.goog-k8s-cluster-name=${CLUSTER} AND -users:*" \
+    --format="value(name)" 2>/dev/null || true)"
+  if [[ -n "$orphans" ]]; then
+    echo "  deleting orphaned volume disk(s): $(echo "$orphans" | tr '\n' ' ')"
+    # shellcheck disable=SC2086
+    gcloud compute disks delete $orphans --zone "$GCP_ZONE" --quiet >/dev/null 2>&1 || true
+  fi
   bold "==> anything billable left?"
   "$REPO/hack/gke-leftovers.sh" || true
   green "playground over"
