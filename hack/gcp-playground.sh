@@ -156,10 +156,14 @@ kubectl --context "$CTX" create namespace "$KWOK_NS" --dry-run=client -o yaml \
 # apply lands everything in the context's default namespace — found live,
 # the rollout wait then looking for a controller that existed one namespace
 # over. Explicit namespaces in rendered docs still win over -n.
+# --include-crds: the third thing helm install does that helm template does
+# not — the chart's crds/ directory never renders without it, and stage-fast's
+# Stage objects have nothing to land on. Found live, one launch per layer.
 helm template kwok kwok/kwok --version "$KWOK_CHART_VERSION" \
-  --namespace "$KWOK_NS" -f "$REPO/demo/kwok-values.yaml" \
+  --namespace "$KWOK_NS" --include-crds -f "$REPO/demo/kwok-values.yaml" \
   | python3 -c 'import sys; print("\n---".join(d for d in sys.stdin.read().split("\n---") if "kind: FlowSchema" not in d))' \
   | kubectl --context "$CTX" -n "$KWOK_NS" apply -f - >/dev/null
+kubectl --context "$CTX" wait --for=condition=established crd/stages.kwok.x-k8s.io --timeout=60s >/dev/null
 kubectl --context "$CTX" -n "$KWOK_NS" rollout status deployment/kwok-controller --timeout=3m >/dev/null
 helm --kube-context "$CTX" upgrade --install kwok-stage-fast kwok/stage-fast --version "$KWOK_CHART_VERSION" \
   --namespace "$KWOK_NS" --wait --timeout 3m >/dev/null
