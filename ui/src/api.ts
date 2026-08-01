@@ -171,6 +171,14 @@ export interface HistoryResponse {
   runs: HistoryRunMarker[];
 }
 
+export interface Recommendation {
+  kind: string;
+  severity: "high" | "medium" | "info";
+  workload: string;
+  why: string;
+  fix?: string;
+}
+
 const base = () => runtimeConfig().apiBaseUrl;
 
 /** ApiError distinguishes "nothing planned yet" from a real failure — a fresh
@@ -400,6 +408,10 @@ export const api = {
       maxImpact,
       dryRun,
     }),
+
+  /** What is missing, with fixes. */
+  recommendations: (signal?: AbortSignal) =>
+    get<{ takenAt: string; recommendations: Recommendation[] }>(`/api/v1/recommendations`, signal),
 
   /** The cluster's timeline, chart-ready. */
   history: (hours: number, signal?: AbortSignal) =>
