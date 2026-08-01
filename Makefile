@@ -230,6 +230,14 @@ cloud-e2e: ## The same e2e on a real GKE cluster, so a real autoscaler reclaims 
 cloud-e2e-clean: ## Delete a GKE test cluster left behind by an interrupted run
 	PROVIDER=gke ./hack/e2e.sh clean
 
+.PHONY: gcp-play
+gcp-play: ## A 20-minute GKE playground with a random scenario, then self-destructs (PLAY_MINUTES=N)
+	./hack/gcp-playground.sh
+
+.PHONY: gcp-play-clean
+gcp-play-clean: ## Delete a playground cluster left behind
+	./hack/gcp-playground.sh clean
+
 .PHONY: lint
 lint: $(KUBECONFORM) ## Chart portability gate: lint, render and assert the contract
 	@KUBECONFORM=$(KUBECONFORM) CHART=$(CHART) ./hack/lint-chart.sh
