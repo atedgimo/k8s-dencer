@@ -56,7 +56,7 @@ func Open(path string) (*Store, error) {
 // Close releases the database handle.
 func (s *Store) Close() error { return s.db.Close() }
 
-const schemaVersion = 7
+const schemaVersion = 8
 
 // Migrate creates or upgrades the schema.
 func (s *Store) Migrate(ctx context.Context) error {
@@ -109,6 +109,11 @@ func (s *Store) Migrate(ctx context.Context) error {
 			return fmt.Errorf("apply schema v7: %w", err)
 		}
 	}
+	if current < 8 {
+		if _, err := tx.ExecContext(ctx, schemaV8); err != nil {
+			return fmt.Errorf("apply schema v8: %w", err)
+		}
+	}
 
 	// PRAGMA does not accept a bound parameter.
 	if _, err := tx.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", schemaVersion)); err != nil {
@@ -116,6 +121,14 @@ func (s *Store) Migrate(ctx context.Context) error {
 	}
 	return tx.Commit()
 }
+
+// v8: the plan records the packing ceiling it was computed under, so the
+// UI's ceiling line can describe the plan on screen rather than the current
+// config. A column, not part of the content hash: the same steps under a
+// different ceiling are the same actions.
+const schemaV8 = `
+ALTER TABLE plans ADD COLUMN pack_ceiling REAL NOT NULL DEFAULT 0;
+`
 
 const schemaV1 = `
 CREATE TABLE IF NOT EXISTS plans (
@@ -303,14 +316,18 @@ func (s *Store) Save(ctx context.Context, rec store.Record) (bool, error) {
 			return false, fmt.Errorf("encode snapshot: %w", encErr)
 		}
 		touched, err = s.db.ExecContext(ctx,
-			`UPDATE plans SET stored_at = ?, snapshot = ?
+			`UPDATE plans SET stored_at = ?, pack_ceiling = ?, snapshot = ?
 			 WHERE id = ? AND id = (SELECT id FROM plans ORDER BY stored_at DESC, rowid DESC LIMIT 1)`,
-			storedAt.UTC().Format(time.RFC3339Nano), snapshotJSON, rec.Plan.ID)
+			storedAt.UTC().Format(time.RFC3339Nano), rec.Plan.PackCeiling, snapshotJSON, rec.Plan.ID)
 	} else {
+		// pack_ceiling rides the touch for the same reason stored_at does:
+		// an upgraded planner re-verifying an identical plan under a new
+		// ceiling must not leave the stored row describing the old policy —
+		// found live, the Wells lens drawing no ceiling after the upgrade.
 		touched, err = s.db.ExecContext(ctx,
-			`UPDATE plans SET stored_at = ?
+			`UPDATE plans SET stored_at = ?, pack_ceiling = ?
 			 WHERE id = ? AND id = (SELECT id FROM plans ORDER BY stored_at DESC, rowid DESC LIMIT 1)`,
-			storedAt.UTC().Format(time.RFC3339Nano), rec.Plan.ID)
+			storedAt.UTC().Format(time.RFC3339Nano), rec.Plan.PackCeiling, rec.Plan.ID)
 	}
 	if err != nil {
 		return false, fmt.Errorf("touch plan: %w", err)
@@ -343,12 +360,13 @@ func (s *Store) Save(ctx context.Context, rec store.Record) (bool, error) {
 	// timestamp rather than resurfacing a stale one.
 	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO plans (id, generated_at, snapshot_taken_at, status, strategy,
-		                   nodes_before, nodes_after, snapshot, analysis, stored_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		                   nodes_before, nodes_after, pack_ceiling, snapshot, analysis, stored_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 		    generated_at = excluded.generated_at,
 		    stored_at    = excluded.stored_at,
 		    status       = excluded.status,
+		    pack_ceiling = excluded.pack_ceiling,
 		    snapshot     = excluded.snapshot,
 		    analysis     = excluded.analysis`,
 		rec.Plan.ID,
@@ -358,6 +376,7 @@ func (s *Store) Save(ctx context.Context, rec store.Record) (bool, error) {
 		rec.Strategy,
 		rec.Plan.NodesBefore,
 		rec.Plan.NodesAfter,
+		rec.Plan.PackCeiling,
 		snapshotJSON,
 		analysisJSON,
 		storedAt.Format(time.RFC3339Nano),
@@ -418,13 +437,14 @@ func (s *Store) ByID(ctx context.Context, id string) (store.Record, error) {
 		storedAt, status             string
 		snapshotJSON, analysisJSON   []byte
 		nodesBefore, nodesAfter      int
+		packCeiling                  float64
 	)
 	err := s.db.QueryRowContext(ctx, `
 		SELECT generated_at, snapshot_taken_at, status, strategy,
-		       nodes_before, nodes_after, snapshot, analysis, stored_at
+		       nodes_before, nodes_after, pack_ceiling, snapshot, analysis, stored_at
 		FROM plans WHERE id = ?`, id).
 		Scan(&generatedAt, &snapshotTakenAt, &status, &rec.Strategy,
-			&nodesBefore, &nodesAfter, &snapshotJSON, &analysisJSON, &storedAt)
+			&nodesBefore, &nodesAfter, &packCeiling, &snapshotJSON, &analysisJSON, &storedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return store.Record{}, store.ErrNotFound
 	}
@@ -439,6 +459,7 @@ func (s *Store) ByID(ctx context.Context, id string) (store.Record, error) {
 		Status:          model.PlanStatus(status),
 		NodesBefore:     nodesBefore,
 		NodesAfter:      nodesAfter,
+		PackCeiling:     packCeiling,
 	}
 	rec.StoredAt = parseTime(storedAt)
 

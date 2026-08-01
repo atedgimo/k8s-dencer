@@ -97,6 +97,7 @@ func run(ctx context.Context, log *slog.Logger) error {
 	planOpts.MinNodeAge = duration(log, "MIN_NODE_AGE", planOpts.MinNodeAge)
 	planOpts.MaxSteps = intEnv(log, "MAX_STEPS", 0)
 	planOpts.ExcludeNamespaces = splitList(os.Getenv("EXCLUDE_NAMESPACES"))
+	planOpts.PackCeiling = floatEnv(log, "PACK_CEILING", planOpts.PackCeiling)
 
 	metrics := telemetry.NewMetrics(telemetry.ComponentPlanner)
 
@@ -176,6 +177,22 @@ func run(ctx context.Context, log *slog.Logger) error {
 			pub.Cycle(ctx)
 		}
 	}
+}
+
+// floatEnv reads a fraction like PACK_CEILING=0.85. Out-of-range values
+// (below 0 or above 1) fall back rather than silently disabling the ceiling
+// with a typo.
+func floatEnv(log *slog.Logger, key string, fallback float64) float64 {
+	raw, ok := os.LookupEnv(key)
+	if !ok || raw == "" {
+		return fallback
+	}
+	v, err := strconv.ParseFloat(raw, 64)
+	if err != nil || v < 0 || v > 1 {
+		log.Warn("invalid fraction, using default", "key", key, "value", raw, "default", fallback)
+		return fallback
+	}
+	return v
 }
 
 func intEnv(log *slog.Logger, key string, fallback int) int {

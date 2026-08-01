@@ -47,6 +47,13 @@ type Plan struct {
 	// NodesBefore and NodesAfter describe the packing this plan achieves.
 	NodesBefore int `json:"nodesBefore"`
 	NodesAfter  int `json:"nodesAfter"`
+
+	// PackCeiling is the utilisation fraction this plan refused to pack
+	// destinations above (0.85 = plan to 85% of allocatable). Recorded on
+	// the plan, not read from config, so the UI's ceiling line describes the
+	// plan on screen even after the setting changes. Zero on plans that
+	// predate the ceiling.
+	PackCeiling float64 `json:"packCeiling,omitempty"`
 }
 
 // ReclaimedNodes is how many nodes the full plan frees.

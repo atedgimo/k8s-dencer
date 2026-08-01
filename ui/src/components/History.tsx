@@ -1,20 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, formatBytes, formatCPU, HistoryResponse } from "../api";
+import { HistoryResponse, api, formatCPU } from "../api";
 
 /**
- * The cluster's timeline — the first surface that reads what the product has
- * always recorded as a line instead of a moment.
+ * History (assets/design/README.md, 2e): the estate over time as needed vs
+ * spare stacked bars — legible, unlike the near-black line chart it
+ * replaces — over an audit ledger of every run and who authorised it.
  *
- * Three bands, top to bottom in the order of the product's own argument:
- * what the estate is (nodes, and how many the plan would free), what was
- * actually returned (the ledger, cumulative and measured), and what the
- * machines really do versus what they ask for (requests vs usage, only when
- * measured). Run markers sit on the ledger band because runs are what turn
- * the first band's potential into the second band's fact.
- *
- * Hand-drawn SVG, no chart library: the bundle stays honest and the charts
- * obey the house rules exactly — ink is achromatic, the only colour on this
- * page is a run marker's rating, which already means risk everywhere else.
+ * "Spare" is the planner's own testimony: the reclaimable count it published
+ * at each sample. The ledger is the product's memory of consent — when, what
+ * plan, how much, outcome, and the actor the API server verified.
  */
 
 const RANGES = [
@@ -52,15 +46,18 @@ export default function History() {
   }, [hours]);
 
   return (
-    <div className="history">
-      <div className="history-head">
-        <span className="eyebrow">the cluster, over time</span>
-        <div className="history-ranges" role="group" aria-label="Time range">
+    <div className="historypage">
+      <div className="historypage-head">
+        <span className="historypage-title">History</span>
+        <span className="historypage-counts mono">
+          every plan, run and rehearsal on this cluster
+        </span>
+        <div className="historypage-ranges viewswitch" role="group" aria-label="Time range">
           {RANGES.map((r) => (
             <button
               key={r.hours}
               type="button"
-              className={"history-range" + (r.hours === hours ? " is-on" : "")}
+              className={"viewswitch-btn" + (r.hours === hours ? " is-on" : "")}
               onClick={() => setHours(r.hours)}
             >
               {r.label}
@@ -69,254 +66,205 @@ export default function History() {
         </div>
       </div>
 
-      {error && <p className="history-empty">Could not load the timeline: {error}</p>}
+      {error && <p className="historypage-empty">Could not load the timeline: {error}</p>}
       {data && data.samples.length < 2 && !error && (
-        <p className="history-empty">
-          The timeline needs a few minutes of samples before there is a line to draw. The planner
-          writes one point every resync; leave this open.
+        <p className="historypage-empty">
+          The timeline needs a few minutes of samples before there is anything to draw. The
+          planner writes one point every resync; leave this open.
         </p>
       )}
       {data && data.samples.length >= 2 && (
         <>
-          <EstateBand data={data} />
-          <LedgerBand data={data} />
-          <UsageBand data={data} />
+          <EstateBars data={data} />
+          <Ledger data={data} />
         </>
       )}
     </div>
   );
 }
 
-/* ------------------------------------------------------------- shared svg */
+/* ------------------------------------------------------------ estate bars */
 
-const W = 960;
-const H = 180;
-const PAD = { l: 44, r: 12, t: 14, b: 22 };
+const BUCKETS = 48;
 
-interface Scale {
-  x: (t: number) => number;
-  y: (v: number) => number;
-  t0: number;
-  t1: number;
-  vMax: number;
-}
-
-function makeScale(times: number[], maxValue: number): Scale {
-  const t0 = Math.min(...times);
-  const t1 = Math.max(...times);
-  const span = Math.max(1, t1 - t0);
-  const vMax = Math.max(1, maxValue);
-  return {
-    x: (t) => PAD.l + ((t - t0) / span) * (W - PAD.l - PAD.r),
-    y: (v) => H - PAD.b - (v / vMax) * (H - PAD.t - PAD.b),
-    t0,
-    t1,
-    vMax,
-  };
-}
-
-function linePath(pts: Array<[number, number]>): string {
-  return pts.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
-}
-
-function timeTicks(s: Scale): Array<{ x: number; label: string }> {
-  const out: Array<{ x: number; label: string }> = [];
-  const span = s.t1 - s.t0;
-  for (let i = 0; i <= 4; i++) {
-    const t = s.t0 + (span * i) / 4;
-    const d = new Date(t);
-    const label =
-      span > 36e5 * 48
-        ? `${d.getMonth() + 1}/${d.getDate()}`
-        : `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-    out.push({ x: s.x(t), label });
-  }
-  return out;
-}
-
-function Grid({ s, yLabel }: { s: Scale; yLabel: (v: number) => string }) {
-  return (
-    <g className="chart-grid" aria-hidden="true">
-      {[0.25, 0.5, 0.75, 1].map((f) => (
-        <g key={f}>
-          <line x1={PAD.l} x2={W - PAD.r} y1={s.y(s.vMax * f)} y2={s.y(s.vMax * f)} />
-          <text x={PAD.l - 6} y={s.y(s.vMax * f) + 3} textAnchor="end" className="chart-ylabel num">
-            {yLabel(s.vMax * f)}
-          </text>
-        </g>
-      ))}
-      {timeTicks(s).map((t) => (
-        <text key={t.x} x={t.x} y={H - 6} textAnchor="middle" className="chart-xlabel num">
-          {t.label}
-        </text>
-      ))}
-    </g>
-  );
-}
-
-/* ---------------------------------------------------------------- estate */
-
-function EstateBand({ data }: { data: HistoryResponse }) {
-  const { s, nodesPath, reclaimArea, latest } = useMemo(() => {
+function EstateBars({ data }: { data: HistoryResponse }) {
+  const model = useMemo(() => {
     const pts = data.samples.map((p) => ({ t: Date.parse(p.takenAt), ...p }));
-    const s = makeScale(
-      pts.map((p) => p.t),
-      Math.max(...pts.map((p) => p.nodes)),
-    );
-    const nodesPath = linePath(pts.map((p) => [s.x(p.t), s.y(p.nodes)]));
-    // Reclaimable drawn as the shaded top slice of the estate: the part of
-    // the fleet the plan says is not needed.
-    const upper = pts.map((p) => [s.x(p.t), s.y(p.nodes)] as [number, number]);
-    const lower = pts
-      .map((p) => [s.x(p.t), s.y(Math.max(0, p.nodes - p.reclaimable))] as [number, number])
-      .reverse();
-    const reclaimArea = linePath(upper) + " " + linePath(lower).replace(/^M/, "L") + " Z";
-    return { s, nodesPath, reclaimArea, latest: pts[pts.length - 1] };
+    // Downsample into fixed buckets: a bar per sample would be thousands of
+    // slivers at 30 days, and the question is a shape, not a point read.
+    const t0 = pts[0].t;
+    const t1 = pts[pts.length - 1].t;
+    const span = Math.max(1, t1 - t0);
+    const buckets: Array<{ nodes: number; spare: number; n: number; t: number }> = [];
+    for (const p of pts) {
+      const i = Math.min(BUCKETS - 1, Math.floor(((p.t - t0) / span) * BUCKETS));
+      buckets[i] = buckets[i] ?? { nodes: 0, spare: 0, n: 0, t: p.t };
+      buckets[i].nodes += p.nodes;
+      buckets[i].spare += p.reclaimable;
+      buckets[i].n++;
+    }
+    const bars = buckets
+      .filter(Boolean)
+      .map((b) => ({ t: b.t, nodes: b.nodes / b.n, spare: b.spare / b.n }));
+    const maxNodes = Math.max(...bars.map((b) => b.nodes), 1);
+    const avgSpare = bars.reduce((n, b) => n + b.spare, 0) / bars.length;
+    return { bars, maxNodes, avgSpare, t0, t1 };
   }, [data]);
 
+  const ticks = [1, 0.75, 0.5, 0.25, 0].map((f) => Math.round(model.maxNodes * f));
+  const label = (t: number) => {
+    const d = new Date(t);
+    return model.t1 - model.t0 > 36e5 * 48
+      ? `${d.getMonth() + 1}/${d.getDate()}`
+      : `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  };
+
   return (
-    <section className="history-band">
-      <header className="history-band-head">
-        <h2 className="history-band-title">Estate</h2>
-        <span className="history-band-now num">
-          {latest.nodes} nodes · {latest.reclaimable} reclaimable now
-        </span>
-      </header>
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Nodes and reclaimable over time">
-        <Grid s={s} yLabel={(v) => `${Math.round(v)}`} />
-        <path className="chart-area" d={reclaimArea} />
-        <path className="chart-line" d={nodesPath} />
-      </svg>
-      <p className="history-band-note">
-        The shaded slice is what the plan would free — the gap between the fleet you run and the
-        fleet you need.
-      </p>
+    <section className="estate">
+      <div className="estate-head">
+        <div className="estate-lead">
+          <span className="eyebrow mono">The fleet you ran vs the fleet you needed</span>
+          <h2 className="estate-headline">
+            You carried{" "}
+            <span className="estate-spare-word">
+              {Math.round(model.avgSpare)} spare node{Math.round(model.avgSpare) === 1 ? "" : "s"}
+            </span>{" "}
+            on average
+          </h2>
+        </div>
+        <div className="wellslegend">
+          <span className="wellslegend-item">
+            <span className="estate-swatch-needed" aria-hidden="true" />
+            needed
+          </span>
+          <span className="wellslegend-item">
+            <span className="estate-swatch-spare" aria-hidden="true" />
+            spare
+          </span>
+        </div>
+      </div>
+
+      <div className="estate-chart">
+        <div className="estate-yaxis mono" aria-hidden="true">
+          {ticks.map((v, i) => (
+            <span key={i}>{v}</span>
+          ))}
+        </div>
+        <div
+          className="estate-bars"
+          role="img"
+          aria-label="Nodes run versus nodes needed over time"
+        >
+          {model.bars.map((b) => (
+            <div key={b.t} className="estate-bar" title={`${Math.round(b.nodes)} nodes, ${Math.round(b.spare)} spare`}>
+              <div
+                className="estate-bar-spare"
+                style={{ height: `${(b.spare / model.maxNodes) * 100}%` }}
+              />
+              <div
+                className="estate-bar-needed"
+                style={{ height: `${((b.nodes - b.spare) / model.maxNodes) * 100}%` }}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="estate-xaxis mono" aria-hidden="true">
+        {[0, 0.25, 0.5, 0.75, 1].map((f) => (
+          <span key={f}>{label(model.t0 + (model.t1 - model.t0) * f)}</span>
+        ))}
+      </div>
     </section>
   );
 }
 
 /* ---------------------------------------------------------------- ledger */
 
-function LedgerBand({ data }: { data: HistoryResponse }) {
-  const model = useMemo(() => {
-    const events = data.reclamations
-      .filter((r) => r.outcome === "reclaimed" && r.resolvedAt)
-      .map((r) => ({ t: Date.parse(r.resolvedAt as string), cpu: r.cpuMilli ?? 0 }))
-      .sort((a, b) => a.t - b.t);
-    const t0 = data.samples.length ? Date.parse(data.samples[0].takenAt) : Date.now();
-    const t1 = data.samples.length
-      ? Date.parse(data.samples[data.samples.length - 1].takenAt)
-      : Date.now();
-    let cum = 0;
-    const steps: Array<{ t: number; v: number }> = [{ t: t0, v: 0 }];
-    for (const e of events) {
-      if (e.t < t0) {
-        cum += e.cpu;
-        steps[0] = { t: t0, v: cum };
-        continue;
-      }
-      steps.push({ t: e.t, v: cum });
-      cum += e.cpu;
-      steps.push({ t: e.t, v: cum });
+function Ledger({ data }: { data: HistoryResponse }) {
+  const rows = useMemo(() => {
+    const byRun = new Map<string, { nodes: number; cpu: number }>();
+    for (const r of data.reclamations) {
+      if (r.outcome !== "reclaimed" || !r.runId) continue;
+      const cur = byRun.get(r.runId) ?? { nodes: 0, cpu: 0 };
+      cur.nodes++;
+      cur.cpu += r.cpuMilli ?? 0;
+      byRun.set(r.runId, cur);
     }
-    steps.push({ t: t1, v: cum });
-    const s = makeScale(
-      [t0, t1],
-      Math.max(1000, ...steps.map((p) => p.v)),
-    );
-    const path = linePath(steps.map((p) => [s.x(p.t), s.y(p.v)]));
-    const runs = data.runs
+    return data.runs
       .filter((r) => r.finishedAt)
-      .map((r) => ({ ...r, t: Date.parse(r.finishedAt as string) }))
-      .filter((r) => r.t >= t0 && r.t <= t1);
-    return { s, path, cum, runs, count: events.length };
+      .sort((a, b) => Date.parse(b.finishedAt as string) - Date.parse(a.finishedAt as string))
+      .map((r) => ({ ...r, reclaimed: byRun.get(r.id) }));
   }, [data]);
 
   return (
-    <section className="history-band">
-      <header className="history-band-head">
-        <h2 className="history-band-title">Ledger</h2>
-        <span className="history-band-now num">
-          {formatCPU(model.cum)} cores measured as returned
-          {model.count > 0 ? ` · ${model.count} node${model.count === 1 ? "" : "s"}` : ""}
+    <section className="auditledger">
+      <div className="auditledger-head">
+        <span className="eyebrow mono">Ledger</span>
+        <span className="auditledger-count">
+          {rows.length} entr{rows.length === 1 ? "y" : "ies"}
         </span>
-      </header>
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Cumulative capacity returned">
-        <Grid s={model.s} yLabel={(v) => formatCPU(v)} />
-        <path className="chart-line chart-line-step" d={model.path} />
-        {/* Run markers: the moments potential became fact (or was refused).
-            The one place colour appears, because a rating already means risk. */}
-        {model.runs.map((r) => (
-          <g key={r.id} transform={`translate(${model.s.x(r.t).toFixed(1)}, ${H - PAD.b})`}>
-            <line className="chart-run-tick" y2={-(H - PAD.t - PAD.b)} />
-            <title>
-              {(r.mode || "steps") + (r.dryRun ? " (dry run)" : "") + " — " + r.status}
-            </title>
-            <text y={-4} textAnchor="middle" className={"chart-run-mark chart-run-" + r.status.toLowerCase()}>
-              {r.dryRun ? "◌" : r.status === "Succeeded" ? "●" : r.status === "Blocked" ? "■" : "✕"}
-            </text>
-          </g>
-        ))}
-      </svg>
-      <p className="history-band-note">
-        Measured, not estimated: capacity captured at drain time, counted only when the node
-        actually disappeared. Markers are runs — hollow ones were rehearsals.
-      </p>
+      </div>
+      <div className="auditrow auditrow-head">
+        <span className="eyebrow mono">when</span>
+        <span className="eyebrow mono">plan</span>
+        <span className="eyebrow mono">mode</span>
+        <span className="eyebrow mono">steps</span>
+        <span className="eyebrow mono">reclaimed</span>
+        <span className="eyebrow mono">outcome</span>
+        <span className="eyebrow mono">authorised by</span>
+      </div>
+      {rows.length === 0 && (
+        <p className="historypage-empty">No runs in this window. The ledger fills as they happen.</p>
+      )}
+      {rows.map((r) => (
+        <div key={r.id} className="auditrow">
+          <span className="mono auditrow-when">
+            {new Date(r.finishedAt as string).toLocaleString([], {
+              month: "short",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false,
+            })}
+          </span>
+          <span className="mono auditrow-plan">{(r.planId ?? "").slice(0, 7) || "—"}</span>
+          <span className="auditrow-mode">
+            {r.dryRun ? "rehearsal" : r.mode || "steps"}
+          </span>
+          <span className="mono">{r.steps ?? "—"}</span>
+          <span className="mono">
+            {r.reclaimed
+              ? `${r.reclaimed.nodes} node${r.reclaimed.nodes === 1 ? "" : "s"} · ${formatCPU(r.reclaimed.cpu)} cores`
+              : r.dryRun
+                ? "nothing, by design"
+                : "—"}
+          </span>
+          <span
+            className={
+              "auditrow-outcome " +
+              (r.status === "Succeeded"
+                ? "is-safe"
+                : r.status === "Blocked"
+                  ? "is-held"
+                  : r.status === "Failed"
+                    ? "is-held"
+                    : "")
+            }
+          >
+            {r.status === "Blocked" ? "Halted by the guard" : r.status}
+          </span>
+          <span className="mono auditrow-actor" title={r.actor}>
+            {shortActor(r.actor)}
+          </span>
+        </div>
+      ))}
     </section>
   );
 }
 
-/* ----------------------------------------------------------------- usage */
-
-function UsageBand({ data }: { data: HistoryResponse }) {
-  const measured = data.samples.filter((p) => p.hasUsage);
-  const model = useMemo(() => {
-    if (measured.length < 2) return null;
-    const pts = measured.map((p) => ({ t: Date.parse(p.takenAt), ...p }));
-    const s = makeScale(
-      pts.map((p) => p.t),
-      Math.max(...pts.map((p) => p.cpuReqMilli)),
-    );
-    return {
-      s,
-      req: linePath(pts.map((p) => [s.x(p.t), s.y(p.cpuReqMilli)])),
-      used: linePath(pts.map((p) => [s.x(p.t), s.y(p.cpuUsedMilli)])),
-      latest: pts[pts.length - 1],
-    };
-  }, [measured]);
-
-  if (!model) {
-    return (
-      <section className="history-band">
-        <header className="history-band-head">
-          <h2 className="history-band-title">Requests vs usage</h2>
-        </header>
-        <p className="history-empty">
-          No measured usage in this window. Enable it with planner.usageSource=metrics-server;
-          without measurements this band refuses to draw.
-        </p>
-      </section>
-    );
-  }
-
-  return (
-    <section className="history-band">
-      <header className="history-band-head">
-        <h2 className="history-band-title">Requests vs usage</h2>
-        <span className="history-band-now num">
-          {formatCPU(model.latest.cpuReqMilli)} requested · {formatCPU(model.latest.cpuUsedMilli)}{" "}
-          used · {formatBytes(model.latest.memReqBytes)} / {formatBytes(model.latest.memUsedBytes)}
-        </span>
-      </header>
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Requested versus used CPU over time">
-        <Grid s={model.s} yLabel={(v) => formatCPU(v)} />
-        <path className="chart-line" d={model.req} />
-        <path className="chart-line chart-line-dim" d={model.used} />
-      </svg>
-      <p className="history-band-note">
-        The bright line is what workloads ask for — the scheduler's reality. The dim line is what
-        they measurably use. The space between them is what right-sizing recovers.
-      </p>
-    </section>
-  );
+/** The recognisable tail of an RBAC principal. */
+function shortActor(actor?: string): string {
+  if (!actor) return "—";
+  const parts = actor.split(":");
+  return parts[parts.length - 1] || actor;
 }

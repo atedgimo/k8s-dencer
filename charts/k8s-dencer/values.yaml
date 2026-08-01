@@ -109,6 +109,11 @@ planner:
   minNodeAge: 10m
   # Cap on plan length. 0 means unlimited.
   maxSteps: 0
+  # Destination utilisation the planner will not pack above, as a fraction of
+  # allocatable CPU and memory. Nothing sane packs production nodes to 100%:
+  # zero headroom absorbs no burst, no failed neighbour, no rollout surge.
+  # 0 disables the ceiling.
+  packCeiling: 0.85
   # Pods in these namespaces are treated as immovable, which makes their nodes
   # undrainable.
   excludeNamespaces: []

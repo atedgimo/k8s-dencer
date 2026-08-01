@@ -34,8 +34,10 @@ func (Greedy) Plan(snap *model.ClusterSnapshot, analysis *constraints.Analysis, 
 	// The working placement is mutated as steps are accepted, so later steps
 	// see the cluster as earlier steps will have left it. Planning each step
 	// against the original state would produce a set of moves that conflict
-	// with each other.
-	work := constraints.NewPlacement(snap)
+	// with each other. The ceiling applies here and only here: the analyzer
+	// keeps full allocatable because its question is feasibility, while the
+	// planner's question is what to aim for.
+	work := constraints.NewPlacementCeiling(snap, opts.PackCeiling)
 	nodesBefore := occupiedNodes(work)
 
 	candidates := drainCandidates(snap, opts, now)
@@ -89,6 +91,7 @@ func (Greedy) Plan(snap *model.ClusterSnapshot, analysis *constraints.Analysis, 
 		Steps:           steps,
 		NodesBefore:     nodesBefore,
 		NodesAfter:      nodesBefore - len(steps),
+		PackCeiling:     opts.PackCeiling,
 	}, nil
 }
 

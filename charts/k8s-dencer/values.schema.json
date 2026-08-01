@@ -177,6 +177,11 @@
               "type": "integer",
               "minimum": 0
             },
+            "packCeiling": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
             "excludeNamespaces": {
               "type": "array",
               "items": {

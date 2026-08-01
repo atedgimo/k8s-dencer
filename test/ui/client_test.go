@@ -219,35 +219,22 @@ func TestPlanConfirmationIsPolledRatherThanFetchedOnce(t *testing.T) {
 //
 // Twice now a fact about the real cluster made it into the client model and
 // stopped there — `cordoned` (found by a user: "one node drained, how I know
-// in UI?") and then `ready`, which sat in NodeInfo unrendered from the day it
-// was parsed. The payload-parity guard cannot catch this class: it checks that
-// a field is *read*, and layout.ts reading a field into a struct nothing draws
-// satisfies it. These assertions pin the last hop, source-to-screen.
+// in UI?") and then `ready`, which sat unrendered from the day it was parsed.
+// The payload-parity guard cannot catch this class: it checks that a field is
+// *read*, and a hook reading a field into a struct nothing draws satisfies
+// it. These assertions pin the last hop, source-to-screen — now onto the
+// Cluster lenses, which replaced the packing field.
 func TestObservedNodeStatesAreDrawnNotJustParsed(t *testing.T) {
-	views := read(t, "components/FieldViews.tsx")
+	page := read(t, "components/cluster/ClusterPage.tsx")
 
 	// The observed vocabulary, complete. Losing a word here silently demotes
-	// that state back to invisible.
-	for _, word := range []string{`"reclaimed"`, `"NotReady"`, `"awaiting removal"`, `"cordoned"`} {
-		if !strings.Contains(views, word) {
-			t.Errorf("FieldViews no longer renders the observed state %s", word)
+	// that state back to invisible. "reclaimed" is drawn by omission — the
+	// node leaves the grid — which is still a rendering decision this file
+	// must make explicitly.
+	for _, word := range []string{`"reclaimed"`, "NotReady", "awaiting removal", "cordoned"} {
+		if !strings.Contains(page, word) {
+			t.Errorf("ClusterPage no longer renders the observed state %q", word)
 		}
-	}
-
-	// Observed beats predicted, structurally: stateWord must consult
-	// observedWord before it considers the scrubber's "drained".
-	if !regexp.MustCompile(`(?s)function stateWord[^}]*observedWord\(n\)[^}]*n\.drained`).MatchString(views) {
-		t.Error("stateWord no longer prefers observed facts over the predicted " +
-			"\"drained\"; a real cordon would vanish the moment the scrubber " +
-			"passes the node's step")
-	}
-
-	// The specific field that was parsed and never drawn. NodeInfo.ready must
-	// reach a draw state, not just a struct.
-	field := read(t, "components/PackingField.tsx")
-	if !strings.Contains(field, "notReady: !n.ready") {
-		t.Error("PackingField no longer derives notReady from the model's " +
-			"ready field; NotReady nodes are invisible again")
 	}
 
 	obs := read(t, "useObserved.ts")
@@ -255,7 +242,7 @@ func TestObservedNodeStatesAreDrawnNotJustParsed(t *testing.T) {
 	// A rehearsal must never mark a node as actually drained. Dry runs emit
 	// the same event stream on purpose (the UI renders both with one
 	// component), so the observed overlay has to filter them or a dry run
-	// paints the field with drains that never happened.
+	// paints the lenses with drains that never happened.
 	if !regexp.MustCompile(`(?s)return useMemo.{0,900}?!runState\.run\.dryRun`).MatchString(obs) {
 		t.Error("the observed overlay does not exclude dry runs; a rehearsal " +
 			"would mark nodes as genuinely drained")
@@ -265,21 +252,24 @@ func TestObservedNodeStatesAreDrawnNotJustParsed(t *testing.T) {
 	// The counts-only version shipped and the first question was "which node?".
 	if !strings.Contains(obs, `{ reclaim: "awaiting" }`) {
 		t.Error("useObserved no longer maps awaiting reclamations onto named " +
-			"nodes; the field cannot mark which node is dead weight")
+			"nodes; the lenses cannot mark which node is dead weight")
 	}
 
 	// And the overlay must actually be mounted: derived in a hook nothing
 	// calls is the parsed-but-never-drawn bug with an extra step.
 	app := read(t, "App.tsx")
 	if !strings.Contains(app, "useObserved(") || !strings.Contains(app, "observed={observed.nodes}") {
-		t.Error("App does not wire the observed overlay into the field")
+		t.Error("App does not wire the observed overlay into the Cluster lenses")
 	}
 
 	// The evicted-pod half of the overlay: a run's Evict events must reach
-	// the field, or in-flight pods go back to being drawn at destinations
-	// the scheduler never confirmed.
+	// the Rack lens as ghosts, or in-flight pods go back to being drawn at
+	// destinations the scheduler never confirmed.
 	if !strings.Contains(app, "evictedPods={observed.evictedPods}") {
-		t.Error("App does not pass the evicted-pod set to the field; " +
-			"pods evicted mid-run are drawn as if the plan's destination were fact")
+		t.Error("App does not pass the evicted-pod set to the lenses")
+	}
+	if !strings.Contains(page, "is-evicted") {
+		t.Error("the Rack lens no longer ghosts evicted pods; their drawn " +
+			"position is a lie until the next snapshot")
 	}
 }

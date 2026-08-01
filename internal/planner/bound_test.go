@@ -32,6 +32,11 @@ func TestGreedyIsNearTheCapacityBound(t *testing.T) {
 			analysis := constraints.Analyze(snap)
 			popts := planner.DefaultOptions()
 			popts.MinNodeAge = 0 // synthetic nodes have no age
+			// The bound below assumes perfect packing to 100% of capacity;
+			// the ceiling is packing POLICY, not packing quality, and holding
+			// greedy to a 100% bound while it deliberately aims at 85% would
+			// measure the policy, not the algorithm.
+			popts.PackCeiling = 0
 			plan, err := planner.Greedy{}.Plan(snap, analysis, popts)
 			if err != nil {
 				t.Fatalf("nodes=%d seed=%d: %v", nodes, seed, err)

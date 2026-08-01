@@ -23,7 +23,7 @@
  * sessionStorage would mean re-picking it in every tab.
  */
 
-export type FieldView = "rack" | "wells" | "panel";
+export type FieldView = "rack" | "wells" | "load";
 
 /**
  * The app's destinations, matching the redesign's left rail
@@ -44,7 +44,7 @@ export const RACK_LIMIT = 120;
 export const WELLS_LIMIT = 600;
 
 export function defaultView(nodeCount: number): FieldView {
-  if (nodeCount > WELLS_LIMIT) return "panel";
+  if (nodeCount > WELLS_LIMIT) return "load";
   if (nodeCount > RACK_LIMIT) return "wells";
   return "rack";
 }
@@ -53,7 +53,8 @@ export function defaultView(nodeCount: number): FieldView {
 export function storedView(): FieldView | null {
   try {
     const v = localStorage.getItem(KEY);
-    if (v === "rack" || v === "wells" || v === "panel") return v;
+    if (v === "rack" || v === "wells" || v === "load") return v;
+    if (v === "panel") return "load"; // the Panel lens became Load in the redesign
   } catch {
     // Private browsing. The size-based default still applies.
   }
@@ -71,5 +72,5 @@ export function rememberView(v: FieldView): void {
 export const VIEW_LABELS: Record<FieldView, string> = {
   rack: "Rack",
   wells: "Wells",
-  panel: "Panel",
+  load: "Load",
 };

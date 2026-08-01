@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Impact, PlanStep } from "./api";
-import Inspector, { Selection } from "./components/Inspector";
-import PackingField from "./components/PackingField";
 import { ConfirmConverge, ConfirmRun, RunTrail } from "./components/RunPanel";
-import Scrubber from "./components/Scrubber";
 import { SignIn } from "./components/SignIn";
+import ClusterPage from "./components/cluster/ClusterPage";
 import Rail from "./components/Rail";
 import TopBar from "./components/TopBar";
 import History from "./components/History";
@@ -15,7 +13,7 @@ import StepList from "./components/review/StepList";
 import StepDetail from "./components/review/StepDetail";
 import ReviewFooter from "./components/review/ReviewFooter";
 import RunScreen from "./components/run/RunScreen";
-import { FieldView, Surface, VIEW_LABELS, defaultView, rememberView, storedView } from "./view";
+import { FieldView, Surface, defaultView, rememberView, storedView } from "./view";
 import { authInfo, token as tokenStore } from "./auth";
 import { onRenewed } from "./oidc";
 import { runtimeConfig } from "./runtime-config";
@@ -38,9 +36,6 @@ export default function App() {
   const [runActive, setRunActive] = useState(false);
   const state = usePlan((touched.current && checked.size > 0) || runActive);
   const { kagentUrl } = runtimeConfig();
-
-  const [step, setStep] = useState(0);
-  const [playing, setPlaying] = useState(false);
 
   const reclamations = useReclamations();
 
@@ -66,7 +61,6 @@ export default function App() {
   }, []);
 
   const [selectedStep, setSelectedStep] = useState<number | null>(null);
-  const [selection, setSelection] = useState<Selection>(null);
   const [focusedRating, setFocusedRating] = useState<Impact | null>(null);
   const [pending, setPending] = useState<{ steps: PlanStep[]; dryRun: boolean } | null>(null);
   const [convergeOpen, setConvergeOpen] = useState(false);
@@ -178,12 +172,6 @@ export default function App() {
 
   const handleSelectStep = useCallback((seq: number | null) => {
     setSelectedStep(seq);
-    // Selecting a step moves the field to the moment just before it runs, so
-    // the pods it is about to move are still on the node being drained.
-    if (seq != null) {
-      setPlaying(false);
-      setStep(seq - 1);
-    }
   }, []);
 
   // The pane opens on the step most worth reading: the first judgement call,
@@ -198,21 +186,10 @@ export default function App() {
     });
   }, [planId, steps]);
 
-  const handleSelectNode = useCallback((name: string | null) => {
-    setSelection(name ? { kind: "node", name } : null);
-  }, []);
-
-  const handleSelectPod = useCallback((key: string | null) => {
-    setSelection(key ? { kind: "pod", key } : null);
-  }, []);
-
-  // Node count drives the default: individual pods stop being worth drawing
-  // long before a vessel per node does.
+  // Node count drives the default lens: individual pods stop being worth
+  // drawing long before a vessel per node does.
   const nodeCount = state.status === "ready" ? (state.graph.elements.filter((e) => e.data.kind === "node").length) : 0;
   const view: FieldView = viewPref ?? defaultView(nodeCount);
-
-  const selectedNode = selection?.kind === "node" ? selection.name : null;
-  const selectedPod = selection?.kind === "pod" ? selection.key : null;
 
   // The polled confirmation, but only when it is about the plan on screen.
   // While the view is pinned the server's latest is a *different* plan, and
@@ -231,51 +208,6 @@ export default function App() {
   const highFindings = (recommendations ?? []).filter(
     (r) => r.severity === "high" && !muted.has(findingKey(r.kind, r.workload)),
   ).length;
-
-  const packingField = state.status === "ready" && (
-    <PackingField
-      view={view}
-      awaiting={reclamations.stats.awaiting}
-      reclaimedForReal={reclamations.stats.reclaimed}
-      ledgerCpuMilli={reclamations.stats.reclaimedCpuMilli}
-      ledgerMemBytes={reclamations.stats.reclaimedMemBytes}
-      noReclaimerEvidence={reclamations.noReclaimerEvidence}
-      observed={observed.nodes}
-      evictedPods={observed.evictedPods}
-      graph={state.graph}
-      steps={steps}
-      step={step}
-      selectedStep={selectedStep}
-      selectedNode={selectedNode}
-      selectedPod={selectedPod}
-      onSelectNode={handleSelectNode}
-      onSelectPod={handleSelectPod}
-    />
-  );
-
-  const inspector = state.status === "ready" && (
-    <Inspector
-      onSelectPod={(key) => setSelection({ kind: "pod", key })}
-      onSelectNode={(name) => setSelection({ kind: "node", name })}
-      planId={planId ?? ""}
-      graph={state.graph}
-      steps={steps}
-      selection={selection}
-      onClose={() => setSelection(null)}
-      onSelectStep={handleSelectStep}
-    />
-  );
-
-  const scrubber = (
-    <Scrubber
-      steps={steps}
-      step={step}
-      playing={playing}
-      onStep={setStep}
-      onPlayingChange={setPlaying}
-      onSelect={setSelectedStep}
-    />
-  );
 
   return (
     <div className="frame">
@@ -433,38 +365,19 @@ export default function App() {
           )}
 
           {state.status === "ready" && surface === "cluster" && (
-            <>
-              {/* The lenses, until the Cluster destination's own screens land.
-                  Rack / Wells / Panel are ways of drawing nodes, so the switch
-                  lives with the field rather than in the frame. */}
-              <div className="lensbar">
-                <div className="viewswitch" role="group" aria-label="Cluster lens">
-                  {(Object.keys(VIEW_LABELS) as FieldView[]).map((v) => (
-                    <button
-                      key={v}
-                      type="button"
-                      className={"viewswitch-btn" + (v === view ? " is-on" : "")}
-                      aria-pressed={v === view}
-                      onClick={() => {
-                        setViewPref(v);
-                        rememberView(v);
-                      }}
-                    >
-                      {VIEW_LABELS[v]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <RunTrail state={run.state} onDismiss={run.dismiss} />
-
-              <main className="workspace">
-                {packingField}
-                <aside className="sidebar">{inspector}</aside>
-              </main>
-
-              {scrubber}
-            </>
+            <ClusterPage
+              graph={state.graph}
+              steps={steps}
+              lens={view}
+              onLens={(v) => {
+                setViewPref(v);
+                rememberView(v);
+              }}
+              selectedStep={selectedStep}
+              onSelectStep={handleSelectStep}
+              observed={observed.nodes}
+              evictedPods={observed.evictedPods}
+            />
           )}
 
           {state.status === "ready" && surface === "recommendations" && (
@@ -483,11 +396,7 @@ export default function App() {
             />
           )}
 
-          {state.status === "ready" && surface === "history" && (
-            <main className="workspace workspace-single">
-              <History />
-            </main>
-          )}
+          {state.status === "ready" && surface === "history" && <History />}
         </div>
 
         {/* Review carries its own action footer; the plan-identity strip

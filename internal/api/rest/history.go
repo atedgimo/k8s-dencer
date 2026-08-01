@@ -66,9 +66,12 @@ func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 				if run.FinishedAt == nil || run.FinishedAt.Before(since) {
 					continue
 				}
+				// The audit ledger's whole point is "who authorised it" —
+				// actor, plan and step count turn a marker into an entry.
 				runsOut = append(runsOut, map[string]any{
 					"id": run.ID, "status": run.Status, "mode": run.Mode,
 					"dryRun": run.DryRun, "finishedAt": run.FinishedAt,
+					"actor": run.Actor, "planId": run.PlanID, "steps": len(run.Steps),
 				})
 			}
 		}
