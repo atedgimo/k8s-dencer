@@ -20,8 +20,8 @@
 .sheet {
   width: min(30rem, 100%);
   padding: var(--space-6);
-  background: var(--panel);
-  border: 1px solid var(--edge);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
 }
 
@@ -35,13 +35,13 @@
 
 .sheet-detail {
   margin: 0 0 0.9rem;
-  color: var(--graphite);
+  color: var(--text-3);
   font-size: var(--text-sm);
   line-height: 1.55;
 }
 
 .sheet-detail strong {
-  color: var(--chalk);
+  color: var(--text-1);
 }
 
 .sheet-list {
@@ -50,9 +50,9 @@
   padding: var(--space-2) var(--space-3);
   overflow-y: auto;
   font-size: var(--text-xs);
-  color: var(--graphite);
+  color: var(--text-3);
   list-style: none;
-  background: var(--panel-sunken);
+  background: var(--canvas);
   border-radius: var(--radius-sm);
 }
 
@@ -66,21 +66,21 @@
 
 .trail {
   padding: var(--space-3) var(--space-6) var(--space-3);
-  background: var(--panel-raised);
-  border-bottom: 1px solid var(--edge);
+  background: var(--inset);
+  border-bottom: 1px solid var(--border);
 }
 
 /* The only place a run's outcome is coloured, and it uses the same scale as
    the ratings: blocked is the Yellow of "needs a human", failed is Red. */
 .trail-blocked {
-  box-shadow: inset 3px 0 0 var(--risk-yellow);
+  box-shadow: inset 3px 0 0 var(--caution);
 }
 .trail-failed,
 .trail-error {
-  box-shadow: inset 3px 0 0 var(--risk-red);
+  box-shadow: inset 3px 0 0 var(--held);
 }
 .trail-succeeded {
-  box-shadow: inset 3px 0 0 var(--risk-green);
+  box-shadow: inset 3px 0 0 var(--safe);
 }
 
 .trail-head {
@@ -96,13 +96,13 @@
 
 .trail-meta {
   font-size: var(--text-2xs);
-  color: var(--graphite-dim);
+  color: var(--text-5);
 }
 
 .trail-close {
   margin-left: auto;
   padding: 0 var(--space-1);
-  color: var(--graphite);
+  color: var(--text-3);
   background: transparent;
   border: 0;
 }
@@ -121,19 +121,19 @@
   gap: var(--space-3);
   padding: var(--space-1) 0;
   font-size: var(--text-xs);
-  color: var(--graphite);
+  color: var(--text-3);
 }
 
 .trail-row-blocked {
-  color: var(--risk-yellow);
+  color: var(--caution);
 }
 
 .trail-row-error {
-  color: var(--risk-red);
+  color: var(--held);
 }
 
 .trail-action {
-  color: var(--chalk);
+  color: var(--text-1);
 }
 
 .trail-subject {
@@ -152,14 +152,14 @@
 .trail-summary {
   margin: 0.5rem 0 0;
   font-size: var(--text-sm);
-  color: var(--chalk);
+  color: var(--text-1);
 }
 
 .trail-note {
   margin: 0.35rem 0 0;
   max-width: 70ch;
   font-size: var(--text-xs);
-  color: var(--graphite);
+  color: var(--text-3);
 }
 
 .trail-grant {
@@ -168,7 +168,7 @@
   overflow-x: auto;
   font-family: var(--font-mono);
   font-size: var(--text-xs);
-  background: var(--panel-sunken);
+  background: var(--canvas);
   border-radius: var(--radius-sm);
 }
 
@@ -183,46 +183,18 @@
 
 .tray-hint {
   font-size: var(--text-2xs);
-  color: var(--graphite-dim);
-}
-
-/* Per-step selection. Red rows carry a disabled box rather than none, so the
-   reason is discoverable on hover instead of the control just being absent. */
-.ledger-item {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: baseline;
-}
-
-.ledger-item > .row-why {
-  grid-column: 2;
-}
-
-.row-check {
-  margin: 0 0 0 0.75rem;
-  accent-color: var(--chalk);
-}
-
-.row-check:disabled {
-  opacity: 0.25;
-}
-
-.ledger-picked {
-  margin-left: auto;
-  margin-right: 0.5rem;
-  font-size: var(--text-2xs);
-  color: var(--chalk);
+  color: var(--text-5);
 }
 
 .verdict-flag {
   display: block;
-  color: var(--risk-yellow);
+  color: var(--caution);
 }
 
 .verdict-clear {
   padding: 0;
   font-size: var(--text-2xs);
-  color: var(--graphite);
+  color: var(--text-3);
   text-decoration: underline;
   background: transparent;
   border: 0;
@@ -236,8 +208,8 @@
   justify-self: center;
   width: min(44rem, calc(100vw - 3rem));
   padding: var(--space-6);
-  background: var(--panel);
-  border: 1px solid var(--risk-red);
+  background: var(--surface);
+  border: 1px solid var(--held);
   border-radius: var(--radius);
 }
 
@@ -247,12 +219,12 @@
   font-size: var(--text-lg);
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: var(--risk-red);
+  color: var(--held);
 }
 
 .crash-detail {
   margin: 0 0 1rem;
-  color: var(--graphite);
+  color: var(--text-3);
   font-size: var(--text-sm);
   line-height: 1.55;
 }
@@ -265,20 +237,20 @@
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   white-space: pre-wrap;
-  background: var(--panel-sunken);
+  background: var(--canvas);
   border-radius: var(--radius-sm);
 }
 
 .crash-more {
   margin-top: 0.8rem;
   font-size: var(--text-sm);
-  color: var(--graphite);
+  color: var(--text-3);
 }
 
 .crash-more summary {
   cursor: pointer;
   margin-bottom: 0.4rem;
-  color: var(--graphite-dim);
+  color: var(--text-5);
 }
 
 .crash-more pre {
@@ -291,27 +263,5 @@
   display: flex;
   gap: var(--space-2);
   margin-top: 1.1rem;
-}
-
-/* ------------------------------------------------------- superseded plan */
-
-.supersede {
-  display: flex;
-  gap: var(--space-4);
-  align-items: center;
-  padding: var(--space-2) var(--space-6);
-  font-size: var(--text-sm);
-  color: var(--graphite);
-  background: var(--panel-raised);
-  border-bottom: 1px solid var(--edge);
-  /* Deliberately uncoloured. A newer plan is information, not risk, and
-     colour on this page only ever means risk. */
-}
-
-.supersede button {
-  margin-left: auto;
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--text-xs);
-  white-space: nowrap;
 }
 

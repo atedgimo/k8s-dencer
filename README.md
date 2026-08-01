@@ -63,6 +63,15 @@ happens to be able to execute, not an autoscaler with a UI.
   cannot survive a node loss; `dencer whatif --without-zone b` — does
   everything still fit, CI-gateable; `dencer rightsizing` — requests versus
   *measured* usage; `dencer drain <node>` — kubectl drain with the rails.
+- **A production-grade review UI.** The redesigned interface ("The ledger",
+  designed screen-by-screen before a line of it was built) leads with the
+  decision: *Reclaim 3 of 24 nodes now* — priced in cores and memory — over a
+  step list grouped by verdict (**Safe now / Needs a call / Held back**), a
+  Safety-Guard detail pane for every step, one filled Drain button behind a
+  typed confirmation, live run screens, a Recommendations queue ranked by
+  nodes unlocked, three Cluster lenses (Rack, Wells with the planner's real
+  85% packing ceiling drawn on every node, Load's used-vs-reserved gap), an
+  audit-ledger History, and first-class dark and light themes.
 - **Works without the UI.** `dencer` (also a `kubectl` plugin) does everything
   the UI does from a terminal, with `-o json` for pipelines — see
   [docs/cli.md](docs/cli.md).
@@ -255,6 +264,14 @@ execution, and maintenance windows. Phase 4 — hardening toward 1000 nodes and
 
 **v0.1.0 is published** — images and chart on `ghcr.io`, installable by the
 command above.
+
+**The UI has been rebuilt against a full design handoff** (2026-08-01): twelve
+mockup frames, a dual-theme token system with computed-contrast guards, and
+the two capabilities the design demanded of the backend — a real packing
+ceiling (`planner.packCeiling`, default 0.85, recorded on every plan) and
+per-node measured usage in the graph. The handoff itself lives in
+[assets/design/](assets/design/), and `make demo-video` re-records the
+walkthrough of the real product ([assets/demo/walkthrough.webm](assets/demo/walkthrough.webm)).
 
 Every release is verified end to end before it ships: CI stands up a five-node
 k3d cluster with PodSecurity enforcing `restricted`, installs the chart behind a

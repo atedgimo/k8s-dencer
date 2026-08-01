@@ -1,3 +1,9 @@
+/*
+ * Shared controls that outlived the old field views: the segmented
+ * lens/range switcher, and the converge sheet's bounds inputs. Everything
+ * else this file held drew components the redesign retired.
+ */
+
 /* ===================================================== field views
 
    Three renderings of one model. Everything they share — what is cordoned,
@@ -15,7 +21,7 @@
   padding: var(--space-1) var(--space-3);
   border: 0;
   background: transparent;
-  color: var(--graphite);
+  color: var(--text-3);
   font-size: var(--text-xs);
   transition: background var(--step-fast) var(--ease-out),
     color var(--step-fast) var(--ease-out);
@@ -26,234 +32,12 @@
 }
 
 .viewswitch-btn:hover {
-  color: var(--chalk);
+  color: var(--text-1);
 }
 
 .viewswitch-btn.is-on {
-  background: var(--surface-3);
-  color: var(--chalk);
-}
-
-/* ------------------------------------------------------------- wells */
-
-.wells {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
-  gap: var(--space-3);
-  padding: var(--space-4);
-}
-
-.well {
-  position: relative;
-  height: 110px;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface-sunken);
-  overflow: hidden;
-  text-align: left;
-  transition: border-color var(--step-fast) var(--ease-out);
-}
-
-.well:hover {
-  border-color: var(--border-strong);
-}
-
-/* Height and luminance together carry fullness. Two channels rather than one
-   is what makes a wall of these readable without reading a number — and both
-   are achromatic, because colour here means risk. */
-.well-level {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(204, 210, 218, 0.3),
-    rgba(146, 156, 170, 0.12)
-  );
-  border-top: 1px solid rgba(233, 236, 239, 0.42);
-  box-shadow: 0 -8px 22px rgba(180, 190, 205, 0.12);
-  transition: height var(--step-slow) var(--ease-out);
-}
-
-:root[data-theme="light"] .well-level,
-:root:not([data-theme="dark"]) .well-level {
-  background: linear-gradient(180deg, rgba(35, 42, 51, 0.22), rgba(35, 42, 51, 0.08));
-  border-top-color: rgba(13, 17, 23, 0.42);
-  box-shadow: 0 -8px 22px rgba(13, 17, 23, 0.08);
-}
-
-.well-cap {
-  position: absolute;
-  inset: var(--space-2) var(--space-3) auto;
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  z-index: 1;
-}
-
-.well-name {
-  font-size: var(--text-2xs);
-  color: var(--graphite);
-}
-
-.well-pct {
-  font-size: var(--text-xl);
-  line-height: 1;
-  color: var(--chalk);
-}
-
-.well-foot {
-  position: absolute;
-  left: var(--space-3);
-  bottom: var(--space-2);
-  z-index: 1;
-  font-size: var(--text-2xs);
-  color: var(--graphite-dim);
-}
-
-.well-cordoned {
-  border-style: dashed;
-  border-color: var(--border-strong);
-  background-image: repeating-linear-gradient(
-    135deg,
-    transparent 0 6px,
-    var(--edge-soft) 6px 12px
-  );
-}
-
-.well-drained .well-pct,
-.well-drained .well-foot {
-  color: var(--graphite-dim);
-}
-
-.well-targeted,
-.well-selected {
-  border-color: var(--chalk);
-}
-
-/* ------------------------------------------------------------- panel */
-
-.panel-view {
-  display: flex;
-  flex-direction: column;
-}
-
-.panel-head,
-.panel-row {
-  display: grid;
-  grid-template-columns: minmax(0, 140px) 1fr 52px 52px 44px 84px;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-2) var(--space-4);
-  text-align: left;
-}
-
-.panel-head {
-  border-bottom: 1px solid var(--border-strong);
-  background: var(--surface-2);
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}
-
-.panel-r {
-  text-align: right;
-}
-
-.panel-row {
-  border: 0;
-  border-bottom: 1px solid var(--edge-soft);
-  background: transparent;
-  color: inherit;
-  font-size: var(--text-sm);
-  transition: background var(--step-fast) var(--ease-out);
-}
-
-.panel-row:hover {
-  background: var(--surface-2);
-}
-
-.panel-id {
-  color: var(--chalk);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* A faint ruled ground behind the bar, so a length can be judged rather than
-   only compared — the same reason a chart has gridlines. */
-.panel-trace {
-  position: relative;
-  height: 18px;
-  border-left: 1px solid var(--border);
-  background: linear-gradient(90deg, var(--edge-soft) 1px, transparent 1px) 0 0 / 24px 100%;
-}
-
-.panel-trace-bar {
-  position: absolute;
-  left: 0;
-  top: 50%;
-  height: 7px;
-  transform: translateY(-50%);
-  border-radius: 1px;
-  background: linear-gradient(90deg, var(--fill-25), var(--fill-75));
-  transition: width var(--step-slow) var(--ease-out);
-}
-
-.panel-trace-bar::after {
-  content: "";
-  position: absolute;
-  right: 0;
-  top: -3px;
-  bottom: -3px;
-  width: 2px;
-  background: var(--chalk);
-}
-
-.panel-pct {
-  text-align: right;
-  color: var(--chalk);
-}
-
-.panel-pods {
-  text-align: right;
-  color: var(--graphite-dim);
-  font-size: var(--text-xs);
-}
-
-.panel-state {
-  text-align: right;
-  font-size: var(--text-2xs);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--graphite-dim);
-}
-
-.panel-row-cordoned {
-  background-image: repeating-linear-gradient(
-    135deg,
-    transparent 0 6px,
-    var(--edge-soft) 6px 12px
-  );
-}
-
-.panel-row-cordoned .panel-state {
-  color: var(--graphite);
-}
-
-.panel-row-targeted,
-.panel-row-selected {
-  background: var(--surface-3);
-}
-
-/* The dimension that actually limits packing on this node. Weight and
-   brightness only — hue on this surface means risk, and being memory-bound is
-   not a risk, it is the reason the number next door is the wrong one to read. */
-.panel-bound {
-  color: var(--text-primary);
-  font-weight: 600;
+  background: var(--raised);
+  color: var(--text-1);
 }
 
 @media (max-width: 640px) {
@@ -271,28 +55,6 @@
   }
 }
 
-/* The ledger figure beside the reclaimed tally — quieter than the count it
-   denominates, same relationship as the verdict's capacity to its headline. */
-.tray-ledger {
-  color: var(--graphite);
-  font-size: var(--text-2xs);
-  letter-spacing: 0.01em;
-}
-
-/* ------------------------------------------------- converge consent sheet */
-
-/* Quieter than .btn: the closed loop's door should be discoverable, not
-   competing with the primary action beside it. */
-.btn-quiet {
-  border-style: dashed;
-  color: var(--graphite);
-}
-
-.btn-quiet:hover:not(:disabled) {
-  color: var(--text-primary);
-  border-style: solid;
-}
-
 .sheet-bounds {
   display: flex;
   flex-direction: column;
@@ -301,29 +63,13 @@
   padding: var(--space-4);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--surface-1);
+  background: var(--surface);
 }
 
 .sheet-bound {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-}
-
-.sheet-input {
-  width: 4.5rem;
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface-0);
-  color: var(--text-primary);
-  font-size: var(--text-lg);
-  text-align: center;
-}
-
-.sheet-input:focus {
-  outline: 2px solid var(--focus);
-  outline-offset: 1px;
 }
 
 .sheet-seg {
@@ -337,45 +83,23 @@
   padding: var(--space-1) var(--space-3);
   border: 0;
   background: transparent;
-  color: var(--graphite);
+  color: var(--text-3);
   font-size: var(--text-sm);
   cursor: pointer;
 }
 
 .sheet-seg .sheet-seg-on {
-  background: var(--surface-3);
+  background: var(--raised);
   color: var(--text-primary);
 }
 
 .sheet-bound-unit {
-  color: var(--graphite);
+  color: var(--text-3);
   font-size: var(--text-sm);
 }
 
 .sheet-context {
   margin: 0 0 var(--space-4);
-  color: var(--graphite-dim);
+  color: var(--text-5);
   font-size: var(--text-xs);
-}
-
-/* A pod the run has actually evicted, ghosted at its origin. Distinct in
-   kind from .blk-orphan (the scrubber's forecast): dashed and hollow, the
-   texture this surface uses for observed facts, held until the next
-   snapshot says where the pod landed. */
-.blk-inflight {
-  opacity: 0.35;
-  background: transparent;
-  border: 1px dashed var(--border-strong);
-}
-
-/* Absence-of-reclaimer warning: a word, not a colour — it is a fact about
-   the cluster's tooling, not a risk rating. */
-.tray-warning {
-  color: var(--text-primary);
-  font-size: var(--text-2xs);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-sm);
-  padding: 0 var(--space-2);
 }
