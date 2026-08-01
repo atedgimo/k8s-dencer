@@ -37,7 +37,7 @@ DEMO_NS="dencer-demo"
 KWOK_NS="kwok"
 KWOK_CHART_VERSION="${KWOK_CHART_VERSION:-0.3.0}"
 RELEASE="k8s-dencer"
-UI_PORT="${UI_PORT:-8090}"
+UI_PORT="${UI_PORT:-8092}"
 GHCR_TAG="${GHCR_TAG:-$(awk '/^appVersion:/ {gsub(/"/,"",$2); print $2}' "$REPO/charts/k8s-dencer/Chart.yaml")}"
 
 bold()  { printf '\033[1m%s\033[0m\n' "$*"; }
