@@ -138,6 +138,12 @@ export interface StepDetail {
   planId: string;
   step: PlanStep;
   constraints: PodConstraints[];
+  /**
+   * namespace/name of each moved pod that is its workload's only replica.
+   * Evicting one takes the workload to zero while rescheduling runs — the
+   * review pane flags exactly these.
+   */
+  singletons?: string[];
 }
 
 /** One point on the planner's timeline. Mirrors store.Sample. */

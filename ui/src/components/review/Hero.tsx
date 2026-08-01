@@ -1,0 +1,141 @@
+/**
+ * The hero band — what approval buys (assets/design/README.md, 1a).
+ *
+ * "Reclaim 3 of 24 nodes" states what running everything safe achieves
+ * today; the held-back ceiling is the secondary clause, never the headline,
+ * and never a call to action — it is a ceiling, not a plan you can run. The
+ * three stats price the safe selection in cores, memory and pods, summed
+ * from the drained nodes' allocatable, which is what actually returns to
+ * the pool.
+ *
+ * The triage bar and cards are the same three numbers the old verdict panel
+ * carried, now wearing the verdict vocabulary: Safe now / Needs a call /
+ * Held back. Cards filter the list below on click.
+ */
+
+import { GraphPayload, Impact, PlanStep, formatBytes, formatCPU } from "../../api";
+import { GLYPH, VERDICT_LABEL } from "../Impact";
+
+interface Props {
+  graph: GraphPayload;
+  steps: PlanStep[];
+  focusedRating: Impact | null;
+  onFocusRating: (r: Impact | null) => void;
+}
+
+export default function Hero({ graph, steps, focusedRating, onFocusRating }: Props) {
+  const byRating = (r: Impact) => steps.filter((s) => s.impact === r);
+  const safe = byRating("Green");
+  const caution = byRating("Yellow");
+  const held = byRating("Red");
+
+  // What the safe steps return to the pool: the allocatable of the nodes
+  // they drain, joined through the graph. Nodes are not fungible — the count
+  // alone cannot say whether the plan is worth running.
+  const nodesByName = new Map(
+    graph.elements.filter((e) => e.data.kind === "node").map((e) => [e.data.label, e.data]),
+  );
+  let cpu = 0;
+  let mem = 0;
+  let pods = 0;
+  for (const s of safe) {
+    const n = s.targetNode ? nodesByName.get(s.targetNode) : undefined;
+    cpu += n?.cpuAllocatable ?? 0;
+    mem += n?.memAllocatable ?? 0;
+    pods += s.moves.length;
+  }
+
+  return (
+    <div className="hero">
+      <div className="hero-lead">
+        <span className="eyebrow mono">If you approve everything safe</span>
+        {safe.length > 0 ? (
+          <div className="hero-line">
+            <h2 className="hero-headline">
+              Reclaim {safe.length} of {graph.stats.nodesBefore} nodes
+            </h2>
+            <span className="hero-sub">
+              now
+              {steps.length > safe.length && (
+                <>
+                  {" · "}
+                  <span className="hero-sub-strong">{steps.length} reclaimable</span> if the
+                  held-back rules are resolved
+                </>
+              )}
+            </span>
+          </div>
+        ) : (
+          <div className="hero-line">
+            <h2 className="hero-headline">Nothing is safely reclaimable right now</h2>
+            {steps.length > 0 && (
+              <span className="hero-sub">
+                <span className="hero-sub-strong">{steps.length} reclaimable</span> if the rules
+                below are resolved — start with Recommendations
+              </span>
+            )}
+          </div>
+        )}
+        {safe.length > 0 && (
+          <div className="hero-stats">
+            <div className="hero-stat">
+              <span className="hero-stat-figure mono">{formatCPU(cpu)} cores</span>
+              <span className="hero-stat-label">returned to the pool</span>
+            </div>
+            <span className="hero-stat-sep" aria-hidden="true" />
+            <div className="hero-stat">
+              <span className="hero-stat-figure mono">{formatBytes(mem)}</span>
+              <span className="hero-stat-label">memory freed</span>
+            </div>
+            <span className="hero-stat-sep" aria-hidden="true" />
+            <div className="hero-stat">
+              <span className="hero-stat-figure mono">
+                {pods} pod{pods === 1 ? "" : "s"}
+              </span>
+              <span className="hero-stat-label">rescheduled, 0 downtime</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="hero-triage">
+        <div className="triage-bar" aria-hidden="true">
+          {safe.length > 0 && <div className="triage-seg triage-safe" style={{ flex: safe.length }} />}
+          {caution.length > 0 && (
+            <div className="triage-seg triage-caution" style={{ flex: caution.length }} />
+          )}
+          {held.length > 0 && <div className="triage-seg triage-held" style={{ flex: held.length }} />}
+        </div>
+        <div className="triage-cards">
+          {(
+            [
+              ["Green", safe.length],
+              ["Yellow", caution.length],
+              ["Red", held.length],
+            ] as Array<[Impact, number]>
+          ).map(([rating, count]) => (
+            <button
+              key={rating}
+              type="button"
+              className={
+                "triage-card triage-card-" +
+                rating.toLowerCase() +
+                (focusedRating === rating ? " is-on" : "")
+              }
+              aria-pressed={focusedRating === rating}
+              onClick={() => onFocusRating(focusedRating === rating ? null : rating)}
+            >
+              <span className="triage-count">
+                <span aria-hidden="true" className="triage-glyph">
+                  {GLYPH[rating]}
+                </span>
+                <span className="num">{count}</span>
+              </span>
+              <span className="triage-label">{VERDICT_LABEL[rating]}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}

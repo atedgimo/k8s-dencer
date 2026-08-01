@@ -279,10 +279,40 @@ func (s *Server) handleStep(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// singletons lists the moved pods that are their workload's only replica.
+	// Evicting one takes the workload to zero for as long as rescheduling
+	// takes, which is the difference between "pods move" and "the service
+	// blinks" — the review screen flags it on every such pod, and the flag has
+	// to come from the snapshot the plan was computed against, not from the
+	// live cluster, or the detail pane would explain a different world than
+	// the plan. A pod with no owner counts too: nothing recreates it at all.
+	singletons := []string{}
+	if rec.Snapshot != nil && len(step.Moves) > 0 {
+		replicas := make(map[string]int, len(rec.Snapshot.Pods))
+		byKey := make(map[string]*model.Pod, len(rec.Snapshot.Pods))
+		for i := range rec.Snapshot.Pods {
+			p := &rec.Snapshot.Pods[i]
+			byKey[p.Key()] = p
+			if p.Owner != nil {
+				replicas[p.Namespace+"|"+p.Owner.Kind+"|"+p.Owner.Name]++
+			}
+		}
+		for _, m := range step.Moves {
+			p, ok := byKey[m.Namespace+"/"+m.Pod]
+			if !ok {
+				continue
+			}
+			if p.Owner == nil || replicas[p.Namespace+"|"+p.Owner.Kind+"|"+p.Owner.Name] == 1 {
+				singletons = append(singletons, p.Key())
+			}
+		}
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"planId":      rec.Plan.ID,
 		"step":        step,
 		"constraints": podConstraints,
+		"singletons":  singletons,
 	})
 }
 

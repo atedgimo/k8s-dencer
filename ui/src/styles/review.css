@@ -1,0 +1,827 @@
+/*
+ * Plan review (screen 1a) — hero band, the step list as the screen, the
+ * 392px detail pane, the 68px action footer. Measurements are the
+ * handoff's; every colour is a token.
+ */
+
+/* ------------------------------------------------------------------ hero */
+
+.hero {
+  padding: 26px var(--space-6) 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-8);
+  background: var(--surface);
+}
+
+.hero-lead {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  min-width: 0;
+  flex: 1;
+}
+
+.hero-line {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.hero-headline {
+  margin: 0;
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  letter-spacing: var(--tracking-display);
+  line-height: 1.05;
+}
+
+.hero-sub {
+  font-size: 15px;
+  color: var(--text-3);
+}
+
+.hero-sub-strong {
+  color: var(--text-1);
+}
+
+.hero-stats {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding-top: 2px;
+}
+
+.hero-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hero-stat-figure {
+  font-size: 19px;
+  font-weight: 500;
+}
+
+.hero-stat-label {
+  font-size: var(--text-2xs);
+  color: var(--text-5);
+}
+
+.hero-stat-sep {
+  width: 1px;
+  height: 30px;
+  background: var(--border-card);
+}
+
+/* ---------------------------------------------------------------- triage */
+
+.hero-triage {
+  width: 300px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.triage-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  gap: 2px;
+}
+
+.triage-seg {
+  border-radius: 2px;
+}
+
+.triage-safe {
+  background: var(--safe);
+}
+
+.triage-caution {
+  background: var(--caution);
+}
+
+.triage-held {
+  background: var(--held);
+}
+
+.triage-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+}
+
+.triage-card {
+  padding: 10px 11px;
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  border: 1px solid var(--border-card);
+  background: var(--surface-alt);
+}
+
+.triage-card-green {
+  background: var(--safe-bg);
+  border-color: var(--safe-border);
+}
+
+.triage-card-yellow {
+  background: var(--caution-bg);
+  border-color: var(--caution-border);
+}
+
+.triage-card-red {
+  background: var(--held-bg);
+  border-color: var(--held-border);
+}
+
+.triage-card.is-on {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.triage-count {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.triage-card-green .triage-count {
+  color: var(--safe);
+}
+
+.triage-card-yellow .triage-count {
+  color: var(--caution);
+}
+
+.triage-card-red .triage-count {
+  color: var(--held);
+}
+
+.triage-glyph {
+  font-size: var(--text-xs);
+}
+
+.triage-label {
+  font-size: var(--text-2xs);
+}
+
+.triage-card-green .triage-label {
+  color: var(--safe-text);
+}
+
+.triage-card-yellow .triage-label {
+  color: var(--caution-text);
+}
+
+.triage-card-red .triage-label {
+  color: var(--held-text);
+}
+
+/* ----------------------------------------------------------- review body */
+
+.review-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+/* -------------------------------------------------------------- steplist */
+
+.steplist {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+}
+
+.steplist-toolbar {
+  height: 46px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.steplist-selected {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+.steplist-selected-box {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1.5px solid var(--accent);
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.steplist-selected-box svg {
+  width: 8px;
+  height: 8px;
+  stroke: var(--surface);
+}
+
+.steplist-toolbar-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--border-card);
+}
+
+.steplist-filters {
+  display: flex;
+  gap: 4px;
+}
+
+.steplist-filter {
+  font-size: var(--text-xs);
+  padding: 4px 9px;
+  border-radius: 6px;
+  border: 0;
+  background: none;
+  color: var(--text-3);
+}
+
+.steplist-filter:hover {
+  color: var(--text-1);
+}
+
+.steplist-filter.is-on {
+  background: var(--raised);
+  color: var(--text-1);
+}
+
+.steplist-order {
+  margin-left: auto;
+  color: var(--text-faint);
+}
+
+.steplist-scrollwrap {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.steplist-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ------------------------------------------------------------ step groups */
+
+.stepgroup-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 20px 8px;
+  background: var(--group-band);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.stepgroup-swatch {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+}
+
+.stepgroup-green .stepgroup-swatch {
+  background: var(--safe);
+}
+
+.stepgroup-yellow .stepgroup-swatch {
+  background: var(--caution);
+}
+
+.stepgroup-red .stepgroup-swatch {
+  background: var(--held);
+}
+
+.stepgroup-label {
+  letter-spacing: 0.13em;
+}
+
+.stepgroup-green .stepgroup-label {
+  color: var(--safe);
+}
+
+.stepgroup-yellow .stepgroup-label {
+  color: var(--caution);
+}
+
+.stepgroup-red .stepgroup-label {
+  color: var(--held);
+}
+
+.stepgroup-note {
+  font-size: var(--text-2xs);
+  color: var(--text-faint);
+}
+
+/* ------------------------------------------------------------------ rows */
+
+.steprow {
+  display: grid;
+  grid-template-columns: 26px 30px 1fr 96px 78px 1fr 16px;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 20px;
+  border-top: 1px solid var(--hairline);
+  cursor: pointer;
+}
+
+.steprow:hover {
+  background: var(--inset);
+}
+
+.steprow.is-focused {
+  background: var(--nav-active-bg);
+}
+
+.steprow-box {
+  width: 15px;
+  height: 15px;
+  border-radius: 3.5px;
+  border: 1.5px solid var(--border-strong);
+  background: var(--inset);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.steprow-box.is-checked {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.steprow-box:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.steprow-box svg {
+  width: 8px;
+  height: 8px;
+  stroke: #fff;
+}
+
+.steprow-order {
+  font-size: var(--text-2xs);
+  color: var(--text-faint);
+}
+
+.steprow-node {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.steprow-name {
+  font-size: var(--text-sm);
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.steprow.is-held .steprow-name {
+  color: var(--text-4);
+}
+
+.steprow-pool {
+  font-size: var(--text-2xs);
+  padding: 1.5px 6px;
+  border-radius: 4px;
+  background: var(--raised);
+  color: var(--text-4);
+  flex-shrink: 0;
+}
+
+.steprow-pods {
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+.steprow-verdict {
+  font-size: var(--text-2xs);
+  font-weight: 500;
+}
+
+.steprow-verdict-green {
+  color: var(--safe);
+}
+
+.steprow-verdict-yellow {
+  color: var(--caution);
+}
+
+.steprow-verdict-red {
+  color: var(--held);
+}
+
+.steprow-why {
+  font-size: var(--text-xs);
+  color: var(--text-4);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.steprow-chevron {
+  color: var(--text-faint);
+  font-size: var(--text-xs);
+}
+
+.steplist-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 56px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent 0%, var(--canvas) 100%);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 8px;
+}
+
+.steplist-fade span {
+  font-size: var(--text-2xs);
+  color: var(--text-4);
+}
+
+/* ----------------------------------------------------------- detail pane */
+
+.stepdetail {
+  width: 392px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.stepdetail-empty {
+  padding: 20px;
+  color: var(--text-5);
+  font-size: var(--text-sm);
+}
+
+.stepdetail-head {
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.stepdetail-verdict {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.stepdetail-verdict .eyebrow {
+  letter-spacing: 0.13em;
+}
+
+.stepdetail-verdict-green,
+.stepdetail-verdict-green .eyebrow {
+  color: var(--safe);
+}
+
+.stepdetail-verdict-yellow,
+.stepdetail-verdict-yellow .eyebrow {
+  color: var(--caution);
+}
+
+.stepdetail-verdict-red,
+.stepdetail-verdict-red .eyebrow {
+  color: var(--held);
+}
+
+.stepdetail-node {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.stepdetail-name {
+  font-size: 17px;
+  color: var(--text-1);
+}
+
+.stepdetail-pool {
+  font-size: var(--text-2xs);
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--raised);
+  color: var(--text-4);
+}
+
+.stepdetail-why {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--text-3);
+  text-wrap: pretty;
+}
+
+/* The scroll region. The uniform check list compresses and scrolls; a
+   clipped row here honestly reads as "scroll". */
+.stepdetail-checks {
+  flex: 1 1 0;
+  min-height: 0;
+  position: relative;
+  padding: 16px 20px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  overflow: hidden;
+}
+
+.stepdetail-checks-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 24px;
+}
+
+.check {
+  display: grid;
+  grid-template-columns: 16px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.check-glyph {
+  font-size: var(--text-xs);
+  text-align: center;
+}
+
+.check-label {
+  font-size: var(--text-xs);
+  color: var(--text-2);
+}
+
+.check-value {
+  font-size: var(--text-2xs);
+}
+
+.check-green {
+  color: var(--safe);
+}
+
+.check-yellow {
+  color: var(--caution);
+}
+
+.check-red {
+  color: var(--held);
+}
+
+.check-loading {
+  color: var(--text-5);
+  font-size: var(--text-xs);
+  border-bottom: 0;
+}
+
+.stepdetail-checks-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 34px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent 0%, var(--surface) 90%);
+}
+
+/* The payload. Never compressible: a missing pod row reads as "placed
+   elsewhere", and the missing row is the one with the flag. */
+.stepdetail-moves {
+  flex: 0 0 auto;
+  padding: 14px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px solid var(--hairline);
+}
+
+.move {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: var(--inset);
+  border: 1px solid var(--inset-border);
+}
+
+.move-pod {
+  font-size: var(--text-2xs);
+  color: var(--text-2);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.move-arrow {
+  color: var(--text-faint);
+  font-size: var(--text-xs);
+}
+
+.move-to {
+  font-size: var(--text-2xs);
+  color: var(--accent-text);
+  flex-shrink: 0;
+}
+
+.move-flag {
+  font-size: var(--text-2xs);
+  color: var(--caution);
+  flex-shrink: 0;
+}
+
+.stepdetail-actions {
+  flex: 0 0 auto;
+  padding: 14px 20px 18px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.stepdetail-buttons {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.stepdetail-add {
+  flex: 1;
+}
+
+.stepdetail-note {
+  font-size: var(--text-2xs);
+  color: var(--text-5);
+  text-align: center;
+  text-wrap: pretty;
+}
+
+/* ----------------------------------------------------------- the footer */
+
+.reviewfooter {
+  height: var(--footer-h);
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 var(--space-6);
+}
+
+.reviewfooter-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.reviewfooter-line {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.reviewfooter-sub {
+  font-size: var(--text-xs);
+  color: var(--text-4);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reviewfooter-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.reviewfooter-rehearse {
+  border-color: var(--border-strong);
+  color: var(--text-1);
+  font-weight: 500;
+}
+
+.reviewfooter-drain {
+  padding: 10px 18px;
+  border-radius: 7px;
+  border: 0;
+  background: var(--accent);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: #fff;
+}
+
+.reviewfooter-drain:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* The amber outline: the selection contains a judgement. */
+.reviewfooter-drain-caution {
+  background: none;
+  border: 1.5px solid var(--caution);
+  color: var(--caution);
+}
+
+.reviewfooter-overflow {
+  position: relative;
+}
+
+.reviewfooter-more {
+  width: 34px;
+}
+
+.reviewfooter-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  background: var(--raised);
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  padding: 4px;
+  min-width: 170px;
+  z-index: 10;
+}
+
+.reviewfooter-menuitem {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+
+.reviewfooter-menuitem:hover {
+  background: var(--nav-active-bg);
+  color: var(--text-1);
+}
+
+/* Typed confirmation additions to the sheet. */
+.sheet-caution {
+  border-color: var(--caution-border);
+}
+
+.sheet-input {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 7px;
+  border: 1px solid var(--border-strong);
+  background: var(--inset);
+  color: var(--text-1);
+  font-size: var(--text-md);
+}
+
+.btn-caution {
+  border-color: var(--caution);
+  color: var(--caution);
+}
+
+.btn-caution:disabled {
+  opacity: 0.45;
+}

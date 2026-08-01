@@ -22,6 +22,31 @@ const DESCRIPTION: Record<Impact, string> = {
   Red: "Maintenance window only",
 };
 
+/**
+ * What the UI calls a rating. Green/Yellow/Red are internal severities; the
+ * screen says what they mean, and never labels a control with a colour
+ * (assets/design/README.md, copy rules). Two registers: the word that fits a
+ * table row, and the label a triage card carries.
+ */
+export const VERDICT: Record<Impact, string> = {
+  Green: "Safe",
+  Yellow: "Caution",
+  Red: "Held back",
+};
+
+export const VERDICT_LABEL: Record<Impact, string> = {
+  Green: "Safe now",
+  Yellow: "Needs a call",
+  Red: "Held back",
+};
+
+/** The group header's one-line explanation of what the verdict means. */
+export const VERDICT_NOTE: Record<Impact, string> = {
+  Green: "Safety Guard passed every check",
+  Yellow: "drainable, but a judgement is yours to make",
+  Red: "a rule refuses the drain",
+};
+
 export function ImpactChip({ impact, compact = false }: { impact: Impact; compact?: boolean }) {
   return (
     <span
