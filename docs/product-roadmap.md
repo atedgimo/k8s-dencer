@@ -112,6 +112,9 @@ deciding what to build next and telling users what they get.
   delegation, OIDC/SSO; no credential store of its own
 
 ### Delivery
+- **The demo records itself** — `make demo-video`: a Playwright-scripted
+  walkthrough of the real UI against the live cluster, so the recording can
+  never go stale (`assets/demo/walkthrough.webm`)
 - **Published images and Helm chart** on ghcr.io, installable in two commands
 - **Every release e2e-verified in CI** — five-node cluster, PodSecurity
   `restricted` enforcing, real ingress, real drains, reclamation observed

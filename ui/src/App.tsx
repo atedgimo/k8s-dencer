@@ -9,6 +9,7 @@ import StepLedger from "./components/StepLedger";
 import Verdict from "./components/Verdict";
 import AppBar from "./components/AppBar";
 import History from "./components/History";
+import Recommendations from "./components/Recommendations";
 import { FieldView, Surface, defaultView, rememberView, storedView } from "./view";
 import { authInfo, token as tokenStore } from "./auth";
 import { onRenewed } from "./oidc";
@@ -295,6 +296,8 @@ export default function App() {
                 onClose={() => setSelection(null)}
                 onSelectStep={handleSelectStep}
               />
+
+              <Recommendations />
             </aside>
               </>
             )}
