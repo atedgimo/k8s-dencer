@@ -451,6 +451,10 @@ scenario: ## Switch scenario: make scenario S=b-pdb-blocked
 	@$(MAKE) --no-print-directory demo-wait
 
 .PHONY: demo
+.PHONY: demo-reclaim
+demo-reclaim: ## Fabric plays the autoscaler: remove drained kwok nodes (WATCH=1 to keep going)
+	@if [ "$(WATCH)" = "1" ]; then ./hack/demo-reclaim.sh --watch; else ./hack/demo-reclaim.sh; fi
+
 demo: kwok-up demo-up images images-load deploy ## Full POC: fabric + topology + product
 	@echo
 	@echo "==> demo ready. 'make ui' to open it, 'make down' to tear it all down."

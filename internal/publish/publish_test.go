@@ -78,8 +78,12 @@ func openStore(t *testing.T) store.Store {
 func snapshot(t *testing.T) *model.ClusterSnapshot {
 	t.Helper()
 	opts := model.DefaultSynthetic(8)
-	// Old enough that minNodeAge does not empty the plan.
 	snap := model.Synthesize(opts)
+	// The synthetic fixture stamps a fixed 2025 TakenAt. Restamp to now:
+	// the timeline's 30-day retention would otherwise prune each sample the
+	// moment the cycle that wrote it finishes — which is exactly what
+	// happened the first time this ran, and the prune log confessed.
+	snap.TakenAt = time.Now().UTC()
 	return snap
 }
 
@@ -210,5 +214,30 @@ func TestReclamationsResolveOnAnUnchangedCycle(t *testing.T) {
 	}
 	if !found {
 		t.Error("the gone node was not recorded as reclaimed")
+	}
+}
+
+// The timeline gains a point on EVERY cycle, dedup included — a steady
+// cluster still has a timeline, and the History view exists to draw it.
+func TestEveryCycleLandsOnTheTimeline(t *testing.T) {
+	db := openStore(t)
+	pub := newPublisher(t, steadySource{snapshot(t)}, db)
+
+	pub.Cycle(t.Context())
+	pub.Cycle(t.Context()) // the dedup path
+
+	ts, ok := db.(store.SampleStore)
+	if !ok {
+		t.Fatal("sqlite store no longer implements SampleStore")
+	}
+	samples, err := ts.Samples(t.Context(), time.Now().Add(-time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(samples) != 2 {
+		t.Fatalf("2 cycles produced %d timeline points; the dedup path is skipping the timeline", len(samples))
+	}
+	if samples[0].Nodes == 0 || samples[0].CPUAllocMilli == 0 {
+		t.Error("a sample with zero estate is a chart that lies about an empty cluster")
 	}
 }

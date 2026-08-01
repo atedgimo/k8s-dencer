@@ -188,3 +188,38 @@ type Store interface {
 
 	Close() error
 }
+
+// Sample is one point on the cluster's timeline, written by the planner every
+// publish cycle. Small on purpose — ten numbers — because it is written every
+// resync forever, and because trends need totals, not inventories: the full
+// snapshot already exists for the moment anyone wants detail.
+type Sample struct {
+	TakenAt time.Time `json:"takenAt"`
+	Nodes   int       `json:"nodes"`
+	Pods    int       `json:"pods"`
+
+	CPUReqMilli   int64 `json:"cpuReqMilli"`
+	CPUAllocMilli int64 `json:"cpuAllocMilli"`
+	MemReqBytes   int64 `json:"memReqBytes"`
+	MemAllocBytes int64 `json:"memAllocBytes"`
+
+	// Zero when no usage source is configured — which is "unmeasured", never
+	// "idle". Consumers must check HasUsage before drawing conclusions.
+	CPUUsedMilli int64 `json:"cpuUsedMilli"`
+	MemUsedBytes int64 `json:"memUsedBytes"`
+	HasUsage     bool  `json:"hasUsage"`
+
+	// Reclaimable is the plan's answer at this moment: how many nodes the
+	// planner would free. The one series that tells the product's own story.
+	Reclaimable int `json:"reclaimable"`
+}
+
+// SampleStore persists the timeline. Implemented by the SQLite store;
+// optional the same way ReclamationStore is.
+type SampleStore interface {
+	SaveSample(ctx context.Context, s Sample) error
+	// Samples returns points at or after since, oldest first.
+	Samples(ctx context.Context, since time.Time) ([]Sample, error)
+	// PruneSamples removes points older than before, returning how many.
+	PruneSamples(ctx context.Context, before time.Time) (int, error)
+}

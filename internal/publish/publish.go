@@ -90,6 +90,18 @@ func (p *Publisher) Cycle(ctx context.Context) {
 	allocatable, requested := snap.Totals()
 	cpu, mem, pods := requested.Ratio(allocatable)
 
+	// Summed observed usage, zero when unmeasured — the sample records
+	// HasUsage so zero can never masquerade as idle.
+	var usedCPU, usedMem int64
+	if snap.HasUsageData {
+		for i := range snap.Nodes {
+			if u := snap.Nodes[i].Usage; u != nil {
+				usedCPU += u.MilliCPU
+				usedMem += u.MemoryBytes
+			}
+		}
+	}
+
 	occupied := 0
 	for _, n := range snap.Nodes {
 		if !snap.RequestedOnNode(n.Name).IsZero() {
@@ -173,6 +185,32 @@ func (p *Publisher) Cycle(ctx context.Context) {
 	p.Metrics.NodesReclaimed.Set(float64(plan.ReclaimedNodes()))
 	p.Metrics.PlanProduced(time.Now())
 	p.Metrics.PlanCycleTime.Observe(time.Since(cycleStart).Seconds())
+
+	// One point on the timeline, every cycle — dedup included, because a
+	// steady cluster still has a timeline and the History view exists to
+	// draw it. Failures degrade to a gap in the chart, never to a stopped
+	// planner.
+	if ts, ok := p.DB.(store.SampleStore); ok {
+		at := snap.TakenAt
+		if at.IsZero() {
+			// The collector always stamps TakenAt; a zero here (synthetic
+			// snapshots, a future source that forgets) must not write a row
+			// in year one that every range query then misses.
+			at = time.Now().UTC()
+		}
+		if err := ts.SaveSample(ctx, store.Sample{
+			TakenAt: at, Nodes: len(snap.Nodes), Pods: len(snap.Pods),
+			CPUReqMilli: requested.MilliCPU, CPUAllocMilli: allocatable.MilliCPU,
+			MemReqBytes: requested.MemoryBytes, MemAllocBytes: allocatable.MemoryBytes,
+			CPUUsedMilli: usedCPU, MemUsedBytes: usedMem, HasUsage: snap.HasUsageData,
+			Reclaimable: plan.ReclaimedNodes(),
+		}); err != nil {
+			p.Log.Warn("saving timeline sample failed", "error", err)
+		}
+		if pruned, err := ts.PruneSamples(ctx, time.Now().Add(-30*24*time.Hour)); err == nil && pruned > 0 {
+			p.Log.Info("pruned timeline", "removed", pruned)
+		}
+	}
 
 	// The planner is the only component watching nodes continuously, so it is
 	// the one that can tell whether a node the executor drained was actually
