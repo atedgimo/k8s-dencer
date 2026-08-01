@@ -283,13 +283,27 @@ func TestEveryRatingRendersGlyphAndWord(t *testing.T) {
 		}
 	}
 
-	for _, file := range []string{"components/Verdict.tsx", "components/StepLedger.tsx"} {
+	// The redesign's rating surfaces. The triage cards and the detail pane
+	// carry glyph + label; the step rows carry the verdict word — colour is
+	// never the only carrier anywhere.
+	for _, file := range []string{"components/review/Hero.tsx", "components/review/StepDetail.tsx"} {
 		src := read(t, file)
 		if !strings.Contains(src, "GLYPH[") {
 			t.Errorf("%s shows a rating without its glyph", file)
 		}
-		if !strings.Contains(src, "impact") && !strings.Contains(src, "Impact") {
-			t.Errorf("%s shows a rating without naming it", file)
+	}
+	if src := read(t, "components/review/StepList.tsx"); !strings.Contains(src, "VERDICT[") {
+		t.Error("StepList rows show a rating without its word; colour alone is unreadable to a CVD minority")
+	}
+}
+
+// The verdict vocabulary is fixed copy (assets/design/README.md): the UI
+// says what a rating means and never labels a control with a colour name.
+func TestVerdictVocabularyIsTheHandoffs(t *testing.T) {
+	impact := read(t, "components/Impact.tsx")
+	for _, phrase := range []string{"Safe now", "Needs a call", "Held back"} {
+		if !strings.Contains(impact, `"`+phrase+`"`) {
+			t.Errorf("verdict label %q is gone from Impact.tsx", phrase)
 		}
 	}
 }

@@ -5,12 +5,14 @@ import PackingField from "./components/PackingField";
 import { ConfirmConverge, ConfirmRun, RunTrail } from "./components/RunPanel";
 import Scrubber from "./components/Scrubber";
 import { SignIn } from "./components/SignIn";
-import StepLedger from "./components/StepLedger";
-import Verdict from "./components/Verdict";
 import Rail from "./components/Rail";
 import TopBar from "./components/TopBar";
 import History from "./components/History";
 import Recommendations from "./components/Recommendations";
+import Hero from "./components/review/Hero";
+import StepList from "./components/review/StepList";
+import StepDetail from "./components/review/StepDetail";
+import ReviewFooter from "./components/review/ReviewFooter";
 import { FieldView, Surface, VIEW_LABELS, defaultView, rememberView, storedView } from "./view";
 import { authInfo, token as tokenStore } from "./auth";
 import { onRenewed } from "./oidc";
@@ -23,12 +25,16 @@ import { useRun } from "./useRun";
 import { useVersion } from "./useVersion";
 
 export default function App() {
-  // Pinned while there is a selection to protect or a run to watch. Step
+  // Pinned while there is a selection to PROTECT or a run to watch. Step
   // numbers are positional, so a plan swapped underneath a ticked selection
-  // would leave it meaning different nodes.
+  // would leave it meaning different nodes. Since the redesign checks the
+  // safe steps by default, "a selection exists" is no longer the signal —
+  // only a selection the operator has touched is theirs to protect; the
+  // pristine default re-derives happily on every new plan.
   const [checked, setChecked] = useState<Set<number>>(new Set());
+  const touched = useRef(false);
   const [runActive, setRunActive] = useState(false);
-  const state = usePlan(checked.size > 0 || runActive);
+  const state = usePlan((touched.current && checked.size > 0) || runActive);
   const { kagentUrl } = runtimeConfig();
 
   const [step, setStep] = useState(0);
@@ -88,6 +94,16 @@ export default function App() {
 
   const greenSteps = useMemo(() => steps.filter((s) => s.impact === "Green"), [steps]);
 
+  // Safe rows are checked by default (the design's "one primary action"
+  // depends on the button meaning something before anyone clicks a box).
+  // Only an untouched selection is re-derived; the moment the operator
+  // expresses intent, the selection is theirs and pins the plan.
+  useEffect(() => {
+    if (planId != null && !touched.current) {
+      setChecked(new Set(greenSteps.map((s) => s.sequenceNumber)));
+    }
+  }, [planId, greenSteps]);
+
   const pickedSteps = useMemo(
     () => steps.filter((s) => checked.has(s.sequenceNumber)),
     [steps, checked],
@@ -97,6 +113,7 @@ export default function App() {
   // are the common case here: "steps 4 through 9" is how a plan gets read.
   const toggleStep = useCallback(
     (seq: number, shiftKey: boolean) => {
+      touched.current = true;
       setChecked((prev) => {
         const next = new Set(prev);
         const anchor = lastToggled.current;
@@ -134,7 +151,11 @@ export default function App() {
       pending.dryRun,
     );
     setPending(null);
-    if (!pending.dryRun) setChecked(new Set());
+    if (!pending.dryRun) {
+      // The run consumes the selection; the next plan re-derives the default.
+      touched.current = false;
+      setChecked(new Set());
+    }
   }, [pending, planId, run]);
 
   const busy = run.state.status === "starting" || run.state.status === "active";
@@ -161,6 +182,18 @@ export default function App() {
       setStep(seq - 1);
     }
   }, []);
+
+  // The pane opens on the step most worth reading: the first judgement call,
+  // or failing that the first step. An empty pane on a screen whose job is
+  // explaining steps would waste the 392px.
+  useEffect(() => {
+    if (planId == null || steps.length === 0) return;
+    setSelectedStep((cur) => {
+      if (cur != null && steps.some((s) => s.sequenceNumber === cur)) return cur;
+      const firstCall = steps.find((s) => s.impact === "Yellow");
+      return (firstCall ?? steps[0]).sequenceNumber;
+    });
+  }, [planId, steps]);
 
   const handleSelectNode = useCallback((name: string | null) => {
     setSelection(name ? { kind: "node", name } : null);
@@ -256,9 +289,12 @@ export default function App() {
           stale={state.status === "ready" && state.superseded}
           onRecompute={
             state.status === "ready"
-              ? state.superseded
-                ? state.showLatest
-                : state.reload
+              ? () => {
+                  // A recompute hands the screen to a fresh plan; the default
+                  // selection re-derives rather than surviving as a ghost.
+                  touched.current = false;
+                  (state.superseded ? state.showLatest : state.reload)();
+                }
               : undefined
           }
         />
@@ -295,50 +331,58 @@ export default function App() {
 
           {state.status === "ready" && surface === "review" && (
             <>
-              <Verdict
-                stats={state.graph.stats}
+              <Hero
+                graph={state.graph}
                 steps={steps}
-                confirmedAt={confirmedAt ?? state.plan.storedAt}
                 focusedRating={focusedRating}
                 onFocusRating={setFocusedRating}
-                onRun={requestRun}
-                onConverge={() => setConvergeOpen(true)}
-                busy={busy}
-                picked={pickedSteps}
-                onClearPicked={() => setChecked(new Set())}
               />
-
-              {state.superseded && (
-                <div className="supersede" role="status">
-                  <span>
-                    The planner has published a newer plan. This one is pinned while you have a
-                    selection or a run in progress.
-                  </span>
-                  <button className="btn" onClick={state.showLatest}>
-                    Show the new plan
-                  </button>
-                </div>
-              )}
 
               <RunTrail state={run.state} onDismiss={run.dismiss} />
 
-              <main className="workspace">
-                {packingField}
-                <aside className="sidebar">
-                  <StepLedger
-                    steps={steps}
-                    selected={selectedStep}
-                    current={step}
-                    focusedRating={focusedRating}
-                    onSelect={handleSelectStep}
-                    checked={checked}
-                    onToggle={toggleStep}
-                  />
-                  {inspector}
-                </aside>
+              <main className="review-main">
+                <StepList
+                  steps={steps}
+                  graph={state.graph}
+                  checked={checked}
+                  onToggle={toggleStep}
+                  focused={selectedStep}
+                  onFocus={handleSelectStep}
+                  filter={focusedRating}
+                  onFilter={setFocusedRating}
+                />
+                <StepDetail
+                  planId={state.plan.plan.id}
+                  step={steps.find((s) => s.sequenceNumber === selectedStep) ?? null}
+                  pool={poolOf(state.graph, steps.find((s) => s.sequenceNumber === selectedStep))}
+                  checked={selectedStep != null && checked.has(selectedStep)}
+                  stale={state.superseded}
+                  onAdd={(seq) => toggleStep(seq, false)}
+                  onSkip={(seq) => toggleStep(seq, false)}
+                />
               </main>
 
-              {scrubber}
+              <ReviewFooter
+                planId={state.plan.plan.id}
+                picked={pickedSteps}
+                stale={state.superseded}
+                busy={busy}
+                onRehearse={() => requestRun(true)}
+                onDrain={() => requestRun(false)}
+                onDrainConfirmed={() => {
+                  // The typed amber gate WAS the confirmation; a second sheet
+                  // on top of it would teach people to click through sheets.
+                  if (!planId) return;
+                  void run.start(
+                    planId,
+                    pickedSteps.map((s) => s.sequenceNumber),
+                    false,
+                  );
+                  touched.current = false;
+                  setChecked(new Set());
+                }}
+                onConverge={() => setConvergeOpen(true)}
+              />
             </>
           )}
 
@@ -392,7 +436,9 @@ export default function App() {
           )}
         </div>
 
-        {state.status === "ready" && (
+        {/* Review carries its own action footer; the plan-identity strip
+            serves the destinations that do not. */}
+        {state.status === "ready" && surface !== "review" && (
           <footer className="appfooter mono">
             <span>{state.plan.plan.id}</span>
             <span>{state.plan.strategy}</span>
@@ -426,6 +472,16 @@ export default function App() {
       )}
     </div>
   );
+}
+
+/** The focused step's pool chip, joined from the graph's node metadata. */
+function poolOf(
+  graph: { elements: Array<{ data: { kind: string; label: string; instanceType?: string; capacityType?: string } }> },
+  step?: PlanStep,
+): string | undefined {
+  if (!step?.targetNode) return undefined;
+  const n = graph.elements.find((e) => e.data.kind === "node" && e.data.label === step.targetNode);
+  return n?.data.instanceType || n?.data.capacityType || undefined;
 }
 
 /**

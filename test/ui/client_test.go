@@ -125,9 +125,21 @@ func TestPlanIsPinnedWhileThereIsSomethingToProtect(t *testing.T) {
 	}
 
 	app := read(t, "App.tsx")
-	// Held while a selection exists or a run is in flight.
-	if !regexp.MustCompile(`usePlan\(\s*checked\.size > 0 \|\| runActive\s*\)`).MatchString(app) {
-		t.Error("App does not pin the plan while a selection or run is outstanding")
+	// Held while a TOUCHED selection exists or a run is in flight. The
+	// redesign checks safe steps by default, so a pristine selection is not
+	// the operator's — pinning on it would freeze every plan forever and the
+	// freshness dot would lie by construction. Only intent pins.
+	if !regexp.MustCompile(`usePlan\(\(touched\.current && checked\.size > 0\) \|\| runActive\)`).MatchString(app) {
+		t.Error("App does not pin the plan while a touched selection or run is outstanding")
+	}
+	if !strings.Contains(app, "touched.current = true") {
+		t.Error("toggling a step no longer marks the selection as the operator's; " +
+			"either every plan pins (stale forever) or none does (selections silently remap)")
+	}
+	// Safe steps are checked by default — the primary button must mean
+	// something before anyone clicks a box.
+	if !regexp.MustCompile(`setChecked\(new Set\(greenSteps\.map`).MatchString(app) {
+		t.Error("the default selection (safe steps checked) is gone")
 	}
 }
 

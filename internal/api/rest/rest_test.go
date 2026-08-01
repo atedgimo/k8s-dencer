@@ -306,3 +306,27 @@ func TestEventStreamSendsCurrentStateOnConnect(t *testing.T) {
 		t.Error("SSE responses must disable proxy buffering")
 	}
 }
+
+// The review screen flags a moved pod that is its workload's only replica —
+// the difference between "pods move" and "the service blinks". The flag must
+// come from the plan's own snapshot, and a second replica must clear it.
+func TestStepFlagsOnlyReplicaMoves(t *testing.T) {
+	rec := sampleRecord("plan-1")
+	srv := testServer(t, rec)
+
+	_, body := get(t, srv, "/api/v1/plans/latest/steps/1")
+	if got, ok := body["singletons"].([]any); !ok || len(got) != 1 || got[0] != "app/web" {
+		t.Errorf("singletons = %#v, want [app/web] — the fixture's Deployment has one replica", body["singletons"])
+	}
+
+	// A sibling replica on another node makes the same move routine.
+	twin := rec.Snapshot.Pods[0]
+	twin.Name, twin.NodeName = "web-2", "n2"
+	rec.Snapshot.Pods = append(rec.Snapshot.Pods, twin)
+	rec.Plan.ID = "plan-2"
+	srv2 := testServer(t, rec)
+	_, body = get(t, srv2, "/api/v1/plans/latest/steps/1")
+	if got, ok := body["singletons"].([]any); !ok || len(got) != 0 {
+		t.Errorf("singletons = %#v, want empty — the workload has a second replica", body["singletons"])
+	}
+}

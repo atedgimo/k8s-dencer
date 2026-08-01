@@ -111,26 +111,17 @@ type Stats struct {
 	// observed fact — see /api/v1/reclamations. This field was called
 	// "reclaimed" until the reclamation loop landed, which is precisely how
 	// the product came to report a prediction in the language of an outcome.
-	Reclaimable int            `json:"reclaimable"`
-	Steps       int            `json:"steps"`
-	Ratings     map[string]int `json:"ratings"`
-	PodsMoved   int            `json:"podsMoved"`
+	Reclaimable int `json:"reclaimable"`
+	Steps       int `json:"steps"`
 
-	// What the reclaimable nodes are actually worth: the summed allocatable
-	// of every node the plan drains. Nodes are not fungible — "reclaim 15
-	// nodes" may be a rack of 96-core machines or a drawer of 2-core ones,
-	// and the count alone cannot say whether the plan is worth running.
-	//
-	// A near-identical pair lived here once, past-tensed as "reclaimed", and
-	// was removed because nothing read them — the contract test over this
-	// struct enforces that in both directions. They return under the plan's
-	// honest tense and with a reader in the verdict, which is exactly the
-	// bar the removal comment set: "they can come back the day something
-	// reads them."
-	CPUReclaimableMilli int64 `json:"cpuReclaimableMilli"`
-	MemReclaimableBytes int64 `json:"memReclaimableBytes"`
-
-	// nodesAfter also lived here once; still nothing reads it.
+	// ratings, podsMoved, cpuReclaimableMilli and memReclaimableBytes lived
+	// here and are gone again: their reader was the old verdict panel, which
+	// the redesign's hero replaced with figures derived from the steps
+	// themselves (per-verdict pricing needs the join anyway, and one
+	// derivation cannot disagree with the group counts under it). The CLI
+	// never read them from here — it gets the same numbers from the plan
+	// envelope. Same bar as ever: they can come back the day something reads
+	// them. nodesAfter also lived here once; still nothing reads it.
 }
 
 // Build renders the payload at default detail.
@@ -144,18 +135,14 @@ func BuildWith(plan *model.Plan, snap *model.ClusterSnapshot, analysis *constrai
 	p := Payload{PlanID: plan.ID}
 	p.Aggregated = opts.PodDetailLimit > 0 && len(snap.Pods) > opts.PodDetailLimit
 
-	// Where the plan sends each pod, and which step does it.
-	// targets is still needed for the PodsMoved stat; drainStep tells a node
-	// element which step empties it, which is what the field animates against.
-	targets := make(map[string]model.Move, 64)
+	// drainStep tells a node element which step empties it, which is what the
+	// field animates against. Where a pod moves is deliberately not sent —
+	// the UI derives it from the plan's steps, which it already has.
 	drainStep := make(map[string]int, len(plan.Steps))
 
 	for _, step := range plan.Steps {
 		if step.TargetNode != "" {
 			drainStep[step.TargetNode] = step.SequenceNumber
-		}
-		for _, m := range step.Moves {
-			targets[m.Namespace+"/"+m.Pod] = m
 		}
 	}
 
@@ -211,7 +198,7 @@ func BuildWith(plan *model.Plan, snap *model.ClusterSnapshot, analysis *constrai
 	if p.Aggregated {
 		// The node elements above already carry everything the density view
 		// draws. Skipping the pod loop is the entire saving.
-		p.Stats = buildStats(plan, snap, targets)
+		p.Stats = buildStats(plan)
 		return p
 	}
 
@@ -244,26 +231,15 @@ func BuildWith(plan *model.Plan, snap *model.ClusterSnapshot, analysis *constrai
 		p.Elements = append(p.Elements, Element{Data: data})
 	}
 
-	p.Stats = buildStats(plan, snap, targets)
+	p.Stats = buildStats(plan)
 	return p
 }
 
-func buildStats(plan *model.Plan, snap *model.ClusterSnapshot, targets map[string]model.Move) Stats {
-	ratings := plan.CountByRating()
-	cpu, mem := model.ReclaimableCapacity(plan, snap)
-
+func buildStats(plan *model.Plan) Stats {
 	return Stats{
-		NodesBefore:         plan.NodesBefore,
-		Reclaimable:         plan.ReclaimedNodes(),
-		CPUReclaimableMilli: cpu,
-		MemReclaimableBytes: mem,
-		Steps:               len(plan.Steps),
-		Ratings: map[string]int{
-			"Green":  ratings[model.ImpactGreen],
-			"Yellow": ratings[model.ImpactYellow],
-			"Red":    ratings[model.ImpactRed],
-		},
-		PodsMoved: len(targets),
+		NodesBefore: plan.NodesBefore,
+		Reclaimable: plan.ReclaimedNodes(),
+		Steps:       len(plan.Steps),
 	}
 }
 
