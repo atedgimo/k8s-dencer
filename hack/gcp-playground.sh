@@ -525,9 +525,17 @@ helm --kube-context "$CTX" upgrade --install "$RELEASE" "$REPO/charts/k8s-dencer
   --set-string uiBackend.image.tag="$GHCR_TAG" \
   --set-string executor.image.tag="$GHCR_TAG" \
   --set-string uiFrontend.image.tag="$GHCR_TAG" \
-  --wait --timeout 300s >/dev/null || {
-    kubectl --context "$CTX" -n "$NS" get pods
-    fail "chart did not install"
+  --wait --timeout 480s >/dev/null || {
+    # A failure here must explain itself: the fourth live launch died at
+    # exactly the old 300s wait with nothing but a pod list, and the error
+    # scrolled away with the window. Wide pods plus the event tail is the
+    # difference between a diagnosis and a mystery. The timeout is longer
+    # too — first pulls of four images onto shared-core machines can
+    # honestly take more than five minutes.
+    kubectl --context "$CTX" -n "$NS" get pods -o wide || true
+    echo "--- recent events ---"
+    kubectl --context "$CTX" -n "$NS" get events --sort-by=.lastTimestamp 2>/dev/null | tail -15 || true
+    fail "chart did not install (diagnostics above)"
   }
 green "  installed"
 
