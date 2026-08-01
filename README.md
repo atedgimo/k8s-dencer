@@ -13,6 +13,10 @@
 k8s-dencer works out which nodes your cluster could give back, explains what
 moving each workload would cost, and waits for a human to approve it.
 
+[<img src="assets/demo/hero.gif" alt="The plan review screen: reclaim 1 of 18 nodes, steps grouped by verdict, a Safety Guard detail pane, one Drain button" width="100%" />](assets/demo/walkthrough.webm)
+
+<p align="center"><sub>Live capture of the real product against the demo cluster — <a href="assets/demo/walkthrough.webm">full walkthrough video</a>, or run <code>make demo</code> yourself.</sub></p>
+
 ---
 
 ## The problem
