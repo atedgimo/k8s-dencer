@@ -143,9 +143,19 @@ green "  up"
 bold "==> KWOK fabric + scenario ${SCENARIO} (${FABRIC_NODES} fake nodes)"
 helm repo add kwok https://kwok.sigs.k8s.io/charts/ >/dev/null 2>&1 || true
 helm repo update kwok >/dev/null 2>&1
-helm --kube-context "$CTX" upgrade --install kwok kwok/kwok --version "$KWOK_CHART_VERSION" \
-  --namespace "$KWOK_NS" --create-namespace \
-  -f "$REPO/demo/kwok-values.yaml" --wait --timeout 3m >/dev/null
+# Rendered and filtered rather than helm-installed: the kwok chart hard-codes
+# a FlowSchema referencing the cluster-critical "exempt" priority level, and
+# GKE's flowcontrol guardrail webhook denies exactly that. Without the
+# exemption kwok is merely subject to normal API fairness, which a 40-node
+# fabric never notices — and this cluster is throwaway, so helm's release
+# bookkeeping buys nothing here.
+kubectl --context "$CTX" create namespace "$KWOK_NS" --dry-run=client -o yaml \
+  | kubectl --context "$CTX" apply -f - >/dev/null
+helm template kwok kwok/kwok --version "$KWOK_CHART_VERSION" \
+  --namespace "$KWOK_NS" -f "$REPO/demo/kwok-values.yaml" \
+  | python3 -c 'import sys; print("\n---".join(d for d in sys.stdin.read().split("\n---") if "kind: FlowSchema" not in d))' \
+  | kubectl --context "$CTX" apply -f - >/dev/null
+kubectl --context "$CTX" -n "$KWOK_NS" rollout status deployment/kwok-controller --timeout=3m >/dev/null
 helm --kube-context "$CTX" upgrade --install kwok-stage-fast kwok/stage-fast --version "$KWOK_CHART_VERSION" \
   --namespace "$KWOK_NS" --wait --timeout 3m >/dev/null
 helm --kube-context "$CTX" upgrade --install dencer-demo "$REPO/demo/charts/dencer-demo" \
