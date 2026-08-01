@@ -469,7 +469,7 @@
   padding: 0 var(--space-1);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
-  font-size: 0.55rem;
+  font-size: var(--text-2xs);
   letter-spacing: 0.04em;
   color: var(--graphite);
   text-transform: uppercase;
@@ -516,31 +516,4 @@
 
 .panel-row-gone .panel-trace-bar {
   display: none;
-}
-
-.appbar-theme {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--graphite);
-  font-size: var(--text-xs);
-  transition: color var(--step-fast) var(--ease-out),
-    border-color var(--step-fast) var(--ease-out);
-}
-
-.appbar-theme:hover {
-  color: var(--chalk);
-  border-color: var(--border-strong);
-}
-
-/* The word goes before the identity does: on a narrow bar the glyph alone
-   still says which way the switch points. */
-@media (max-width: 900px) {
-  .appbar-theme-word {
-    display: none;
-  }
 }

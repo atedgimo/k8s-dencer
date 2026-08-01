@@ -236,29 +236,6 @@
   color: var(--graphite);
 }
 
-/* ------------------------------------------------------------ status bar */
-
-.statusbar {
-  display: flex;
-  gap: var(--space-6);
-  align-items: center;
-  padding: var(--space-2) var(--space-6);
-  font-size: var(--text-2xs);
-  color: var(--graphite-dim);
-  background: var(--panel-sunken);
-  border-top: 1px solid var(--edge);
-}
-
-.statusbar-link {
-  margin-left: auto;
-  color: var(--graphite);
-  text-decoration: none;
-}
-
-.statusbar-link:hover {
-  color: var(--chalk);
-}
-
 /* ----------------------------------------------------------- placeholder */
 
 .placeholder {
@@ -426,8 +403,7 @@
 
 @media (max-width: 640px) {
   .verdict,
-  .scrub,
-  .statusbar {
+  .scrub {
     padding-inline: var(--space-4);
   }
   .scrub-label {

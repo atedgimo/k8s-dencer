@@ -11,6 +11,11 @@ planner:
   # 10m minimum would leave every node ineligible and the demo would show an
   # empty plan.
   minNodeAge: 30s
+  # This cluster runs metrics-server, and the release has carried the setting
+  # since the rightsizing work — but only via --reuse-values on manual
+  # upgrades, so a plain `make deploy` silently dropped measured usage.
+  # Encoding it here makes the overlay tell the truth about the cluster.
+  usageSource: metrics-server
   image:
     registry: ""
     repository: k8s-dencer-planner

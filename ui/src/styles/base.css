@@ -1,13 +1,7 @@
 @import "../theme.css";
 
 /*
- * Layout: verdict on top, packing field and sidebar in the middle, scrubber
- * and status pinned below. The field is the only thing that scrolls.
+ * Layout lives in styles/frame.css since the redesign: rail on the left,
+ * top bar / content / footer stacked on the right. This slice keeps only
+ * what predates the frame and belongs to no destination.
  */
-
-.shell {
-  display: grid;
-  grid-template-rows: auto auto 1fr auto auto;
-  height: 100%;
-  background: var(--ink);
-}
