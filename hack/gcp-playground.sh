@@ -441,13 +441,16 @@ install_real_fabric() {
     pod-security.kubernetes.io/enforce-version=latest >/dev/null
 
   if [[ "$SCENARIO" == "e-tainted-pool" ]]; then
-    # A real dedicated pool: one machine tainted and labelled, and a workload
-    # that tolerates it. The plan has to reason about a node most pods
-    # cannot land on.
-    dedicated="$(kubectl --context "$CTX" get nodes -o jsonpath='{.items[0].metadata.name}')"
-    kubectl --context "$CTX" taint node "$dedicated" dedicated=play:NoSchedule --overwrite >/dev/null
-    kubectl --context "$CTX" label node "$dedicated" dencer-play/dedicated=true --overwrite >/dev/null
-    echo "    tainted ${dedicated} as the dedicated pool"
+    # A real dedicated pool: machines tainted and labelled, and a workload
+    # that tolerates them. TWO nodes, not one — the product installs first
+    # now and may already occupy part of the first machine, and a pool with
+    # exactly as much room as its workload needs is a launch that dies on a
+    # scheduling coin-flip. Found live, one ledger replica short.
+    for dedicated in $(kubectl --context "$CTX" get nodes -o jsonpath='{.items[0].metadata.name} {.items[1].metadata.name}'); do
+      kubectl --context "$CTX" taint node "$dedicated" dedicated=play:NoSchedule --overwrite >/dev/null
+      kubectl --context "$CTX" label node "$dedicated" dencer-play/dedicated=true --overwrite >/dev/null
+      echo "    tainted ${dedicated} into the dedicated pool"
+    done
   fi
 
   { real_base; real_scenario; } | kubectl --context "$CTX" apply -f - >/dev/null
