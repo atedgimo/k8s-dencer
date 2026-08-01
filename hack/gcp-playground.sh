@@ -156,19 +156,23 @@ teardown() {
   echo
   bold "==> teardown"
   [[ -n "$PORT_FORWARD_PID" ]] && kill "$PORT_FORWARD_PID" >/dev/null 2>&1 || true
+  # Ask the cluster for its volume disk names WHILE it can still answer:
+  # GKE's PD-CSI puts no labels on the disks it provisions (found live — a
+  # label-filtered sweep deleted nothing), so the only precise source is the
+  # PVs themselves. volumeHandle is projects/…/disks/NAME; keep the NAME.
+  PLAY_DISKS="$(kubectl --context "$CTX" get pv \
+    -o jsonpath='{range .items[*]}{.spec.csi.volumeHandle}{"\n"}{end}' 2>/dev/null \
+    | awk -F/ 'NF{print $NF}' || true)"
   cluster_delete
   restore_context
   # Deleting the cluster orphans its PVC-backed disks: the CSI driver that
-  # would release them dies with the control plane. Found live — three 1GB
-  # pvc-* disks quietly billing across runs. GKE labels every dynamically
-  # provisioned disk with its cluster name, so ours are addressable exactly.
-  orphans="$(gcloud compute disks list \
-    --filter="labels.goog-k8s-cluster-name=${CLUSTER} AND -users:*" \
-    --format="value(name)" 2>/dev/null || true)"
-  if [[ -n "$orphans" ]]; then
-    echo "  deleting orphaned volume disk(s): $(echo "$orphans" | tr '\n' ' ')"
+  # would release them dies with the control plane. The names were captured
+  # from the PVs above, before the API server went away — exact, no
+  # heuristics, and nothing outside this cluster can be named by them.
+  if [[ -n "${PLAY_DISKS:-}" ]]; then
+    echo "  deleting volume disk(s) the cluster left: $(echo "$PLAY_DISKS" | tr '\n' ' ')"
     # shellcheck disable=SC2086
-    gcloud compute disks delete $orphans --zone "$GCP_ZONE" --quiet >/dev/null 2>&1 || true
+    gcloud compute disks delete $PLAY_DISKS --zone "$GCP_ZONE" --quiet >/dev/null 2>&1 || true
   fi
   bold "==> anything billable left?"
   "$REPO/hack/gke-leftovers.sh" || true
