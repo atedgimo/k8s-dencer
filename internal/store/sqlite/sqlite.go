@@ -56,7 +56,7 @@ func Open(path string) (*Store, error) {
 // Close releases the database handle.
 func (s *Store) Close() error { return s.db.Close() }
 
-const schemaVersion = 6
+const schemaVersion = 7
 
 // Migrate creates or upgrades the schema.
 func (s *Store) Migrate(ctx context.Context) error {
@@ -102,6 +102,11 @@ func (s *Store) Migrate(ctx context.Context) error {
 	if current < 6 {
 		if _, err := tx.ExecContext(ctx, schemaV6); err != nil {
 			return fmt.Errorf("apply schema v6: %w", err)
+		}
+	}
+	if current < 7 {
+		if _, err := tx.ExecContext(ctx, schemaV7); err != nil {
+			return fmt.Errorf("apply schema v7: %w", err)
 		}
 	}
 
@@ -240,6 +245,25 @@ ALTER TABLE reclamations ADD COLUMN mem_bytes INTEGER NOT NULL DEFAULT 0;
 // Schema v6 — guarded drain: a run can target one named node.
 const schemaV6 = `
 ALTER TABLE runs ADD COLUMN node TEXT NOT NULL DEFAULT '';
+`
+
+// Schema v7 — the timeline. One small row per publish cycle; pruned to a
+// window by the planner. Indexed on taken_at because every read is a range.
+const schemaV7 = `
+CREATE TABLE IF NOT EXISTS samples (
+    taken_at        TEXT NOT NULL,
+    nodes           INTEGER NOT NULL,
+    pods            INTEGER NOT NULL,
+    cpu_req_milli   INTEGER NOT NULL,
+    cpu_alloc_milli INTEGER NOT NULL,
+    mem_req_bytes   INTEGER NOT NULL,
+    mem_alloc_bytes INTEGER NOT NULL,
+    cpu_used_milli  INTEGER NOT NULL,
+    mem_used_bytes  INTEGER NOT NULL,
+    has_usage       INTEGER NOT NULL,
+    reclaimable     INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS samples_taken_at ON samples (taken_at);
 `
 
 // Save persists a record unless it duplicates the latest plan.

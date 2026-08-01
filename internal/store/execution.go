@@ -161,6 +161,10 @@ type ExecutionStore interface {
 	// RunByID returns one run.
 	RunByID(ctx context.Context, runID string) (Run, error)
 
+	// RecentRuns returns the newest runs regardless of plan, newest first —
+	// the History view's markers.
+	RecentRuns(ctx context.Context, limit int) ([]Run, error)
+
 	// Events returns a run's audit trail in order.
 	Events(ctx context.Context, runID string) ([]RunEvent, error)
 

@@ -1,4 +1,8 @@
-{{- if .Values.httpRoute.enabled }}
+{{- /* nil-guarded, not just falsy-guarded: a release upgraded with
+     --reuse-values carries values from before this block existed, and
+     .Values.httpRoute is then nil — found live, the release predating the
+     feature. */ -}}
+{{- if and .Values.httpRoute .Values.httpRoute.enabled }}
 {{/*
 Gateway API exposure, beside (not instead of) the Ingress. Clusters standardise
 on one or the other; during a migration both can be enabled and both point at

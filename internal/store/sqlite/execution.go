@@ -148,6 +148,30 @@ func (s *Store) ActiveRun(ctx context.Context) (store.Run, error) {
 	return scanRun(row)
 }
 
+// RecentRuns lists the newest runs regardless of plan, newest first.
+func (s *Store) RecentRuns(ctx context.Context, limit int) ([]store.Run, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, plan_id, steps, dry_run, status, actor, actor_groups,
+		       requested_at, started_at, finished_at, worker, summary, mode, envelope, node
+		FROM runs ORDER BY requested_at DESC, rowid DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []store.Run
+	for rows.Next() {
+		run, err := scanRun(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, run)
+	}
+	return out, rows.Err()
+}
+
 // RunsForPlan lists runs against a plan, newest first.
 func (s *Store) RunsForPlan(ctx context.Context, planID string, limit int) ([]store.Run, error) {
 	if limit <= 0 {
