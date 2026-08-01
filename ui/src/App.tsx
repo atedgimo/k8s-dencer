@@ -8,7 +8,8 @@ import { SignIn } from "./components/SignIn";
 import StepLedger from "./components/StepLedger";
 import Verdict from "./components/Verdict";
 import AppBar from "./components/AppBar";
-import { FieldView, defaultView, rememberView, storedView } from "./view";
+import History from "./components/History";
+import { FieldView, Surface, defaultView, rememberView, storedView } from "./view";
 import { authInfo, token as tokenStore } from "./auth";
 import { onRenewed } from "./oidc";
 import { runtimeConfig } from "./runtime-config";
@@ -58,6 +59,10 @@ export default function App() {
   const [focusedRating, setFocusedRating] = useState<Impact | null>(null);
   const [pending, setPending] = useState<{ steps: PlanStep[]; dryRun: boolean } | null>(null);
   const [convergeOpen, setConvergeOpen] = useState(false);
+  // Which top-level surface is showing. Deliberately not persisted: History
+  // is a place you visit, and reopening the app on it instead of the field
+  // would bury the thing the product is for.
+  const [surface, setSurface] = useState<Surface>("field");
   const lastToggled = useRef<number | null>(null);
 
   const planId = state.status === "ready" ? state.plan.plan.id : null;
@@ -176,6 +181,8 @@ export default function App() {
           setViewPref(v);
           rememberView(v);
         }}
+        surface={surface}
+        onSurface={setSurface}
         clusterLabel={server?.clusterLabel}
         identity={server?.identity}
         onSignOut={handleSignOut}
@@ -245,6 +252,10 @@ export default function App() {
           <RunTrail state={run.state} onDismiss={run.dismiss} />
 
           <main className="workspace">
+            {surface === "history" ? (
+              <History />
+            ) : (
+              <>
             <PackingField
               view={view}
               awaiting={reclamations.stats.awaiting}
@@ -285,6 +296,8 @@ export default function App() {
                 onSelectStep={handleSelectStep}
               />
             </aside>
+              </>
+            )}
           </main>
 
           <Scrubber

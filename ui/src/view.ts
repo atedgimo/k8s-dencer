@@ -25,6 +25,15 @@
 
 export type FieldView = "rack" | "wells" | "panel";
 
+/**
+ * The app's top-level surface: the field (in whichever FieldView) or the
+ * History timeline. A separate axis from FieldView on purpose — History is
+ * not a way of drawing nodes, it is a different question ("over time" rather
+ * than "right now"), and conflating the axes would make "come back from
+ * History to the view I was using" impossible.
+ */
+export type Surface = "field" | "history";
+
 const KEY = "dencer.view";
 
 /** Above this many nodes, individual pods stop being worth drawing. */

@@ -1,0 +1,134 @@
+/* The History surface — the cluster over time. Ink is achromatic; the only
+   colour is a run marker's rating, which already means risk everywhere. */
+
+.history {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  overflow-y: auto;
+}
+
+.history-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.history-ranges {
+  display: inline-flex;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.history-range {
+  padding: var(--space-1) var(--space-3);
+  border: 0;
+  background: transparent;
+  color: var(--graphite);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.history-range.is-on {
+  background: var(--surface-3);
+  color: var(--text-primary);
+}
+
+.history-empty {
+  color: var(--graphite);
+  font-size: var(--text-sm);
+  max-width: 60ch;
+}
+
+.history-band {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-1);
+  padding: var(--space-4);
+}
+
+.history-band-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-3);
+}
+
+.history-band-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.history-band-now {
+  color: var(--graphite);
+  font-size: var(--text-xs);
+}
+
+.history-band svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.history-band-note {
+  margin: var(--space-2) 0 0;
+  color: var(--graphite-dim);
+  font-size: var(--text-2xs);
+  max-width: 72ch;
+}
+
+/* chart ink */
+.chart-grid line {
+  stroke: var(--edge-soft);
+  stroke-width: 1;
+}
+
+.chart-ylabel,
+.chart-xlabel {
+  fill: var(--graphite-dim);
+  font-size: 10px;
+}
+
+.chart-line {
+  fill: none;
+  stroke: var(--text-primary);
+  stroke-width: 1.5;
+}
+
+.chart-line-step {
+  stroke-width: 2;
+}
+
+.chart-line-dim {
+  stroke: var(--graphite);
+  stroke-dasharray: 3 3;
+}
+
+.chart-area {
+  fill: var(--graphite);
+  opacity: 0.18;
+  stroke: none;
+}
+
+.chart-run-tick {
+  stroke: var(--edge-soft);
+  stroke-width: 1;
+}
+
+.chart-run-mark {
+  font-size: 11px;
+  fill: var(--graphite);
+}
+
+/* Ratings mean risk; a run's outcome may borrow the scale it already owns. */
+.chart-run-succeeded { fill: var(--risk-green); }
+.chart-run-blocked   { fill: var(--risk-yellow); }
+.chart-run-failed    { fill: var(--risk-red); }
