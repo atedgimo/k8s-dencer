@@ -225,7 +225,12 @@ receipt. It deletes nothing, ever.
 `make gcp-play` stands up a throwaway GKE cluster with the full demo on top,
 hands you the UI for twenty minutes, and then deletes everything it made.
 
-- **Real nodes, real drains, by default** — six `e2-medium` machines running
+- **Real nodes, real drains, by default** — the machine profile is part of
+  the draw (8× `e2-small` ≈ 7¢, or 6× `e2-medium` ≈ 10¢ per window), and the
+  fleet goes **Spot automatically** when the region's preemptible quota
+  allows — often cutting that by 60–90%. Free GKE nodes do not exist; the
+  free tier covers the zonal cluster fee, which the playground already uses.
+  The machines run
   restricted-PSS-compliant workloads with real readiness probes, shaped by a
   random scenario (fragmented, PDB-blocked, topology-spread, anti-affinity,
   a genuinely tainted pool, stateful). Every drain is a real eviction, and a

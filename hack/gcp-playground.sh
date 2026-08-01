@@ -34,7 +34,7 @@ PLAY_FABRIC="${PLAY_FABRIC:-real}"
 CLUSTER="${CLUSTER:-dencer-play}"
 CTX="gke-play"
 GCP_ZONE="${GCP_ZONE:-us-central1-a}"
-GCP_MACHINE="${GCP_MACHINE:-e2-medium}"
+GCP_SPOT="${GCP_SPOT:-auto}"
 NS="k8s-dencer"
 DEMO_NS="dencer-demo"
 KWOK_NS="kwok"
@@ -43,13 +43,30 @@ RELEASE="k8s-dencer"
 UI_PORT="${UI_PORT:-8092}"
 GHCR_TAG="${GHCR_TAG:-$(awk '/^appVersion:/ {gsub(/"/,"",$2); print $2}' "$REPO/charts/k8s-dencer/Chart.yaml")}"
 
-# Real mode needs enough machines that consolidation has something to say;
-# the KWOK variant needs only a perch for the product.
+# The machine profile is part of the draw: a wide fleet of shared-core
+# smalls costs the same as a narrow fleet of mediums and reads differently
+# in the plan. Both are honest; free GKE nodes do not exist — the free tier
+# covers the zonal cluster fee (already used) and nothing that can be a
+# node. Spot is the real discount, applied below when quota allows.
 if [[ "$PLAY_FABRIC" == "real" ]]; then
+  if [[ -z "${GCP_MACHINE:-}" ]]; then
+    if (( RANDOM % 2 )); then GCP_MACHINE="e2-small";  REAL_NODES="${REAL_NODES:-8}"
+    else                      GCP_MACHINE="e2-medium"; REAL_NODES="${REAL_NODES:-6}"
+    fi
+  fi
   REAL_NODES="${REAL_NODES:-6}"
 else
+  GCP_MACHINE="${GCP_MACHINE:-e2-medium}"
   REAL_NODES="${REAL_NODES:-3}"
 fi
+
+# On-demand cents/hour, for the consent line's ceiling. Spot, when granted,
+# only makes the printed number an overestimate — the safe direction.
+case "$GCP_MACHINE" in
+  e2-small)  MACHINE_CENTS_H=1.7 ;;
+  e2-medium) MACHINE_CENTS_H=3.4 ;;
+  *)         MACHINE_CENTS_H=3.4 ;;
+esac
 
 bold()  { printf '\033[1m%s\033[0m\n' "$*"; }
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
@@ -107,7 +124,7 @@ project="$(gcloud config get-value project 2>/dev/null)"
 # ---------------------------------------------------------- the consent
 # Rough ceiling, stated before anything exists: N e2-medium on-demand nodes
 # at ~\$0.034/h each, for the window plus ~10 minutes of create/delete.
-est_cents="$(python3 -c "print(round($REAL_NODES * 3.4 * (($PLAY_MINUTES + 10) / 60), 1))")"
+est_cents="$(python3 -c "print(round($REAL_NODES * $MACHINE_CENTS_H * (($PLAY_MINUTES + 10) / 60), 1))")"
 bold "==> the playground, before it exists"
 echo "    project    ${project}"
 echo "    cluster    ${CLUSTER} (${REAL_NODES}× ${GCP_MACHINE}, zone ${GCP_ZONE})"
@@ -140,11 +157,30 @@ teardown() {
 trap teardown EXIT INT TERM
 
 # --------------------------------------------------------------- cluster
-bold "==> GKE cluster (${REAL_NODES}× ${GCP_MACHINE})"
+# Spot when the region's preemptible quota can hold the fleet — the same
+# quota-aware auto the e2e harness uses. A reclaimed Spot node mid-window is
+# not a bug here; it is the observed overlay's favourite weather.
+spot_flag=()
+case "$GCP_SPOT" in
+  auto)
+    limit="$(gcloud compute regions describe "${GCP_ZONE%-*}" --format=json 2>/dev/null \
+      | python3 -c 'import json,sys
+try: print(int({x["metric"]: x["limit"] for x in json.load(sys.stdin).get("quotas",[])}.get("PREEMPTIBLE_CPUS",0)))
+except Exception: print(0)')"
+    if [[ "${limit:-0}" -ge $(( REAL_NODES * 2 )) ]]; then
+      spot_flag=(--spot)
+    fi
+    ;;
+  1|true|yes) spot_flag=(--spot) ;;
+  *) ;;
+esac
+
+bold "==> GKE cluster (${REAL_NODES}× ${GCP_MACHINE}${spot_flag:+, Spot})"
 gcloud container clusters create "$CLUSTER" \
   --zone "$GCP_ZONE" \
   --num-nodes "$REAL_NODES" \
   --machine-type "$GCP_MACHINE" \
+  "${spot_flag[@]}" \
   --disk-type pd-standard --disk-size 20 \
   --enable-autoscaling --min-nodes 1 --max-nodes "$((REAL_NODES + 1))" \
   --no-enable-autoupgrade --no-enable-autorepair \
