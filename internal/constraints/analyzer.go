@@ -48,6 +48,21 @@ func analyzePod(pod model.Pod, snap *model.ClusterSnapshot, placement *Placement
 		Movable:   pod.IsMovable(),
 	}
 
+	// The explicit hands-off signal outranks everything: it is the owner
+	// saying "do not touch this", in the vocabulary Karpenter and the
+	// cluster autoscaler both honour, and this product honours it too.
+	if pod.DoNotDisrupt {
+		pc.Constraints = append(pc.Constraints, Constraint{
+			Kind:     KindDoNotDisrupt,
+			Hard:     true,
+			Blocking: true,
+			Explanation: "Annotated hands-off (karpenter.sh/do-not-disrupt or " +
+				"cluster-autoscaler.kubernetes.io/safe-to-evict: \"false\"). " +
+				"The owner has explicitly opted this pod out of voluntary disruption, " +
+				"and k8s-dencer honours the same convention the autoscalers do.",
+		})
+	}
+
 	// Controller pinning comes first: if the pod cannot move at all, the rest
 	// of the constraint set is context rather than explanation.
 	if pod.Owner != nil && pod.Owner.Kind == "DaemonSet" {
