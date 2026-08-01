@@ -18,6 +18,116 @@ import (
 	"github.com/atedgimo/k8s-dencer/internal/model"
 )
 
+// Queue is what the Recommendations destination shows: the plan's own
+// blocking rules first — each one derived from the step reasons the impact
+// assessor already wrote, grouped by rule and responsible workload, carrying
+// exactly the steps it appears on — then Build's advice underneath. The
+// rank is nodes unlocked (one step drains one node), which is what turns 29
+// findings into a work queue.
+//
+// A blocking rule's step list is never speculative: it is the impact
+// assessor's attribution read back, not this package guessing. Advice kinds
+// (MissingPDB, MissingRequests, HandsOff, and any finding whose subject
+// appears on no step) rank below every blocker.
+func Queue(plan *model.Plan, snap *model.ClusterSnapshot) []Recommendation {
+	blockers := fromPlanReasons(plan, snap)
+	advice := Build(snap)
+
+	// A blocker and an advice finding can name the same workload for
+	// different reasons (a StatefulWorkload rule and a SingleReplica advice
+	// on the same pod). Both stay: they propose different actions.
+	out := append(blockers, advice...)
+
+	sort.SliceStable(out, func(i, j int) bool {
+		if len(out[i].UnblocksSteps) != len(out[j].UnblocksSteps) {
+			return len(out[i].UnblocksSteps) > len(out[j].UnblocksSteps)
+		}
+		rank := map[Severity]int{SeverityHigh: 0, SeverityMedium: 1, SeverityInfo: 2}
+		if rank[out[i].Severity] != rank[out[j].Severity] {
+			return rank[out[i].Severity] < rank[out[j].Severity]
+		}
+		return out[i].Workload < out[j].Workload
+	})
+	return out
+}
+
+// fromPlanReasons turns step reasons into one finding per (rule, workload):
+// "HardTopologySpread on shop/Deployment/web holds back steps 3 and 4". The
+// subject workload comes from resolving the reason's subject pod against the
+// snapshot; a reason whose subject is a node (BlastRadius) groups by node.
+func fromPlanReasons(plan *model.Plan, snap *model.ClusterSnapshot) []Recommendation {
+	if plan == nil || snap == nil {
+		return nil
+	}
+
+	ownerOf := make(map[string]string, len(snap.Pods)) // pod key → workload key
+	for i := range snap.Pods {
+		p := &snap.Pods[i]
+		if p.Owner != nil {
+			ownerOf[p.Key()] = p.Namespace + "/" + p.Owner.Kind + "/" + p.Owner.Name
+		}
+	}
+
+	type group struct {
+		rec   Recommendation
+		steps map[int]bool
+		worst model.ImpactRating
+	}
+	groups := map[string]*group{}
+	order := []string{}
+
+	for _, step := range plan.Steps {
+		if step.Impact == model.ImpactGreen {
+			continue
+		}
+		for _, r := range step.Reasons {
+			subject := r.Subject
+			if w, ok := ownerOf[subject]; ok {
+				subject = w
+			}
+			key := r.Kind + "|" + subject
+			g := groups[key]
+			if g == nil {
+				g = &group{
+					rec: Recommendation{
+						Kind:     r.Kind,
+						Workload: subject,
+						Why:      r.Detail,
+					},
+					steps: map[int]bool{},
+					worst: step.Impact,
+				}
+				groups[key] = g
+				order = append(order, key)
+			}
+			g.steps[step.SequenceNumber] = true
+			if g.rec.Why == "" {
+				g.rec.Why = r.Detail
+			}
+			if step.Impact == model.ImpactRed {
+				g.worst = model.ImpactRed
+			}
+		}
+	}
+
+	out := make([]Recommendation, 0, len(groups))
+	for _, key := range order {
+		g := groups[key]
+		// Red-rated attribution blocks outright; Yellow asks for a call.
+		if g.worst == model.ImpactRed {
+			g.rec.Severity = SeverityHigh
+		} else {
+			g.rec.Severity = SeverityMedium
+		}
+		for seq := range g.steps {
+			g.rec.UnblocksSteps = append(g.rec.UnblocksSteps, seq)
+		}
+		sort.Ints(g.rec.UnblocksSteps)
+		out = append(out, g.rec)
+	}
+	return out
+}
+
 // Severity is impact-on-consolidation, not risk: these are chores, not
 // alarms, and the UI must not colour them like ratings.
 type Severity string
@@ -40,6 +150,13 @@ type Recommendation struct {
 	// Fix is paste-ready YAML when the fix is YAML, empty when it is a
 	// decision. Suggestions, not policy: the numbers are starting points.
 	Fix string `json:"fix,omitempty"`
+
+	// UnblocksSteps names the plan steps this finding holds back, by
+	// sequence number — the linkage that turns a findings list into an
+	// ordered work queue ("fixing this unblocks 3 steps"). Only Queue sets
+	// it, because only the plan knows; Build stays snapshot-pure. Empty
+	// means the finding is advice, not a blocker.
+	UnblocksSteps []int `json:"unblocksSteps,omitempty"`
 }
 
 // Build derives recommendations from a snapshot and nothing else — same

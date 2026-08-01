@@ -8,7 +8,8 @@ import { SignIn } from "./components/SignIn";
 import Rail from "./components/Rail";
 import TopBar from "./components/TopBar";
 import History from "./components/History";
-import Recommendations from "./components/Recommendations";
+import RecsPage from "./components/recs/RecsPage";
+import { findingKey, useMuted } from "./useMuted";
 import Hero from "./components/review/Hero";
 import StepList from "./components/review/StepList";
 import StepDetail from "./components/review/StepDetail";
@@ -76,6 +77,7 @@ export default function App() {
   const lastToggled = useRef<number | null>(null);
 
   const recommendations = useRecommendations();
+  const { muted, mute, unmute } = useMuted();
 
   const planId = state.status === "ready" ? state.plan.plan.id : null;
   // Coalesced deliberately. The API guarantees an array, but a client that
@@ -223,7 +225,12 @@ export default function App() {
         : state.plan.storedAt
       : null;
 
-  const highFindings = (recommendations ?? []).filter((r) => r.severity === "high").length;
+  // The rail badge counts the queue, not the raw findings: a muted finding
+  // left the queue, and a badge that disagreed with the page it opens would
+  // read as the tool arguing with itself.
+  const highFindings = (recommendations ?? []).filter(
+    (r) => r.severity === "high" && !muted.has(findingKey(r.kind, r.workload)),
+  ).length;
 
   const packingField = state.status === "ready" && (
     <PackingField
@@ -461,11 +468,19 @@ export default function App() {
           )}
 
           {state.status === "ready" && surface === "recommendations" && (
-            <main className="workspace workspace-single">
-              <div className="page-recs">
-                <Recommendations recs={recommendations} variant="page" />
-              </div>
-            </main>
+            <RecsPage
+              recs={recommendations}
+              steps={steps}
+              graph={state.graph}
+              muted={muted}
+              onMute={mute}
+              onUnmute={unmute}
+              onOpenSteps={(seqs) => {
+                setSurface("review");
+                setFocusedRating(null);
+                handleSelectStep(seqs[0] ?? null);
+              }}
+            />
           )}
 
           {state.status === "ready" && surface === "history" && (

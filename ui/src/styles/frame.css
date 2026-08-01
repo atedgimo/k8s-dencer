@@ -337,15 +337,8 @@
 }
 
 /* -------------------------------------------------- interim page wrappers
-   Hosts for the unmigrated screens while their redesigns land. The
-   Recommendations destination gets a readable column; Cluster gets the old
-   field plus the lens switcher that used to live in the app bar. */
-
-.page-recs {
-  padding: var(--space-6);
-  overflow: auto;
-  max-width: 720px;
-}
+   The Cluster destination keeps the old field plus the lens switcher until
+   its redesign lands. */
 
 .lensbar {
   display: flex;
