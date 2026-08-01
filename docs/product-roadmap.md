@@ -117,6 +117,23 @@ deciding what to build next and telling users what they get.
 - **Auth is your cluster's auth** — TokenReview + SubjectAccessReview
   delegation, OIDC/SSO; no credential store of its own
 
+### The redesigned UI (2026-08-01)
+- **"The ledger"** — the product UI rebuilt against a twelve-frame design
+  handoff (vendored in `assets/design/`), shipped as seven stacked PRs:
+  foundation tokens and frame, plan review, run screens, the Recommendations
+  queue, the three Cluster lenses with History, sign-in, and closeout
+- **The step list is the screen** — verdicts say what they mean (Safe now /
+  Needs a call / Held back), every held-back step names its rule, one filled
+  Drain button behind a typed confirmation for non-Green selections
+- **The design forced two backend capabilities into existence** — a real
+  packing ceiling (`planner.packCeiling`, default 0.85, recorded on each
+  plan and drawn in the Wells lens) and per-node measured usage (the Load
+  lens's whole premise)
+- **Recommendations became a work queue** — the plan's own blocking rules,
+  ranked by nodes unlocked, each naming the steps it holds back
+- **First-class dual themes** — the light palette is redrawn, not inverted,
+  and `test/palette` computes every documented contrast pair in both
+
 ### Delivery
 - **The demo records itself** — `make demo-video`: a Playwright-scripted
   walkthrough of the real UI against the live cluster, so the recording can

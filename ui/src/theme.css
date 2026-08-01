@@ -76,38 +76,9 @@
   --held-border: #40201f;
   --held-text: #d98a8d;
 
-  /* ---------------------------------------------- occupancy ramp (legacy)
-     Achromatic fullness ramp used by the field views until the Cluster
-     lenses land. Migrating screens should prefer requested/used splits in
-     accent + caution per the Load lens spec. */
-  --fill-05: #1e232a;
-  --fill-25: #333a44;
+  /* The one survivor of the old occupancy ramp: neutral "already there"
+     ink for wells, pods and the estate's needed bars. */
   --fill-50: #525b68;
-  --fill-75: #838d9c;
-  --fill-95: #ccd2da;
-
-  /* ---------------------------------------------------------- aliases
-     The pre-redesign names, mapped onto the new tokens so unmigrated
-     slices keep rendering. Remove each alias with the last slice that
-     reads it. */
-  --surface-0: var(--canvas);
-  --surface-1: var(--surface);
-  --surface-2: var(--inset);
-  --surface-3: var(--raised);
-  --surface-sunken: var(--canvas);
-  --ink: var(--canvas);
-  --panel: var(--surface);
-  --panel-raised: var(--inset);
-  --panel-sunken: var(--canvas);
-  --edge: var(--border);
-  --edge-soft: var(--hairline);
-  --chalk: var(--text-1);
-  --graphite: var(--text-3);
-  --graphite-dim: var(--text-5);
-  --risk-green: var(--safe);
-  --risk-yellow: var(--caution);
-  --risk-red: var(--held);
-  --focus: var(--accent);
 
   /* ---------------------------------------------------------- type
      IBM Plex Sans and IBM Plex Mono only. Headings 30–34px/600/-0.025em;
@@ -200,11 +171,7 @@
     --held-bg: #fdecec;
     --held-border: #f3c9cb;
     --held-text: #9e262e;
-    --fill-05: #eaedf1;
-    --fill-25: #c7ced7;
     --fill-50: #939dab;
-    --fill-75: #5e6875;
-    --fill-95: #232a33;
   }
 }
 
@@ -243,11 +210,7 @@
   --held-bg: #fdecec;
   --held-border: #f3c9cb;
   --held-text: #9e262e;
-  --fill-05: #eaedf1;
-  --fill-25: #c7ced7;
   --fill-50: #939dab;
-  --fill-75: #5e6875;
-  --fill-95: #232a33;
 }
 
 * {
