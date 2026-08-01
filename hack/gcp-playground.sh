@@ -151,10 +151,15 @@ helm repo update kwok >/dev/null 2>&1
 # bookkeeping buys nothing here.
 kubectl --context "$CTX" create namespace "$KWOK_NS" --dry-run=client -o yaml \
   | kubectl --context "$CTX" apply -f - >/dev/null
+# apply -n, not just template --namespace: helm template renders manifests
+# WITHOUT namespace metadata (helm install injects it server-side), so a bare
+# apply lands everything in the context's default namespace — found live,
+# the rollout wait then looking for a controller that existed one namespace
+# over. Explicit namespaces in rendered docs still win over -n.
 helm template kwok kwok/kwok --version "$KWOK_CHART_VERSION" \
   --namespace "$KWOK_NS" -f "$REPO/demo/kwok-values.yaml" \
   | python3 -c 'import sys; print("\n---".join(d for d in sys.stdin.read().split("\n---") if "kind: FlowSchema" not in d))' \
-  | kubectl --context "$CTX" apply -f - >/dev/null
+  | kubectl --context "$CTX" -n "$KWOK_NS" apply -f - >/dev/null
 kubectl --context "$CTX" -n "$KWOK_NS" rollout status deployment/kwok-controller --timeout=3m >/dev/null
 helm --kube-context "$CTX" upgrade --install kwok-stage-fast kwok/stage-fast --version "$KWOK_CHART_VERSION" \
   --namespace "$KWOK_NS" --wait --timeout 3m >/dev/null
