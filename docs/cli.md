@@ -227,3 +227,17 @@ workloads, **measured on both sides** (requires
 `planner.usageSource=metrics-server`; without measurements it refuses to
 estimate). Usage is a point-in-time sample, not a peak — shrink requests
 against your own percentiles, not this single reading.
+
+## `dencer recommend` — what is missing, with fixes
+
+```
+dencer recommend [-o json]
+```
+
+`audit` reports what cannot survive; this reports what to *change*: the
+multi-replica workload with no PDB (paste-ready YAML included), the
+single-replica Deployment where every drain is an outage, missing resource
+requests (suggested from measured usage when available), zero-headroom
+budgets with the concrete adjustment, and hands-off annotations explained so
+future-you remembers why nothing moves. Severity is impact on consolidation —
+these are chores, not alarms.

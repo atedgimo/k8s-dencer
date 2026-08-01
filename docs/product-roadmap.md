@@ -10,6 +10,12 @@ deciding what to build next and telling users what they get.
 ## Shipped
 
 ### Analysis and planning
+- **Recommendations** — `dencer recommend`: what is *missing*, with fixes.
+  The PDB nobody wrote (paste-ready YAML), the single replica that makes
+  every drain an outage, the absent requests the scheduler is blind
+  without, the zero-headroom budget with the concrete change — severity is
+  impact-on-consolidation, and every item carries its why. (UI panel:
+  next slice.)
 - **The ecosystem's hands-off signals are honoured** —
   `karpenter.sh/do-not-disrupt` and
   `cluster-autoscaler.kubernetes.io/safe-to-evict: "false"` pin a pod

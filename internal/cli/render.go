@@ -605,3 +605,26 @@ func PrintRightsizing(w io.Writer, env *RightsizingEnvelope) {
 	fmt.Fprintln(w, dim("\nSorted by absolute CPU excess. Usage is a point-in-time sample, not a peak;"))
 	fmt.Fprintln(w, dim("shrink requests against your own percentiles, not against this single reading."))
 }
+
+// PrintRecommendations renders fixes, most consequential first. Severity is
+// impact-on-consolidation, not risk — words, not the rating glyphs.
+func PrintRecommendations(w io.Writer, env *RecommendationsEnvelope) {
+	if len(env.Recommendations) == 0 {
+		fmt.Fprintln(w, bold("Nothing to recommend."))
+		fmt.Fprintln(w, "Every workload has requests, replicas and a governed disruption budget.")
+		return
+	}
+	fmt.Fprintf(w, "%s  %s\n\n",
+		bold(fmt.Sprintf("%d recommendation(s)", len(env.Recommendations))),
+		dim("as of "+humanDuration(time.Since(env.TakenAt))+" ago"))
+	for _, r := range env.Recommendations {
+		fmt.Fprintf(w, "%s %s  %s\n", strings.ToUpper(r.Severity), bold(r.Workload), dim("["+r.Kind+"]"))
+		fmt.Fprintf(w, "  %s\n", r.Why)
+		if r.Fix != "" {
+			for _, line := range strings.Split(r.Fix, "\n") {
+				fmt.Fprintf(w, "    %s\n", dim(line))
+			}
+		}
+		fmt.Fprintln(w)
+	}
+}
