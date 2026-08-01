@@ -14,7 +14,7 @@ import StepDetail from "./components/review/StepDetail";
 import ReviewFooter from "./components/review/ReviewFooter";
 import RunScreen from "./components/run/RunScreen";
 import { FieldView, Surface, defaultView, rememberView, storedView } from "./view";
-import { authInfo, token as tokenStore } from "./auth";
+import { authInfo, readOnlySession, token as tokenStore } from "./auth";
 import { onRenewed } from "./oidc";
 import { runtimeConfig } from "./runtime-config";
 import { useObserved } from "./useObserved";
@@ -157,6 +157,9 @@ export default function App() {
 
   const busy = run.state.status === "starting" || run.state.status === "active";
 
+  // The read-only session hides drain affordances; RBAC enforces regardless.
+  const readOnly = readOnlySession.get();
+
   // Keep the pin in step with the run's lifetime.
   useEffect(() => setRunActive(busy), [busy]);
 
@@ -265,7 +268,9 @@ export default function App() {
             />
           )}
 
-          {state.status === "error" && state.needsAuth && <SignIn onDone={state.reload} />}
+          {state.status === "error" && state.needsAuth && (
+            <SignIn onDone={state.reload} clusterLabel={server?.clusterLabel} />
+          )}
 
           {state.status === "error" && !state.needsAuth && (
             <Placeholder
@@ -291,6 +296,7 @@ export default function App() {
                 graph={state.graph}
                 steps={steps}
                 planMatches={run.state.run.planId === state.plan.plan.id}
+                readOnly={readOnly}
                 reclaimed={new Map(reclamations.recent.map((r) => [r.node, r]))}
                 onDismiss={run.dismiss}
                 onRehearse={() => requestRun(true)}
@@ -343,6 +349,7 @@ export default function App() {
               <ReviewFooter
                 planId={state.plan.plan.id}
                 picked={pickedSteps}
+                readOnly={readOnly}
                 stale={state.superseded}
                 busy={busy}
                 onRehearse={() => requestRun(true)}
