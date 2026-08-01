@@ -215,18 +215,21 @@ restore_context
 green "  up"
 
 # ------------------------------------------------------- real workloads
-# Restricted-PSS-compliant nginx with real readiness probes, sized so six
-# e2-mediums end up fragmented: enough spread that the plan frees a node or
-# two, enough headroom that every eviction has somewhere to land. The
-# scenario adds the constraint that should change the ratings — the same
-# grammar as the demo chart, spoken by real pods.
+# Restricted-PSS-compliant nginx with real readiness probes, sized to leave
+# SLACK: launch six packed the fleet to 92-97% once GKE's own daemons
+# (~300m/node) joined, and above the packing ceiling the planner rightly
+# said there was nothing to improve. A consolidation demo needs a
+# fragmented cluster, not a full one — the spread scheduler scatters these
+# to ~55-65% per node, which the ceiling can then pack into fewer machines.
+# The scenario adds the constraint that should change the ratings — the
+# same grammar as the demo chart, spoken by real pods.
 real_base() {
   cat <<EOF
 apiVersion: apps/v1
 kind: Deployment
 metadata: { name: play-web, namespace: ${DEMO_NS}, labels: { app: play-web } }
 spec:
-  replicas: 8
+  replicas: 4
   selector: { matchLabels: { app: play-web } }
   template:
     metadata: { labels: { app: play-web } }
@@ -244,7 +247,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata: { name: play-cache, namespace: ${DEMO_NS}, labels: { app: play-cache } }
 spec:
-  replicas: 5
+  replicas: 3
   selector: { matchLabels: { app: play-cache } }
   template:
     metadata: { labels: { app: play-cache } }
@@ -262,7 +265,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata: { name: play-filler, namespace: ${DEMO_NS}, labels: { app: play-filler } }
 spec:
-  replicas: 6
+  replicas: 3
   selector: { matchLabels: { app: play-filler } }
   template:
     metadata: { labels: { app: play-filler } }
