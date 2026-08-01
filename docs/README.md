@@ -9,6 +9,7 @@
 | **[Execution and safety](execution.md)** | What the executor does per step, the Safety Guard's rails, maintenance windows, and the audit trail |
 | **[Observability](observability.md)** | Prometheus metrics and what each component publishes |
 | **[Running the cloud test on GCP](gcp-setup.md)** | Account, project, billing, quota — everything to do by hand, once |
+| **[The GCP playground](gcp-playground.md)** | A timed, self-destructing GKE cluster with real workloads and a random scenario |
 | **[Development](development.md)** | The local loop, the KWOK fake-node fabric, the CI gates, and cutting a release |
 | **[Benchmarks](benchmarks.md)** | Measured cost per operation, and where each stage stops being usable |
 | **[Findings](findings.md)** | Bugs and gaps found by running it — what hid, and why |
