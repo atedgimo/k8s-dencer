@@ -41,7 +41,16 @@ func (s *Server) handlePreflight(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
-	snap, analysis := rec.Snapshot, rec.Analysis
+	// Analyzed fresh from the stored snapshot rather than read from the
+	// stored analysis blob. The snapshot refreshes on the dedup path (when
+	// usage collection is on) precisely because stored state ages on steady
+	// clusters — and the analysis blob still ages that way, frozen at the
+	// last plan change. A preflight run "immediately before upgrading", as
+	// its own report advises, must not answer from constraints as they stood
+	// an hour ago. Analyze costs ~16ms at 900 pods and ~300ms at 5k
+	// (docs/benchmarks.md): report-endpoint money.
+	snap := rec.Snapshot
+	analysis := constraints.Analyze(snap)
 
 	// One pass to group constraints by node. Analysis.ForNode scans all pods
 	// per call, which is fine for the planner's occasional question and

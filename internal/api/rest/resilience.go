@@ -3,6 +3,8 @@ package rest
 import (
 	"net/http"
 	"sort"
+
+	"github.com/atedgimo/k8s-dencer/internal/constraints"
 )
 
 // The resilience audit: the analyzer's never-evictable list, re-sorted into
@@ -32,8 +34,13 @@ func (s *Server) handleResilience(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Fresh analysis for the same reason preflight computes one: the stored
+	// blob is frozen at the last plan change, and an availability audit that
+	// answers from an hour ago is a false reassurance.
+	analysis := constraints.Analyze(rec.Snapshot)
+
 	findings := []resilienceFinding{}
-	for _, pc := range rec.Analysis.Pods {
+	for _, pc := range analysis.Pods {
 		if pc.Movable {
 			continue
 		}
@@ -69,6 +76,6 @@ func (s *Server) handleResilience(w http.ResponseWriter, r *http.Request) {
 		"takenAt":  rec.Snapshot.TakenAt,
 		"planId":   rec.Plan.ID,
 		"findings": findings,
-		"pods":     len(rec.Analysis.Pods),
+		"pods":     len(analysis.Pods),
 	})
 }
