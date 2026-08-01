@@ -54,6 +54,11 @@ happens to be able to execute, not an autoscaler with a UI.
   drained is still sitting there.
 - **Answers questions in natural language** through an optional Kagent agent
   that quotes the analyzer rather than re-deriving anything.
+- **Answers the adjacent questions the same engine can.** `dencer preflight`
+  — will a node-pool rotation wedge, and on which pod; `dencer audit` — what
+  cannot survive a node loss; `dencer whatif --without-zone b` — does
+  everything still fit, CI-gateable; `dencer rightsizing` — requests versus
+  *measured* usage; `dencer drain <node>` — kubectl drain with the rails.
 - **Works without the UI.** `dencer` (also a `kubectl` plugin) does everything
   the UI does from a terminal, with `-o json` for pipelines — see
   [docs/cli.md](docs/cli.md).
