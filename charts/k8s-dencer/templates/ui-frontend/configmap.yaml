@@ -29,6 +29,17 @@ data:
         root /usr/share/nginx/html;
         index index.html;
 
+        # Security headers on every response. A console that holds a bearer token
+        # in the tab must not be frameable, and its responses must never be
+        # MIME-sniffed into something executable. The CSP names exactly what the
+        # bundle uses: self-hosted assets, data: for inlined images, and inline
+        # style ATTRIBUTES (React style={}), which style-src cannot allow more
+        # narrowly than 'unsafe-inline'.
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'" always;
+
         location = /config.js {
             add_header Cache-Control "no-store" always;
             try_files $uri =404;

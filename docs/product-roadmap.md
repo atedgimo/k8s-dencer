@@ -105,7 +105,7 @@ deciding what to build next and telling users what they get.
 
 ### Interfaces
 - **Web UI** — dark instrument-style design; three field renderings chosen by
-  cluster size (Rack ≤120 nodes, Wells ≤600, Panel above), each switchable and
+  cluster size (Rack ≤120 nodes, Wells ≤600, Load above), each switchable and
   persistent; step scrubber; per-node and per-pod inspector; verified identity
   and cluster label in the chrome
 - **CLI** — `dencer` and `kubectl dencer` plugin; everything the UI does, with
@@ -156,7 +156,7 @@ what it already records and packs. Chosen because they reuse the machinery
 as it stands, and two of them serve audiences far larger than
 consolidation's.
 
-7. **Cost awareness, remaining slices** — pricing and a cost-aware planner
+1. **Cost awareness, remaining slices** — pricing and a cost-aware planner
    objective. The facts shipped first: instance type and capacity type are on
    every node (Inspector), and the plan states how its reclaimable nodes are
    bought — "7 spot, 4 on-demand" — with unpriced nodes omitted rather than

@@ -74,10 +74,11 @@ export default function RecsPage({ recs, steps, graph, muted, onMute, onUnmute, 
         <span className="recspage-counts mono">
           {all.length} finding{all.length === 1 ? "" : "s"} · {highCount} high
         </span>
-        <div className="recspage-filters">
+        <div className="recspage-filters" role="group" aria-label="Filter findings">
           <button
             type="button"
             className={"steplist-filter" + (!showAll ? " is-on" : "")}
+            aria-pressed={!showAll}
             onClick={() => setShowAll(false)}
           >
             Blocking a step
@@ -85,6 +86,7 @@ export default function RecsPage({ recs, steps, graph, muted, onMute, onUnmute, 
           <button
             type="button"
             className={"steplist-filter" + (showAll ? " is-on" : "")}
+            aria-pressed={showAll}
             onClick={() => setShowAll(true)}
           >
             All findings
@@ -127,7 +129,7 @@ export default function RecsPage({ recs, steps, graph, muted, onMute, onUnmute, 
             <span className="eyebrow mono">Rule</span>
             <span className="eyebrow mono recsqueue-cols-right">Unblocks</span>
           </div>
-          <div className="recsqueue-list">
+          <div className="recsqueue-list" role="list" aria-label="Findings, ranked by nodes unlocked">
             {visible.length === 0 && (
               <p className="recsqueue-empty">
                 {showAll
@@ -146,6 +148,12 @@ export default function RecsPage({ recs, steps, graph, muted, onMute, onUnmute, 
               return (
                 <button
                   type="button"
+                  role="listitem"
+                  aria-current={
+                    current && findingKey(current.kind, current.workload) === key
+                      ? "true"
+                      : undefined
+                  }
                   key={key}
                   className={
                     "recsrow" +
@@ -156,7 +164,10 @@ export default function RecsPage({ recs, steps, graph, muted, onMute, onUnmute, 
                   }
                   onClick={() => setSelected(key)}
                 >
-                  <span className={"recsrow-sev recsrow-sev-" + r.severity}>
+                  <span
+                    className={"recsrow-sev recsrow-sev-" + r.severity}
+                    aria-label={"severity " + r.severity}
+                  >
                     {SEV_LABEL[r.severity]}
                   </span>
                   <span className="recsrow-body">
@@ -230,7 +241,7 @@ function Detail({
   );
 
   return (
-    <aside className="recsdetail">
+    <aside className="recsdetail" aria-label={`Finding detail: ${rec.kind} on ${rec.workload}`}>
       <div className="recsdetail-head">
         <div className="recsdetail-tags">
           <span className={"recsrow-sev recsrow-sev-" + rec.severity}>

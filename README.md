@@ -223,10 +223,12 @@ stops sending an element per pod and starts sending occupancy per node — an
 individual 6px block conveys nothing at that density anyway. Method, growth
 curves and the known ceiling in **[docs/benchmarks.md](docs/benchmarks.md)**.
 
-The field itself has three renderings and picks one by cluster size: **Rack** to
-120 nodes, where a pod is an object you can point at; **Wells** to 600, a level
-per node, readable without reading numbers; **Panel** above that, one sorted row
-per node. Any of the three can be chosen explicitly and the choice persists.
+The Cluster destination views the same nodes through three lenses, defaulting
+by cluster size: **Rack** to 120 nodes, where a pod is an object you can point
+at; **Wells** to 600, each node a vessel with the planner's real packing
+ceiling drawn on it; **Load** above that, one sorted row per node showing used
+versus reserved-but-idle. Any lens can be chosen explicitly and the choice
+persists.
 
 How full a node is means the **larger of its CPU and memory requests** as a
 fraction of allocatable — the dimension that actually limits packing, and the
@@ -234,11 +236,12 @@ same one the planner ranks on. Requests, not usage: Kubernetes schedules on what
 pods ask for, so a node at 50% requested is half unschedulable however idle its
 cores are.
 
-The field also separates **what is observed from what is predicted**. Facts
+The lenses also separate **what is observed from what is predicted**. Facts
 about the real cluster — a node cordoned, NotReady, drained and awaiting
-removal, or actually reclaimed — are worded on the node itself and hold still
-while the scrubber animates the plan's forecast over them. During a run the
-executor's own event trail marks cordons and drains as they genuinely happen.
+removal, or actually reclaimed — are worded on the node itself, apart from the
+plan's intent colouring. During a run the executor's own event trail marks
+cordons, evictions and drains as they genuinely happen, and evicted pods ghost
+until the next snapshot says where they truly landed.
 
 ## Documentation
 
@@ -251,6 +254,7 @@ executor's own event trail marks cordons and drains as they genuinely happen.
 | [Execution and safety](docs/execution.md) | Per-step behaviour, the guard's rails, maintenance windows, audit |
 | [Observability](docs/observability.md) | Prometheus metrics per component |
 | [Development](docs/development.md) | Local loop, KWOK fabric, CI gates, releases |
+| [The GCP playground](docs/gcp-playground.md) | A timed, self-destructing GKE cluster with real workloads and a random scenario |
 | [Benchmarks](docs/benchmarks.md) | Measured cost, growth curves, the ceiling |
 | [Product roadmap](docs/product-roadmap.md) | Shipped capabilities and what comes next, as features |
 | [Engineering roadmap](docs/roadmap.md) | The milestone history — built, planned, and deliberately dropped |
@@ -262,8 +266,9 @@ executor's own event trail marks cordons and drains as they genuinely happen.
 execution, and maintenance windows. Phase 4 — hardening toward 1000 nodes and
 50,000 pods — is in progress, with metrics, CI and the release pipeline landed.
 
-**v0.1.0 is published** — images and chart on `ghcr.io`, installable by the
-command above.
+**v0.3.0 is published** — images and chart on `ghcr.io`, installable by the
+command above. It carries the redesigned UI, the packing ceiling, and per-node
+measured usage.
 
 **The UI has been rebuilt against a full design handoff** (2026-08-01): twelve
 mockup frames, a dual-theme token system with computed-contrast guards, and
