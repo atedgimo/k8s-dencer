@@ -82,6 +82,31 @@ none — the entire value of this field is being believed when it says `prod`.
 Beside it the header shows the identity the API server verified through
 `TokenReview`, not a claim decoded from whatever token the page is holding.
 
+## Exposing the UI
+
+Two ways, matching what your cluster standardises on — enable either, or both
+during a migration. Each routes **all** traffic to the frontend, which
+reverse-proxies `/api` to the backend, keeping cookies, CORS and WebSocket
+upgrades same-origin.
+
+**Ingress** (the classic):
+
+```bash
+--set ingress.enabled=true --set ingress.className=nginx --set ingress.hosts[0].host=dencer.example.com
+```
+
+**Gateway API HTTPRoute** (`gateway.networking.k8s.io/v1`; needs the Gateway
+API CRDs installed):
+
+```bash
+--set httpRoute.enabled=true --set httpRoute.parentRefs[0].name=my-gateway --set httpRoute.parentRefs[0].namespace=infra --set httpRoute.hostnames[0]=dencer.example.com
+```
+
+The chart deliberately does **not** create a Gateway — that is cluster
+infrastructure with its own owner, address and TLS story. `parentRefs` names
+the Gateway this route attaches to, and the schema refuses an enabled route
+with no parent, so it cannot dangle.
+
 ## Known constraints
 
 - **SQLite is single-writer.** `uiBackend.replicaCount` is pinned to 1 and enforced by the schema; the planner is co-scheduled with ui-backend via a `requiredDuringScheduling` podAffinity, because a ReadWriteOnce claim only permits multiple pods on the same node. Both constraints disappear when the Postgres store lands.

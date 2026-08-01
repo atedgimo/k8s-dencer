@@ -268,6 +268,22 @@ ingress:
           pathType: Prefix
   tls: []
 
+# Gateway API exposure, beside (not instead of) the Ingress — enable whichever
+# your cluster standardises on, or both during a migration. The chart does NOT
+# create a Gateway: that is cluster infrastructure with its own owner and TLS
+# story. parentRefs names the Gateway this route attaches to, and the schema
+# requires at least one so an enabled route cannot dangle. Needs the Gateway
+# API CRDs (gateway.networking.k8s.io/v1).
+httpRoute:
+  enabled: false
+  annotations: {}
+  # - name: my-gateway
+  #   namespace: infra
+  #   sectionName: https
+  parentRefs: []
+  # - k8s-dencer.example.com
+  hostnames: []
+
 # The executor: the only component that can change your cluster.
 #
 # OFF by default, and an upgrade must never silently turn it on. Enabling it
