@@ -104,7 +104,15 @@ cluster_delete() {
       sed 's/^/    /' /tmp/dencer-play-del.err
     fi
   fi
+  # The context is only a third of the residue: get-credentials also wrote
+  # cluster and user entries under the canonical GKE name, and leaving them
+  # behind is how a kubeconfig fills with pointers to machines that no
+  # longer exist — found on a real workstation, as a dangling current
+  # context erroring at localhost:8080.
   kubectl config delete-context "$CTX" >/dev/null 2>&1 || true
+  gke_name="gke_${project:-$(gcloud config get-value project 2>/dev/null)}_${GCP_ZONE}_${CLUSTER}"
+  kubectl config delete-cluster "$gke_name" >/dev/null 2>&1 || true
+  kubectl config delete-user "$gke_name" >/dev/null 2>&1 || true
 }
 
 if [[ "${1:-}" == "clean" ]]; then
@@ -150,6 +158,18 @@ teardown() {
   [[ -n "$PORT_FORWARD_PID" ]] && kill "$PORT_FORWARD_PID" >/dev/null 2>&1 || true
   cluster_delete
   restore_context
+  # Deleting the cluster orphans its PVC-backed disks: the CSI driver that
+  # would release them dies with the control plane. Found live — three 1GB
+  # pvc-* disks quietly billing across runs. GKE labels every dynamically
+  # provisioned disk with its cluster name, so ours are addressable exactly.
+  orphans="$(gcloud compute disks list \
+    --filter="labels.goog-k8s-cluster-name=${CLUSTER} AND -users:*" \
+    --format="value(name)" 2>/dev/null || true)"
+  if [[ -n "$orphans" ]]; then
+    echo "  deleting orphaned volume disk(s): $(echo "$orphans" | tr '\n' ' ')"
+    # shellcheck disable=SC2086
+    gcloud compute disks delete $orphans --zone "$GCP_ZONE" --quiet >/dev/null 2>&1 || true
+  fi
   bold "==> anything billable left?"
   "$REPO/hack/gke-leftovers.sh" || true
   green "playground over"
@@ -505,9 +525,17 @@ helm --kube-context "$CTX" upgrade --install "$RELEASE" "$REPO/charts/k8s-dencer
   --set-string uiBackend.image.tag="$GHCR_TAG" \
   --set-string executor.image.tag="$GHCR_TAG" \
   --set-string uiFrontend.image.tag="$GHCR_TAG" \
-  --wait --timeout 300s >/dev/null || {
-    kubectl --context "$CTX" -n "$NS" get pods
-    fail "chart did not install"
+  --wait --timeout 480s >/dev/null || {
+    # A failure here must explain itself: the fourth live launch died at
+    # exactly the old 300s wait with nothing but a pod list, and the error
+    # scrolled away with the window. Wide pods plus the event tail is the
+    # difference between a diagnosis and a mystery. The timeout is longer
+    # too — first pulls of four images onto shared-core machines can
+    # honestly take more than five minutes.
+    kubectl --context "$CTX" -n "$NS" get pods -o wide || true
+    echo "--- recent events ---"
+    kubectl --context "$CTX" -n "$NS" get events --sort-by=.lastTimestamp 2>/dev/null | tail -15 || true
+    fail "chart did not install (diagnostics above)"
   }
 green "  installed"
 
