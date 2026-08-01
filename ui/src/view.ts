@@ -26,13 +26,15 @@
 export type FieldView = "rack" | "wells" | "panel";
 
 /**
- * The app's top-level surface: the field (in whichever FieldView) or the
- * History timeline. A separate axis from FieldView on purpose — History is
- * not a way of drawing nodes, it is a different question ("over time" rather
- * than "right now"), and conflating the axes would make "come back from
- * History to the view I was using" impossible.
+ * The app's destinations, matching the redesign's left rail
+ * (assets/design/README.md): Review is the plan, Cluster is the estate seen
+ * through a lens (FieldView), Recommendations is the fix queue, History is
+ * the timeline. A separate axis from FieldView on purpose — a lens is a way
+ * of drawing nodes, a destination is a different question, and conflating
+ * the axes is what made the old view switcher read as four equal views of
+ * the same thing.
  */
-export type Surface = "field" | "history";
+export type Surface = "review" | "cluster" | "recommendations" | "history";
 
 const KEY = "dencer.view";
 

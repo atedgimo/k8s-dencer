@@ -7,16 +7,18 @@ import Scrubber from "./components/Scrubber";
 import { SignIn } from "./components/SignIn";
 import StepLedger from "./components/StepLedger";
 import Verdict from "./components/Verdict";
-import AppBar from "./components/AppBar";
+import Rail from "./components/Rail";
+import TopBar from "./components/TopBar";
 import History from "./components/History";
 import Recommendations from "./components/Recommendations";
-import { FieldView, Surface, defaultView, rememberView, storedView } from "./view";
+import { FieldView, Surface, VIEW_LABELS, defaultView, rememberView, storedView } from "./view";
 import { authInfo, token as tokenStore } from "./auth";
 import { onRenewed } from "./oidc";
 import { runtimeConfig } from "./runtime-config";
 import { useObserved } from "./useObserved";
 import { usePlan } from "./usePlan";
 import { useReclamations } from "./useReclamations";
+import { useRecommendations } from "./useRecommendations";
 import { useRun } from "./useRun";
 import { useVersion } from "./useVersion";
 
@@ -60,11 +62,13 @@ export default function App() {
   const [focusedRating, setFocusedRating] = useState<Impact | null>(null);
   const [pending, setPending] = useState<{ steps: PlanStep[]; dryRun: boolean } | null>(null);
   const [convergeOpen, setConvergeOpen] = useState(false);
-  // Which top-level surface is showing. Deliberately not persisted: History
-  // is a place you visit, and reopening the app on it instead of the field
-  // would bury the thing the product is for.
-  const [surface, setSurface] = useState<Surface>("field");
+  // Which destination is showing. Deliberately not persisted: the others are
+  // places you visit, and reopening the app anywhere but the plan would bury
+  // the thing the product is for.
+  const [surface, setSurface] = useState<Surface>("review");
   const lastToggled = useRef<number | null>(null);
+
+  const recommendations = useRecommendations();
 
   const planId = state.status === "ready" ? state.plan.plan.id : null;
   // Coalesced deliberately. The API guarantees an array, but a client that
@@ -174,156 +178,233 @@ export default function App() {
   const selectedNode = selection?.kind === "node" ? selection.name : null;
   const selectedPod = selection?.kind === "pod" ? selection.key : null;
 
+  // The polled confirmation, but only when it is about the plan on screen.
+  // While the view is pinned the server's latest is a *different* plan, and
+  // dating this one by that one's confirmation would age a held plan by
+  // someone else's clock.
+  const confirmedAt =
+    state.status === "ready"
+      ? server?.latestPlanId === state.plan.plan.id && server?.planConfirmedAt
+        ? server.planConfirmedAt
+        : state.plan.storedAt
+      : null;
+
+  const highFindings = (recommendations ?? []).filter((r) => r.severity === "high").length;
+
+  const packingField = state.status === "ready" && (
+    <PackingField
+      view={view}
+      awaiting={reclamations.stats.awaiting}
+      reclaimedForReal={reclamations.stats.reclaimed}
+      ledgerCpuMilli={reclamations.stats.reclaimedCpuMilli}
+      ledgerMemBytes={reclamations.stats.reclaimedMemBytes}
+      noReclaimerEvidence={reclamations.noReclaimerEvidence}
+      observed={observed.nodes}
+      evictedPods={observed.evictedPods}
+      graph={state.graph}
+      steps={steps}
+      step={step}
+      selectedStep={selectedStep}
+      selectedNode={selectedNode}
+      selectedPod={selectedPod}
+      onSelectNode={handleSelectNode}
+      onSelectPod={handleSelectPod}
+    />
+  );
+
+  const inspector = state.status === "ready" && (
+    <Inspector
+      onSelectPod={(key) => setSelection({ kind: "pod", key })}
+      onSelectNode={(name) => setSelection({ kind: "node", name })}
+      planId={planId ?? ""}
+      graph={state.graph}
+      steps={steps}
+      selection={selection}
+      onClose={() => setSelection(null)}
+      onSelectStep={handleSelectStep}
+    />
+  );
+
+  const scrubber = (
+    <Scrubber
+      steps={steps}
+      step={step}
+      playing={playing}
+      onStep={setStep}
+      onPlayingChange={setPlaying}
+      onSelect={setSelectedStep}
+    />
+  );
+
   return (
-    <div className="shell">
-      <AppBar
-        view={view}
-        onView={(v) => {
-          setViewPref(v);
-          rememberView(v);
-        }}
+    <div className="frame">
+      <Rail
         surface={surface}
         onSurface={setSurface}
+        stepCount={steps.length}
+        highFindings={highFindings}
         clusterLabel={server?.clusterLabel}
         identity={server?.identity}
         onSignOut={handleSignOut}
       />
-      {state.status === "loading" && <Placeholder title="Reading the cluster…" />}
 
-      {state.status === "empty" && (
-        <Placeholder
-          title="No plan yet"
-          detail="The planner publishes one once it has read the cluster."
-          /* The cause an operator hits and cannot otherwise guess: the planner
-             refuses to touch a node younger than minNodeAge, ten minutes by
-             default, so a freshly built cluster shows nothing and looks
-             broken. Naming it here is the difference between waiting and
-             filing a bug. */
-          hint="On a cluster built in the last few minutes this is expected — the planner will not consider a node younger than 10 minutes."
-        />
-      )}
-
-      {state.status === "error" && state.needsAuth && <SignIn onDone={state.reload} />}
-
-      {state.status === "error" && !state.needsAuth && (
-        <Placeholder
-          title={state.grantWith ? "Not permitted" : "Cannot reach the planner"}
-          detail={
-            state.grantWith ? `${state.message}\n\nGrant it with:\n${state.grantWith}` : state.message
+      <div className="frame-main">
+        <TopBar
+          planId={planId}
+          strategy={state.status === "ready" ? state.plan.strategy : undefined}
+          confirmedAt={confirmedAt}
+          stale={state.status === "ready" && state.superseded}
+          onRecompute={
+            state.status === "ready"
+              ? state.superseded
+                ? state.showLatest
+                : state.reload
+              : undefined
           }
-          tone="error"
         />
-      )}
 
-      {state.status === "ready" && (
-        <>
-          <Verdict
-            stats={state.graph.stats}
-            steps={steps}
-            // The polled confirmation, but only when it is about the plan on
-            // screen. While the view is pinned the server's latest is a
-            // *different* plan, and dating this one by that one's confirmation
-            // would age a held plan by someone else's clock.
-            confirmedAt={
-              server?.latestPlanId === state.plan.plan.id && server?.planConfirmedAt
-                ? server.planConfirmedAt
-                : state.plan.storedAt
-            }
-            focusedRating={focusedRating}
-            onFocusRating={setFocusedRating}
-            onRun={requestRun}
-            onConverge={() => setConvergeOpen(true)}
-            busy={busy}
-            picked={pickedSteps}
-            onClearPicked={() => setChecked(new Set())}
-          />
+        <div className="frame-content">
+          {state.status === "loading" && <Placeholder title="Reading the cluster…" />}
 
-          {state.superseded && (
-            <div className="supersede" role="status">
-              <span>
-                The planner has published a newer plan. This one is pinned while you have a
-                selection or a run in progress.
-              </span>
-              <button className="btn" onClick={state.showLatest}>
-                Show the new plan
-              </button>
-            </div>
+          {state.status === "empty" && (
+            <Placeholder
+              title="No plan yet"
+              detail="The planner publishes one once it has read the cluster."
+              /* The cause an operator hits and cannot otherwise guess: the
+                 planner refuses to touch a node younger than minNodeAge, ten
+                 minutes by default, so a freshly built cluster shows nothing
+                 and looks broken. Naming it here is the difference between
+                 waiting and filing a bug. */
+              hint="On a cluster built in the last few minutes this is expected — the planner will not consider a node younger than 10 minutes."
+            />
           )}
 
-          <RunTrail state={run.state} onDismiss={run.dismiss} />
+          {state.status === "error" && state.needsAuth && <SignIn onDone={state.reload} />}
 
-          <main className="workspace">
-            {surface === "history" ? (
-              <History />
-            ) : (
-              <>
-            <PackingField
-              view={view}
-              awaiting={reclamations.stats.awaiting}
-              reclaimedForReal={reclamations.stats.reclaimed}
-              ledgerCpuMilli={reclamations.stats.reclaimedCpuMilli}
-              ledgerMemBytes={reclamations.stats.reclaimedMemBytes}
-              noReclaimerEvidence={reclamations.noReclaimerEvidence}
-              observed={observed.nodes}
-              evictedPods={observed.evictedPods}
-              graph={state.graph}
-              steps={steps}
-              step={step}
-              selectedStep={selectedStep}
-              selectedNode={selectedNode}
-              selectedPod={selectedPod}
-              onSelectNode={handleSelectNode}
-              onSelectPod={handleSelectPod}
+          {state.status === "error" && !state.needsAuth && (
+            <Placeholder
+              title={state.grantWith ? "Not permitted" : "Cannot reach the planner"}
+              detail={
+                state.grantWith
+                  ? `${state.message}\n\nGrant it with:\n${state.grantWith}`
+                  : state.message
+              }
+              tone="error"
             />
+          )}
 
-            <aside className="sidebar">
-              <StepLedger
+          {state.status === "ready" && surface === "review" && (
+            <>
+              <Verdict
+                stats={state.graph.stats}
                 steps={steps}
-                selected={selectedStep}
-                current={step}
+                confirmedAt={confirmedAt ?? state.plan.storedAt}
                 focusedRating={focusedRating}
-                onSelect={handleSelectStep}
-                checked={checked}
-                onToggle={toggleStep}
-              />
-              <Inspector
-                onSelectPod={(key) => setSelection({ kind: "pod", key })}
-                onSelectNode={(name) => setSelection({ kind: "node", name })}
-                planId={planId ?? ""}
-                graph={state.graph}
-                steps={steps}
-                selection={selection}
-                onClose={() => setSelection(null)}
-                onSelectStep={handleSelectStep}
+                onFocusRating={setFocusedRating}
+                onRun={requestRun}
+                onConverge={() => setConvergeOpen(true)}
+                busy={busy}
+                picked={pickedSteps}
+                onClearPicked={() => setChecked(new Set())}
               />
 
-              <Recommendations />
-            </aside>
-              </>
-            )}
-          </main>
+              {state.superseded && (
+                <div className="supersede" role="status">
+                  <span>
+                    The planner has published a newer plan. This one is pinned while you have a
+                    selection or a run in progress.
+                  </span>
+                  <button className="btn" onClick={state.showLatest}>
+                    Show the new plan
+                  </button>
+                </div>
+              )}
 
-          <Scrubber
-            steps={steps}
-            step={step}
-            playing={playing}
-            onStep={setStep}
-            onPlayingChange={setPlaying}
-            onSelect={setSelectedStep}
-          />
+              <RunTrail state={run.state} onDismiss={run.dismiss} />
 
-          <footer className="statusbar mono">
+              <main className="workspace">
+                {packingField}
+                <aside className="sidebar">
+                  <StepLedger
+                    steps={steps}
+                    selected={selectedStep}
+                    current={step}
+                    focusedRating={focusedRating}
+                    onSelect={handleSelectStep}
+                    checked={checked}
+                    onToggle={toggleStep}
+                  />
+                  {inspector}
+                </aside>
+              </main>
+
+              {scrubber}
+            </>
+          )}
+
+          {state.status === "ready" && surface === "cluster" && (
+            <>
+              {/* The lenses, until the Cluster destination's own screens land.
+                  Rack / Wells / Panel are ways of drawing nodes, so the switch
+                  lives with the field rather than in the frame. */}
+              <div className="lensbar">
+                <div className="viewswitch" role="group" aria-label="Cluster lens">
+                  {(Object.keys(VIEW_LABELS) as FieldView[]).map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      className={"viewswitch-btn" + (v === view ? " is-on" : "")}
+                      aria-pressed={v === view}
+                      onClick={() => {
+                        setViewPref(v);
+                        rememberView(v);
+                      }}
+                    >
+                      {VIEW_LABELS[v]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <RunTrail state={run.state} onDismiss={run.dismiss} />
+
+              <main className="workspace">
+                {packingField}
+                <aside className="sidebar">{inspector}</aside>
+              </main>
+
+              {scrubber}
+            </>
+          )}
+
+          {state.status === "ready" && surface === "recommendations" && (
+            <main className="workspace workspace-single">
+              <div className="page-recs">
+                <Recommendations recs={recommendations} variant="page" />
+              </div>
+            </main>
+          )}
+
+          {state.status === "ready" && surface === "history" && (
+            <main className="workspace workspace-single">
+              <History />
+            </main>
+          )}
+        </div>
+
+        {state.status === "ready" && (
+          <footer className="appfooter mono">
             <span>{state.plan.plan.id}</span>
             <span>{state.plan.strategy}</span>
             <span>{new Date(state.plan.plan.generatedAt).toLocaleTimeString()}</span>
             {kagentUrl && (
-              <a className="statusbar-link" href={kagentUrl} target="_blank" rel="noreferrer">
+              <a className="appfooter-link" href={kagentUrl} target="_blank" rel="noreferrer">
                 ask the agent ↗
               </a>
             )}
           </footer>
-        </>
-      )}
+        )}
+      </div>
 
       {pending && (
         <ConfirmRun

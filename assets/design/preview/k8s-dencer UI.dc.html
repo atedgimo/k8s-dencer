@@ -1,0 +1,1995 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; background: #06080C; font-family: "IBM Plex Sans", system-ui, sans-serif; color: #E8ECF3; }
+  a { color: #7FA0FF; text-decoration: none; }
+  a:hover { color: #A8BEFF; }
+  * { box-sizing: border-box; }
+  @keyframes dcr-out { 0%, 10% { opacity: 1; transform: translateY(0) scaleY(1); } 34%, 100% { opacity: 0; transform: translateY(-9px) scaleY(0.6); } }
+  @keyframes dcr-in { 0%, 26% { opacity: 0; transform: translateY(9px) scaleY(0.6); } 50%, 100% { opacity: 1; transform: translateY(0) scaleY(1); } }
+  @keyframes dcr-free { 0%, 30% { border-color: #171D28; background: #0F131B; } 58%, 90% { border-color: #1D3A2C; background: #0C1712; } 100% { border-color: #171D28; background: #0F131B; } }
+  @keyframes dcr-dot { 0%, 30% { background: #3D4A5E; } 58%, 90% { background: #3DD68C; } 100% { background: #3D4A5E; } }
+</style>
+</helmet>
+
+<section style="padding:64px 56px 40px;display:flex;flex-direction:column;gap:48px">
+
+  <div style="display:flex;flex-direction:column;gap:12px;max-width:860px">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#7FA0FF">Turn 4 &middot; light theme</div>
+    <h1 style="margin:0;font-size:40px;font-weight:600;letter-spacing:-0.025em">Light theme</h1>
+    <p style="margin:0;font-size:16px;line-height:1.6;color:#98A2B3;text-wrap:pretty">Not an inversion. On white the three verdict colours have to be <em>darkened</em> to stay legible, and the surface stack flips direction &mdash; chrome goes <strong style="color:#E8ECF3;font-weight:600">lighter</strong> than content instead of darker. Below: the token mapping, then <a href="#1a">1a</a> rebuilt in it.</p>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:28px">
+    <div style="background:#0C0F16;border:1px solid #1E2430;border-radius:14px;padding:24px 28px;display:flex;flex-direction:column;gap:16px;min-width:340px">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#667085">Light palette</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="height:44px;border-radius:8px;background:#F4F5F7;border:1px solid #1E2430"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#667085">canvas</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="height:44px;border-radius:8px;background:#FFFFFF;border:1px solid #1E2430"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#667085">surface</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="height:44px;border-radius:8px;background:#EEF0F4"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#667085">raised</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="height:44px;border-radius:8px;background:#E3E7EC"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#667085">border</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="height:44px;border-radius:8px;background:#2A5FE0"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#667085">accent</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="height:44px;border-radius:8px;background:#17875A"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#667085">green</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="height:44px;border-radius:8px;background:#9A6400"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#667085">yellow</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="height:44px;border-radius:8px;background:#C0343C"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#667085">red</span></div>
+      </div>
+      <p style="margin:0;font-size:13px;line-height:1.55;color:#98A2B3;text-wrap:pretty">The dark theme&rsquo;s <span style="font-family:'IBM Plex Mono',monospace;color:#3DD68C">#3DD68C</span> / <span style="font-family:'IBM Plex Mono',monospace;color:#F5B544">#F5B544</span> / <span style="font-family:'IBM Plex Mono',monospace;color:#F2545B">#F2545B</span> fail on white &mdash; amber worst, at 1.9:1. The light set runs 4.6&ndash;5.9:1 as text and keeps the same hue order, so a screenshot in either theme reads identically.</p>
+    </div>
+
+    <div style="background:#0C0F16;border:1px solid #1E2430;border-radius:14px;padding:24px 28px;display:flex;flex-direction:column;gap:16px;flex:1;min-width:420px">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#667085">Mapping, dark &rarr; light</div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <div style="display:grid;grid-template-columns:1fr 90px 90px;gap:14px;padding-bottom:6px;border-bottom:1px solid #1E2430;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.12em;text-transform:uppercase;color:#667085"><span>Token</span><span>Dark</span><span>Light</span></div>
+        <div style="display:grid;grid-template-columns:1fr 90px 90px;gap:14px;font-family:'IBM Plex Mono',monospace;font-size:12px"><span style="color:#C6CEDB">canvas</span><span style="color:#818C9E">#06080C</span><span style="color:#818C9E">#F4F5F7</span></div>
+        <div style="display:grid;grid-template-columns:1fr 90px 90px;gap:14px;font-family:'IBM Plex Mono',monospace;font-size:12px"><span style="color:#C6CEDB">surface (chrome)</span><span style="color:#818C9E">#0A0D13</span><span style="color:#818C9E">#FFFFFF</span></div>
+        <div style="display:grid;grid-template-columns:1fr 90px 90px;gap:14px;font-family:'IBM Plex Mono',monospace;font-size:12px"><span style="color:#C6CEDB">inset (rows)</span><span style="color:#818C9E">#0F131B</span><span style="color:#818C9E">#F7F8FA</span></div>
+        <div style="display:grid;grid-template-columns:1fr 90px 90px;gap:14px;font-family:'IBM Plex Mono',monospace;font-size:12px"><span style="color:#C6CEDB">hairline</span><span style="color:#818C9E">#12161F</span><span style="color:#818C9E">#EDF0F4</span></div>
+        <div style="display:grid;grid-template-columns:1fr 90px 90px;gap:14px;font-family:'IBM Plex Mono',monospace;font-size:12px"><span style="color:#C6CEDB">text</span><span style="color:#818C9E">#E8ECF3</span><span style="color:#818C9E">#0B1220</span></div>
+        <div style="display:grid;grid-template-columns:1fr 90px 90px;gap:14px;font-family:'IBM Plex Mono',monospace;font-size:12px"><span style="color:#C6CEDB">text-3</span><span style="color:#818C9E">#98A2B3</span><span style="color:#818C9E">#55606F</span></div>
+        <div style="display:grid;grid-template-columns:1fr 90px 90px;gap:14px;font-family:'IBM Plex Mono',monospace;font-size:12px"><span style="color:#C6CEDB">accent</span><span style="color:#818C9E">#4C7DFF</span><span style="color:#818C9E">#2A5FE0</span></div>
+        <div style="display:grid;grid-template-columns:1fr 90px 90px;gap:14px;font-family:'IBM Plex Mono',monospace;font-size:12px"><span style="color:#C6CEDB">nav active</span><span style="color:#818C9E">#18203A</span><span style="color:#818C9E">#E8EEFC</span></div>
+      </div>
+      <p style="margin:0;font-size:13px;line-height:1.55;color:#98A2B3;text-wrap:pretty">One structural change: in dark, elevation reads as <em>lighter</em>; in light it reads as <em>whiter with a border</em>. Do not port the dark theme&rsquo;s filled tiles onto light &mdash; use white cards with a 1px border and no shadow.</p>
+    </div>
+  </div>
+
+  <div id="4a" style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;padding:4px 9px;border-radius:6px;background:#4C7DFF;color:#fff">4a</span>
+      <span style="font-size:20px;font-weight:600">Plan review, light</span>
+      <span style="font-size:14px;color:#98A2B3">&mdash; <a href="#1a">1a</a> in the light palette. Same grid, same copy, same hierarchy; only the surface stack and verdict values change.</span>
+    </div>
+
+    <div style="width:1440px;height:940px;background:#F4F5F7;border:1px solid #D3D9E2;border-radius:12px;overflow:hidden;display:flex;box-shadow:0 24px 64px rgba(11,18,32,0.18)">
+      <div style="width:224px;flex-shrink:0;background:#FFFFFF;border-right:1px solid #E3E7EC;display:flex;flex-direction:column">
+        <div style="height:60px;flex-shrink:0;display:flex;align-items:center;gap:11px;padding:0 20px;border-bottom:1px solid #E3E7EC">
+          <svg viewBox="0 0 512 512" style="width:26px;height:26px;border-radius:50%;flex-shrink:0"><circle cx="256" cy="256" r="256" fill="#2A5FE0"></circle><polygon points="238,174 330.3,218.4 353,318.3 289.2,398.3 186.8,398.3 123,318.3 145.7,218.4" fill="none" stroke="#fff" stroke-width="40" stroke-linejoin="round"></polygon><rect x="332" y="96" width="40" height="322" rx="20" fill="#fff"></rect></svg>
+          <span style="font-size:15px;font-weight:600;letter-spacing:-0.01em;color:#0B1220">k8s-dencer</span>
+        </div>
+        <div style="padding:16px 12px;display:flex;flex-direction:column;gap:2px">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#8A93A0;padding:6px 10px 8px">Plan</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;background:#E8EEFC;color:#1F4CBF;font-size:13.5px;font-weight:500">Review<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#2A5FE0">14</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#55606F;font-size:13.5px">Cluster</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#55606F;font-size:13.5px">Recommendations<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;padding:1px 6px;border-radius:9px;background:#FDF3E0;color:#9A6400">29</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#55606F;font-size:13.5px">History</div>
+        </div>
+        <div style="margin-top:auto;padding:14px 12px;border-top:1px solid #E3E7EC;display:flex;flex-direction:column;gap:10px">
+          <div style="padding:10px 11px;border:1px solid #E3E7EC;border-radius:8px;display:flex;flex-direction:column;gap:3px;background:#FAFBFC">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#8A93A0">Cluster</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#0B1220">dencer-demo</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding:2px 4px">
+            <div style="width:22px;height:22px;border-radius:5px;background:#EEF0F4;display:flex;align-items:center;justify-content:center;font-size:10px;font-family:'IBM Plex Mono',monospace;color:#55606F">sa</div>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#6B7684;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">k8s-dencer-ui</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+        <div style="height:60px;flex-shrink:0;border-bottom:1px solid #E3E7EC;display:flex;align-items:center;gap:16px;padding:0 24px;background:#FFFFFF">
+          <div style="display:flex;align-items:baseline;gap:9px">
+            <span style="font-size:14.5px;font-weight:600;color:#0B1220">Consolidation plan</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6B7684">8081cdf</span>
+          </div>
+          <div style="width:1px;height:22px;background:#E3E7EC"></div>
+          <div style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:#55606F">
+            <span style="width:6px;height:6px;border-radius:50%;background:#17875A"></span>
+            Fresh &middot; computed 41s ago
+          </div>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#8A93A0">greedy-first-fit-decreasing</span>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+            <div style="display:flex;align-items:center;gap:7px;padding:6px 11px;border:1px solid #D3D9E2;border-radius:7px;font-size:12.5px;color:#2C3542">Recompute</div>
+            <div style="display:flex;align-items:center;gap:7px;padding:6px 11px;border:1px solid #D3D9E2;border-radius:7px;font-size:12.5px;color:#2C3542">Dark</div>
+          </div>
+        </div>
+
+        <div style="padding:26px 24px 20px;border-bottom:1px solid #E3E7EC;display:flex;align-items:flex-start;gap:32px;background:#FFFFFF">
+          <div style="display:flex;flex-direction:column;gap:11px;min-width:0;flex:1">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#6B7684">If you approve everything safe</div>
+            <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
+              <h2 style="margin:0;font-size:34px;font-weight:600;letter-spacing:-0.025em;line-height:1.05;color:#0B1220">Reclaim 3 of 24 nodes</h2>
+              <span style="font-size:15px;color:#55606F">now &middot; <span style="color:#0B1220">14 reclaimable</span> if the held-back rules are resolved</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:22px;padding-top:2px">
+              <div style="display:flex;flex-direction:column;gap:2px"><span style="font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:500;color:#0B1220">21 cores</span><span style="font-size:11.5px;color:#6B7684">returned to the pool</span></div>
+              <div style="width:1px;height:30px;background:#E3E7EC"></div>
+              <div style="display:flex;flex-direction:column;gap:2px"><span style="font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:500;color:#0B1220">116 GiB</span><span style="font-size:11.5px;color:#6B7684">memory freed</span></div>
+              <div style="width:1px;height:30px;background:#E3E7EC"></div>
+              <div style="display:flex;flex-direction:column;gap:2px"><span style="font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:500;color:#0B1220">6 pods</span><span style="font-size:11.5px;color:#6B7684">rescheduled, 0 downtime</span></div>
+            </div>
+          </div>
+
+          <div style="width:300px;flex-shrink:0;display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;gap:2px">
+              <div style="flex:3;background:#17875A;border-radius:4px 0 0 4px"></div>
+              <div style="flex:4;background:#C99A2E"></div>
+              <div style="flex:7;background:#C0343C;border-radius:0 4px 4px 0"></div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+              <div style="padding:10px 11px;border-radius:8px;background:#E9F6EF;border:1px solid #BFE3D0;display:flex;flex-direction:column;gap:2px">
+                <div style="display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:#17875A"></span><span style="font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:#0E6B46">3</span></div>
+                <span style="font-size:11.5px;color:#0E6B46">Safe now</span>
+              </div>
+              <div style="padding:10px 11px;border-radius:8px;background:#FDF3E0;border:1px solid #F0DBAE;display:flex;flex-direction:column;gap:2px">
+                <div style="display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:1px;background:#9A6400;transform:rotate(45deg)"></span><span style="font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:#7A4F00">4</span></div>
+                <span style="font-size:11.5px;color:#7A4F00">Needs a call</span>
+              </div>
+              <div style="padding:10px 11px;border-radius:8px;background:#FDECEC;border:1px solid #F3C9CB;display:flex;flex-direction:column;gap:2px">
+                <div style="display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:1.5px;background:#C0343C"></span><span style="font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:#9E262E">7</span></div>
+                <span style="font-size:11.5px;color:#9E262E">Held back</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="flex:1;min-height:0;display:flex">
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;border-right:1px solid #E3E7EC;background:#FFFFFF">
+            <div style="height:46px;flex-shrink:0;display:flex;align-items:center;gap:10px;padding:0 20px;border-bottom:1px solid #E3E7EC">
+              <div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#2C3542">
+                <span style="width:14px;height:14px;border-radius:3px;border:1.5px solid #2A5FE0;background:#2A5FE0;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 10 10" style="width:8px;height:8px"><path d="M1.5 5.2 4 7.5 8.5 2.5" stroke="#FFFFFF" stroke-width="1.8" fill="none" stroke-linecap="round"></path></svg></span>
+                3 of 14 selected
+              </div>
+              <div style="width:1px;height:18px;background:#E3E7EC"></div>
+              <div style="display:flex;gap:4px">
+                <span style="font-size:12px;padding:4px 9px;border-radius:6px;background:#EEF0F4;color:#0B1220">All 14</span>
+                <span style="font-size:12px;padding:4px 9px;border-radius:6px;color:#55606F">Safe 3</span>
+                <span style="font-size:12px;padding:4px 9px;border-radius:6px;color:#55606F">Caution 4</span>
+                <span style="font-size:12px;padding:4px 9px;border-radius:6px;color:#55606F">Held 7</span>
+              </div>
+              <span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8A93A0">execution order</span>
+            </div>
+
+            <div style="flex:1;min-height:0;position:relative;display:flex;flex-direction:column"><div style="flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column">
+              <sc-for list="{{ lightGroups }}" as="g" hint-placeholder-count="2">
+                <div style="display:flex;flex-direction:column">
+                  <div style="display:flex;align-items:center;gap:9px;padding:11px 20px 8px;background:#F7F8FA">
+                    <span style="width:7px;height:7px;border-radius:2px;background:{{ g.color }}"></span>
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.13em;text-transform:uppercase;color:{{ g.color }}">{{ g.label }}</span>
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#8A93A0">{{ g.note }}</span>
+                  </div>
+                  <sc-for list="{{ g.rows }}" as="r" hint-placeholder-count="3">
+                    <div style="display:grid;grid-template-columns:26px 30px 1fr 96px 78px 1fr 16px;align-items:center;gap:12px;padding:11px 20px;border-top:1px solid #EDF0F4;background:{{ r.bg }}">
+                      <span style="width:15px;height:15px;border-radius:3.5px;border:1.5px solid {{ r.boxBorder }};background:{{ r.boxFill }};display:flex;align-items:center;justify-content:center">{{ r.tick }}</span>
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#8A93A0">{{ r.n }}</span>
+                      <div style="display:flex;align-items:center;gap:9px;min-width:0">
+                        <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:{{ r.nameColor }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.node }}</span>
+                        <span style="font-size:10.5px;padding:1.5px 6px;border-radius:4px;background:#EEF0F4;color:#55606F;flex-shrink:0">{{ r.pool }}</span>
+                      </div>
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#55606F">{{ r.pods }}</span>
+                      <span style="font-size:11.5px;font-weight:500;color:{{ r.color }}">{{ r.verdict }}</span>
+                      <span style="font-size:12.5px;color:#6B7684;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.why }}</span>
+                      <span style="color:#B4BCC8;font-size:12px">&rsaquo;</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-for>
+            </div>
+            <div style="position:absolute;left:0;right:0;bottom:0;height:56px;pointer-events:none;background:linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.94) 70%, #FFFFFF 100%);display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px"><span style="font-size:11.5px;color:#6B7684">4 more steps below</span></div>
+            <div style="position:absolute;top:8px;right:4px;bottom:8px;width:4px;border-radius:2px;background:#EDF0F4"><div style="width:4px;height:62%;border-radius:2px;background:#C2CAD6"></div></div>
+            </div>
+          </div>
+
+          <div style="width:392px;flex-shrink:0;display:flex;flex-direction:column;background:#FAFBFC;min-height:0;overflow:hidden">
+            <div style="padding:18px 20px 14px;border-bottom:1px solid #E3E7EC;display:flex;flex-direction:column;gap:9px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="width:7px;height:7px;border-radius:1px;background:#9A6400;transform:rotate(45deg)"></span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.13em;text-transform:uppercase;color:#9A6400">Needs a call &middot; step 04</span>
+              </div>
+              <div style="display:flex;align-items:baseline;gap:10px">
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:17px;color:#0B1220">kwok-spot-4</span>
+                <span style="font-size:11.5px;padding:2px 7px;border-radius:4px;background:#EEF0F4;color:#55606F">spot</span>
+              </div>
+              <p style="margin:0;font-size:13px;line-height:1.55;color:#55606F;text-wrap:pretty">Drainable, but one of the three pods is the only replica of a workload with no PodDisruptionBudget. Nothing will stop the eviction &mdash; that is the call you are making.</p>
+            </div>
+
+            <div style="flex:1 1 0;min-height:0;position:relative;padding:16px 20px 8px;display:flex;flex-direction:column;gap:11px;overflow:hidden">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.13em;text-transform:uppercase;color:#6B7684">Safety Guard</span>
+              <sc-for list="{{ lightChecks }}" as="c" hint-placeholder-count="6">
+                <div style="display:grid;grid-template-columns:16px 1fr auto;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #EDF0F4">
+                  <span style="color:{{ c.color }};font-size:12px;text-align:center">{{ c.glyph }}</span>
+                  <span style="font-size:12.5px;color:#2C3542">{{ c.label }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:{{ c.color }}">{{ c.value }}</span>
+                </div>
+              </sc-for>
+              <div style="position:absolute;left:0;right:0;bottom:0;height:34px;pointer-events:none;background:linear-gradient(to bottom, rgba(250,251,252,0) 0%, #FAFBFC 90%)"></div>
+            </div>
+
+            <div style="flex:0 0 auto;padding:14px 20px;display:flex;flex-direction:column;gap:10px;border-top:1px solid #EDF0F4">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.13em;text-transform:uppercase;color:#6B7684">Where the pods go</span>
+              <sc-for list="{{ lightMoves }}" as="m" hint-placeholder-count="3">
+                <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;background:#FFFFFF;border:1px solid #E3E7EC">
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#2C3542;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.pod }}</span>
+                  <span style="color:#8A93A0;font-size:12px">&rarr;</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#1F4CBF;flex-shrink:0">{{ m.to }}</span>
+                  <span style="font-size:10.5px;color:{{ m.flagColor }};flex-shrink:0">{{ m.flag }}</span>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="flex:0 0 auto;padding:14px 20px 18px;border-top:1px solid #E3E7EC;display:flex;flex-direction:column;gap:9px">
+              <div style="display:flex;gap:8px">
+                <div style="flex:1;padding:9px 12px;border:1px solid #C2CAD6;border-radius:7px;text-align:center;font-size:13px;font-weight:500;color:#0B1220;background:#FFFFFF">Add to selection</div>
+                <div style="padding:9px 12px;border:1px solid #E3E7EC;border-radius:7px;text-align:center;font-size:13px;color:#55606F">Skip</div>
+              </div>
+              <span style="font-size:11.5px;color:#6B7684;text-align:center">Adding this step also adds a rollback point before it.</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="height:68px;flex-shrink:0;border-top:1px solid #E3E7EC;background:#FFFFFF;display:flex;align-items:center;gap:18px;padding:0 24px">
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span style="font-size:13.5px;font-weight:600;color:#0B1220">3 steps selected &middot; 6 pods move</span>
+            <span style="font-size:12px;color:#6B7684">All Green. Safety Guard re-runs per step; the run halts on the first refusal.</span>
+          </div>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+            <div style="padding:9px 14px;border:1px solid #E3E7EC;border-radius:7px;font-size:13px;color:#55606F">Copy as YAML</div>
+            <div style="padding:9px 14px;border:1px solid #C2CAD6;border-radius:7px;font-size:13px;font-weight:500;color:#0B1220">Rehearse</div>
+            <div style="padding:10px 18px;border-radius:7px;background:#2A5FE0;font-size:13.5px;font-weight:600;color:#fff;display:flex;align-items:center;gap:9px">
+              Drain 3 nodes
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;opacity:0.7">&crarr;</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<section style="padding:40px 56px 40px;display:flex;flex-direction:column;gap:48px">
+
+  <div style="display:flex;flex-direction:column;gap:12px;max-width:860px">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#7FA0FF">Turn 3 &middot; the two missing screens</div>
+    <h1 style="margin:0;font-size:40px;font-weight:600;letter-spacing:-0.025em">Sign in, and the cluster view</h1>
+    <p style="margin:0;font-size:16px;line-height:1.6;color:#98A2B3;text-wrap:pretty">Your Rack / Wells / Panel screens were the same node data three ways at equal weight. Here they are one <strong style="color:#E8ECF3;font-weight:600">Cluster</strong> destination with three lenses &mdash; and the pods are drawn <em>in</em> the nodes, coloured by what the plan wants to do with them, which is what those screens were reaching for.</p>
+  </div>
+
+  <div id="3a" style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;padding:4px 9px;border-radius:6px;background:#4C7DFF;color:#fff">3a</span>
+      <span style="font-size:20px;font-weight:600">Sign in</span>
+      <span style="font-size:14px;color:#98A2B3">&mdash; states the blast radius before you are in. An SRE&rsquo;s first question about a tool that can drain nodes is what it is allowed to do.</span>
+    </div>
+    <div style="width:1440px;height:940px;background:#06080C;border:1px solid #1E2430;border-radius:12px;overflow:hidden;display:flex;box-shadow:0 24px 64px rgba(0,0,0,0.5)">
+      <div style="width:560px;flex-shrink:0;background:#0A0D13;border-right:1px solid #1A1F29;padding:56px 56px 44px;display:flex;flex-direction:column">
+        <div style="display:flex;align-items:center;gap:20px">
+          <div style="position:relative;width:76px;height:76px;flex-shrink:0">
+            <div style="position:absolute;inset:-14px;border-radius:50%;background:radial-gradient(circle, rgba(76,125,255,0.28) 0%, rgba(76,125,255,0) 68%)"></div>
+            <svg viewBox="0 0 512 512" style="position:relative;width:76px;height:76px;border-radius:50%"><circle cx="256" cy="256" r="256" fill="#4C7DFF"></circle><polygon points="238,174 330.3,218.4 353,318.3 289.2,398.3 186.8,398.3 123,318.3 145.7,218.4" fill="none" stroke="#fff" stroke-width="40" stroke-linejoin="round"></polygon><rect x="332" y="96" width="40" height="322" rx="20" fill="#fff"></rect></svg>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <span style="font-size:36px;font-weight:600;letter-spacing:-0.03em;line-height:1">k8s-dencer</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-spacing:0.16em;text-transform:uppercase;color:#7FA0FF">Consolidation planner</span>
+          </div>
+        </div>
+
+        <div style="margin-top:auto;display:flex;flex-direction:column;gap:18px">
+          <h2 style="margin:0;font-size:34px;font-weight:600;letter-spacing:-0.025em;line-height:1.2;text-wrap:pretty">It produces the plan<br>and stops.</h2>
+          <p style="margin:0;font-size:15px;line-height:1.65;color:#98A2B3;max-width:420px;text-wrap:pretty">Every consolidation is named before it happens: which pods move, which node is freed, and which rule would refuse. Nothing is drained until you say so.</p>
+
+          <div style="margin-top:10px;display:flex;flex-direction:column;gap:9px;max-width:448px">
+            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:7px">
+              <div style="padding:8px;border-radius:7px;background:#0F131B;border:1px solid #171D28;display:flex;flex-direction:column;gap:6px">
+                <span style="width:5px;height:5px;border-radius:1.5px;background:#3D4A5E"></span>
+                <div style="display:flex;gap:2px;height:22px">
+                  <div style="flex:2;border-radius:2px;background:#3D4A5E"></div>
+                  <div style="flex:1;border-radius:2px;background:#3D4A5E"></div>
+                  <div style="flex:1;border-radius:2px;background:#4C7DFF;animation:dcr-in 6s ease-in-out infinite"></div>
+                </div>
+              </div>
+              <div style="padding:8px;border-radius:7px;background:#0F131B;border:1px solid #171D28;display:flex;flex-direction:column;gap:6px">
+                <span style="width:5px;height:5px;border-radius:1.5px;background:#3D4A5E"></span>
+                <div style="display:flex;gap:2px;height:22px">
+                  <div style="flex:1;border-radius:2px;background:#3D4A5E"></div>
+                  <div style="flex:2;border-radius:2px;background:#3D4A5E"></div>
+                  <div style="flex:1;border-radius:2px;background:#4C7DFF;animation:dcr-in 6s ease-in-out infinite;animation-delay:0.25s"></div>
+                </div>
+              </div>
+              <div style="padding:8px;border-radius:7px;background:#0F131B;border:1px solid #171D28;display:flex;flex-direction:column;gap:6px">
+                <span style="width:5px;height:5px;border-radius:1.5px;background:#3D4A5E"></span>
+                <div style="display:flex;gap:2px;height:22px">
+                  <div style="flex:2;border-radius:2px;background:#3D4A5E"></div>
+                  <div style="flex:1;border-radius:2px;background:#3D4A5E"></div>
+                  <div style="flex:2;border-radius:2px;background:#4C7DFF;animation:dcr-in 6s ease-in-out infinite;animation-delay:0.5s"></div>
+                </div>
+              </div>
+              <div style="padding:8px;border-radius:7px;border:1px solid #171D28;background:#0F131B;display:flex;flex-direction:column;gap:6px;animation:dcr-free 6s ease-in-out infinite">
+                <span style="width:5px;height:5px;border-radius:1.5px;background:#3D4A5E;animation:dcr-dot 6s ease-in-out infinite"></span>
+                <div style="display:flex;gap:2px;height:22px">
+                  <div style="flex:1;border-radius:2px;background:#3D4A5E;animation:dcr-out 6s ease-in-out infinite"></div>
+                  <div style="flex:2;border-radius:2px;background:#3D4A5E;animation:dcr-out 6s ease-in-out infinite;animation-delay:0.12s"></div>
+                </div>
+              </div>
+              <div style="padding:8px;border-radius:7px;border:1px solid #171D28;background:#0F131B;display:flex;flex-direction:column;gap:6px;animation:dcr-free 6s ease-in-out infinite;animation-delay:0.3s">
+                <span style="width:5px;height:5px;border-radius:1.5px;background:#3D4A5E;animation:dcr-dot 6s ease-in-out infinite;animation-delay:0.3s"></span>
+                <div style="display:flex;gap:2px;height:22px">
+                  <div style="flex:2;border-radius:2px;background:#3D4A5E;animation:dcr-out 6s ease-in-out infinite;animation-delay:0.3s"></div>
+                  <div style="flex:1;border-radius:2px;background:#3D4A5E;animation:dcr-out 6s ease-in-out infinite;animation-delay:0.42s"></div>
+                </div>
+              </div>
+            </div>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#4E5A6E">6 pods move &middot; 2 nodes returned &middot; nothing decided for you</span>
+          </div>
+        </div>
+
+        <div style="margin-top:44px;display:flex;align-items:center;gap:14px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#3A4353">
+          <span>v0.4.2</span><span>&middot;</span><span>greedy-first-fit-decreasing</span>
+        </div>
+      </div>
+
+      <div style="flex:1;min-width:0;display:flex;align-items:center;justify-content:center;padding:48px">
+        <div style="width:400px;display:flex;flex-direction:column;gap:22px">
+          <div style="display:flex;flex-direction:column;gap:7px">
+            <h3 style="margin:0;font-size:22px;font-weight:600;letter-spacing:-0.015em">Sign in</h3>
+            <p style="margin:0;font-size:13.5px;line-height:1.55;color:#98A2B3">Your Kubernetes identity is the identity k8s-dencer acts as. Nothing is impersonated.</p>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:7px">
+            <span style="font-size:12.5px;font-weight:500;color:#C6CEDB">Cluster</span>
+            <div style="display:flex;align-items:center;gap:10px;padding:11px 13px;border:1px solid #2A3346;border-radius:8px;background:#0C0F16">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#E8ECF3;flex:1">dencer-demo</span>
+              <span style="font-size:11.5px;color:#818C9E">context</span>
+              <span style="color:#4E5A6E;font-size:11px">&#9662;</span>
+            </div>
+            <span style="font-size:11.5px;color:#667085">Read from your kubeconfig &middot; 3 contexts available</span>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:11px;padding:13px 15px;border-radius:8px;background:#4C7DFF">
+            <svg viewBox="0 0 16 16" style="width:15px;height:15px;flex-shrink:0"><path d="M11 6.5V5a3 3 0 0 0-6 0v1.5" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round"></path><rect x="3.5" y="6.5" width="9" height="7" rx="1.5" fill="#fff"></rect></svg>
+            <span style="font-size:14px;font-weight:600;color:#fff;flex:1">Continue with OIDC</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#C9D8FF">okta</span>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="flex:1;height:1px;background:#1E2430"></div>
+            <span style="font-size:11.5px;color:#667085">or</span>
+            <div style="flex:1;height:1px;background:#1E2430"></div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:7px">
+            <span style="font-size:12.5px;font-weight:500;color:#C6CEDB">Service-account token</span>
+            <div style="padding:11px 13px;border:1px solid #1E2430;border-radius:8px;background:#0C0F16">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#3A4353">eyJhbGciOiJSUzI1NiIsImtpZCI&hellip;</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;padding-top:2px">
+              <span style="width:15px;height:15px;border-radius:3.5px;border:1.5px solid #2A3346;flex-shrink:0"></span>
+              <span style="font-size:12.5px;color:#98A2B3">Read-only session &mdash; plan and rehearse, never drain</span>
+            </div>
+          </div>
+
+          <div style="padding:12px 14px;border-radius:8px;border:1px solid #1E2430;background:#0C0F16;display:flex;gap:11px">
+            <span style="color:#F5B544;font-size:12px;padding-top:1px">&#9670;</span>
+            <span style="font-size:12.5px;line-height:1.5;color:#98A2B3;text-wrap:pretty">Sessions expire with your token. A run in progress survives a sign-out and keeps its own audit entry.</span>
+          </div>
+
+          <div style="padding:13px 15px;border:1px solid #2A3346;border-radius:8px;text-align:center;font-size:13.5px;font-weight:500;color:#E8ECF3">Sign in with token</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="3b" style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;padding:4px 9px;border-radius:6px;background:#4C7DFF;color:#fff">3b</span>
+      <span style="font-size:20px;font-weight:600">Cluster &mdash; Rack lens</span>
+      <span style="font-size:14px;color:#98A2B3">&mdash; nodes with their pods inside, each pod sized by request and coloured by the plan&rsquo;s intent. Wells and Load are the same data, same page.</span>
+    </div>
+    <div style="width:1440px;height:940px;background:#06080C;border:1px solid #1E2430;border-radius:12px;overflow:hidden;display:flex;box-shadow:0 24px 64px rgba(0,0,0,0.5)">
+      <div style="width:224px;flex-shrink:0;background:#0A0D13;border-right:1px solid #1A1F29;display:flex;flex-direction:column">
+        <div style="height:60px;flex-shrink:0;display:flex;align-items:center;gap:11px;padding:0 20px;border-bottom:1px solid #1A1F29">
+          <svg viewBox="0 0 512 512" style="width:26px;height:26px;border-radius:50%;flex-shrink:0"><circle cx="256" cy="256" r="256" fill="#4C7DFF"></circle><polygon points="238,174 330.3,218.4 353,318.3 289.2,398.3 186.8,398.3 123,318.3 145.7,218.4" fill="none" stroke="#fff" stroke-width="40" stroke-linejoin="round"></polygon><rect x="332" y="96" width="40" height="322" rx="20" fill="#fff"></rect></svg>
+          <span style="font-size:15px;font-weight:600;letter-spacing:-0.01em">k8s-dencer</span>
+        </div>
+        <div style="padding:16px 12px;display:flex;flex-direction:column;gap:2px">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#4E5A6E;padding:6px 10px 8px">Plan</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#98A2B3;font-size:13.5px">Review<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#4E5A6E">14</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;background:#18203A;color:#B9CBFF;font-size:13.5px;font-weight:500">Cluster<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#7FA0FF">24</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#98A2B3;font-size:13.5px">Recommendations<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;padding:1px 6px;border-radius:9px;background:#3A2416;color:#F5B544">29</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#98A2B3;font-size:13.5px">History</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#4E5A6E;padding:18px 10px 8px">Lens</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;background:#151A24;color:#E8ECF3;font-size:13px">Rack</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;color:#98A2B3;font-size:13px">Wells</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;color:#98A2B3;font-size:13px">Load</div>
+        </div>
+        <div style="margin-top:auto;padding:14px 12px;border-top:1px solid #1A1F29">
+          <div style="padding:10px 11px;border:1px solid #1E2430;border-radius:8px;display:flex;flex-direction:column;gap:3px;background:#0C0F16">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#4E5A6E">Cluster</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#E8ECF3">dencer-demo</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+        <div style="height:60px;flex-shrink:0;border-bottom:1px solid #1A1F29;display:flex;align-items:center;gap:12px;padding:0 24px;background:#0A0D13">
+          <span style="font-size:14.5px;font-weight:600">Cluster</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#667085">24 nodes &middot; 43 pods &middot; 3 pools</span>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+            <div style="display:flex;gap:2px;padding:3px;background:#0F131B;border-radius:8px;border:1px solid #1A1F29">
+              <span style="font-size:12px;padding:5px 12px;border-radius:6px;background:#1E2430;color:#E8ECF3">Rack</span>
+              <span style="font-size:12px;padding:5px 12px;border-radius:6px;color:#98A2B3">Wells</span>
+              <span style="font-size:12px;padding:5px 12px;border-radius:6px;color:#98A2B3">Load</span>
+            </div>
+            <div style="padding:7px 12px;border:1px solid #1E2430;border-radius:7px;font-size:12.5px;color:#98A2B3">Group: pool</div>
+          </div>
+        </div>
+
+        <div style="padding:20px 24px 16px;border-bottom:1px solid #1A1F29;background:#0A0D13;display:flex;align-items:flex-end;justify-content:space-between;gap:24px">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#667085">The cluster as it stands, against the plan</span>
+            <h2 style="margin:0;font-size:28px;font-weight:600;letter-spacing:-0.025em">3 nodes are safe to drain today</h2>
+          </div>
+          <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:#98A2B3"><span style="width:9px;height:9px;border-radius:2px;background:#3DD68C"></span>safe to drain</div>
+            <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:#98A2B3"><span style="width:9px;height:9px;border-radius:2px;background:#F5B544"></span>needs a call</div>
+            <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:#98A2B3"><span style="width:9px;height:9px;border-radius:2px;background:#F2545B"></span>held back</div>
+            <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:#98A2B3"><span style="width:9px;height:9px;border-radius:2px;background:#3D4A5E"></span>stays</div>
+          </div>
+        </div>
+
+        <div style="flex:1;min-height:0;display:flex">
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;padding:18px 20px;gap:12px;border-right:1px solid #1A1F29;min-height:0;overflow:hidden">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.13em;text-transform:uppercase;color:#667085">Nodes</span>
+              <span style="font-size:12px;color:#818C9E">pod width = CPU request &middot; bar = utilisation</span>
+            </div>
+            <div style="flex:1;min-height:0;overflow:hidden;display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:min-content;gap:10px">
+              <sc-for list="{{ nodes }}" as="n" hint-placeholder-count="24">
+                <div style="padding:11px 12px;border-radius:9px;background:{{ n.bg }};border:1px solid {{ n.edge }};display:flex;flex-direction:column;gap:9px">
+                  <div style="display:flex;align-items:center;gap:8px;min-width:0">
+                    <span style="width:6px;height:6px;border-radius:2px;background:{{ n.dot }};flex-shrink:0"></span>
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#E8ECF3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">{{ n.name }}</span>
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#818C9E;flex-shrink:0">{{ n.util }}</span>
+                  </div>
+                  <div style="display:flex;gap:3px;height:26px">
+                    <sc-for list="{{ n.pods }}" as="p" hint-placeholder-count="3">
+                      <div style="flex:{{ p.flex }};border-radius:3px;background:{{ p.fill }}"></div>
+                    </sc-for>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#4E5A6E;flex:1">{{ n.podCount }}</span>
+                    <span style="font-size:10.5px;color:{{ n.dot }}">{{ n.label }}</span>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="width:360px;flex-shrink:0;display:flex;flex-direction:column;background:#0A0D13;min-height:0;overflow:hidden">
+            <div style="flex:0 0 auto;padding:18px 20px 14px;border-bottom:1px solid #1A1F29;display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="width:7px;height:7px;border-radius:1px;background:#F5B544;transform:rotate(45deg)"></span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.13em;text-transform:uppercase;color:#F5B544">Needs a call &middot; step 04</span>
+              </div>
+              <div style="display:flex;align-items:baseline;gap:9px">
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:16px;color:#E8ECF3">kwok-spot-4</span>
+                <span style="font-size:11.5px;padding:2px 7px;border-radius:4px;background:#151A24;color:#818C9E">spot</span>
+              </div>
+              <div style="display:flex;gap:16px;padding-top:2px">
+                <div style="display:flex;flex-direction:column;gap:1px"><span style="font-family:'IBM Plex Mono',monospace;font-size:14px">31%</span><span style="font-size:11px;color:#667085">cpu</span></div>
+                <div style="display:flex;flex-direction:column;gap:1px"><span style="font-family:'IBM Plex Mono',monospace;font-size:14px">44%</span><span style="font-size:11px;color:#667085">memory</span></div>
+                <div style="display:flex;flex-direction:column;gap:1px"><span style="font-family:'IBM Plex Mono',monospace;font-size:14px">3</span><span style="font-size:11px;color:#667085">pods</span></div>
+              </div>
+            </div>
+
+            <div style="flex:1 1 0;min-height:0;overflow:hidden;padding:16px 20px;display:flex;flex-direction:column;gap:10px">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.13em;text-transform:uppercase;color:#667085">Pods on this node</span>
+              <div style="display:flex;flex-direction:column;gap:7px">
+                <div style="padding:10px 11px;border-radius:7px;background:#0F131B;border:1px solid #171D28;display:flex;flex-direction:column;gap:5px">
+                  <div style="display:flex;align-items:center;gap:9px"><span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#C6CEDB;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">payments-worker-7f4c</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#667085">500m</span></div>
+                  <div style="display:flex;align-items:center;gap:8px"><span style="color:#4E5A6E;font-size:11px">&rarr;</span><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#7FA0FF">kwok-std-3</span><span style="font-size:10.5px;color:#818C9E">3 of 3 replicas healthy</span></div>
+                </div>
+                <div style="padding:10px 11px;border-radius:7px;background:#0F131B;border:1px solid #171D28;display:flex;flex-direction:column;gap:5px">
+                  <div style="display:flex;align-items:center;gap:9px"><span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#C6CEDB;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">search-indexer-2b91</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#667085">500m</span></div>
+                  <div style="display:flex;align-items:center;gap:8px"><span style="color:#4E5A6E;font-size:11px">&rarr;</span><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#7FA0FF">kwok-std-4</span><span style="font-size:10.5px;color:#818C9E">4 of 4 replicas healthy</span></div>
+                </div>
+                <div style="padding:10px 11px;border-radius:7px;background:#141009;border:1px solid #3D2F13;display:flex;flex-direction:column;gap:5px">
+                  <div style="display:flex;align-items:center;gap:9px"><span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#E8ECF3;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">ledger-cron-0a13</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#667085">2000m</span></div>
+                  <div style="display:flex;align-items:center;gap:8px"><span style="color:#4E5A6E;font-size:11px">&rarr;</span><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#7FA0FF">kwok-std-6</span><span style="font-size:10.5px;color:#F5B544">only replica, no PDB</span></div>
+                </div>
+              </div>
+              <div style="margin-top:4px;padding:11px 12px;border-radius:7px;border:1px dashed #2A3346">
+                <span style="font-size:12px;line-height:1.5;color:#98A2B3;text-wrap:pretty">Selecting a node here selects its step in the ledger &mdash; the two views share one selection.</span>
+              </div>
+            </div>
+
+            <div style="flex:0 0 auto;padding:14px 20px 18px;border-top:1px solid #1A1F29;display:flex;gap:8px">
+              <div style="flex:1;padding:9px 12px;border:1px solid #2A3346;border-radius:7px;text-align:center;font-size:13px;font-weight:500;color:#E8ECF3">Open step 04</div>
+              <div style="padding:9px 12px;border:1px solid #1E2430;border-radius:7px;font-size:13px;color:#98A2B3">Cordon only</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="3d" style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;padding:4px 9px;border-radius:6px;background:#4C7DFF;color:#fff">3d</span>
+      <span style="font-size:20px;font-weight:600">Cluster &mdash; Wells lens</span>
+      <span style="font-size:14px;color:#98A2B3">&mdash; the fill metaphor earns its place by answering the destination question: where does the displaced work go, and does it fit?</span>
+    </div>
+    <div style="width:1440px;height:940px;background:#06080C;border:1px solid #1E2430;border-radius:12px;overflow:hidden;display:flex;box-shadow:0 24px 64px rgba(0,0,0,0.5)">
+      <div style="width:224px;flex-shrink:0;background:#0A0D13;border-right:1px solid #1A1F29;display:flex;flex-direction:column">
+        <div style="height:60px;flex-shrink:0;display:flex;align-items:center;gap:11px;padding:0 20px;border-bottom:1px solid #1A1F29">
+          <svg viewBox="0 0 512 512" style="width:26px;height:26px;border-radius:50%;flex-shrink:0"><circle cx="256" cy="256" r="256" fill="#4C7DFF"></circle><polygon points="238,174 330.3,218.4 353,318.3 289.2,398.3 186.8,398.3 123,318.3 145.7,218.4" fill="none" stroke="#fff" stroke-width="40" stroke-linejoin="round"></polygon><rect x="332" y="96" width="40" height="322" rx="20" fill="#fff"></rect></svg>
+          <span style="font-size:15px;font-weight:600;letter-spacing:-0.01em">k8s-dencer</span>
+        </div>
+        <div style="padding:16px 12px;display:flex;flex-direction:column;gap:2px">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#4E5A6E;padding:6px 10px 8px">Plan</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#98A2B3;font-size:13.5px">Review<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#4E5A6E">14</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;background:#18203A;color:#B9CBFF;font-size:13.5px;font-weight:500">Cluster<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#7FA0FF">24</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#98A2B3;font-size:13.5px">Recommendations<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;padding:1px 6px;border-radius:9px;background:#3A2416;color:#F5B544">29</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#98A2B3;font-size:13.5px">History</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#4E5A6E;padding:18px 10px 8px">Lens</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;color:#98A2B3;font-size:13px">Rack</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;background:#151A24;color:#E8ECF3;font-size:13px">Wells</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;color:#98A2B3;font-size:13px">Load</div>
+        </div>
+        <div style="margin-top:auto;padding:14px 12px;border-top:1px solid #1A1F29">
+          <div style="padding:10px 11px;border:1px solid #1E2430;border-radius:8px;display:flex;flex-direction:column;gap:3px;background:#0C0F16">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#4E5A6E">Cluster</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#E8ECF3">dencer-demo</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+        <div style="height:60px;flex-shrink:0;border-bottom:1px solid #1A1F29;display:flex;align-items:center;gap:12px;padding:0 24px;background:#0A0D13">
+          <span style="font-size:14.5px;font-weight:600">Cluster</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#667085">24 nodes &middot; 43 pods &middot; 3 pools</span>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+            <div style="display:flex;gap:2px;padding:3px;background:#0F131B;border-radius:8px;border:1px solid #1A1F29">
+              <span style="font-size:12px;padding:5px 12px;border-radius:6px;color:#98A2B3">Rack</span>
+              <span style="font-size:12px;padding:5px 12px;border-radius:6px;background:#1E2430;color:#E8ECF3">Wells</span>
+              <span style="font-size:12px;padding:5px 12px;border-radius:6px;color:#98A2B3">Load</span>
+            </div>
+            <div style="padding:7px 12px;border:1px solid #1E2430;border-radius:7px;font-size:12.5px;color:#98A2B3">Sort: headroom</div>
+          </div>
+        </div>
+
+        <div style="padding:22px 24px 18px;border-bottom:1px solid #1A1F29;background:#0A0D13;display:flex;align-items:flex-end;justify-content:space-between;gap:24px">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#667085">Allocatable, and what the plan pours in</span>
+            <h2 style="margin:0;font-size:28px;font-weight:600;letter-spacing:-0.025em">6 pods land on 3 nodes. None crosses 85%.</h2>
+            <p style="margin:0;font-size:13.5px;line-height:1.55;color:#98A2B3;max-width:640px;text-wrap:pretty">Each well is one node&rsquo;s allocatable CPU. The dashed line is the packing ceiling &mdash; k8s-dencer will not plan a pour above it, which is why some nodes with visible room are not receiving anything.</p>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:9px;align-items:flex-end">
+            <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:#98A2B3"><span style="width:9px;height:9px;border-radius:2px;background:#3D4A5E"></span>already requested</div>
+            <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:#98A2B3"><span style="width:9px;height:9px;border-radius:2px;background:#4C7DFF"></span>arriving from the plan</div>
+            <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:#98A2B3"><span style="width:14px;height:0;border-top:1.5px dashed #F5B544"></span>packing ceiling, 85%</div>
+          </div>
+        </div>
+
+        <div style="flex:1;min-height:0;display:flex">
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;padding:18px 20px;gap:12px;border-right:1px solid #1A1F29;min-height:0;overflow:hidden">
+            <div style="flex:1;min-height:0;overflow:hidden;display:grid;grid-template-columns:repeat(8,1fr);grid-auto-rows:min-content;gap:10px">
+              <sc-for list="{{ wells }}" as="w" hint-placeholder-count="16">
+                <div style="padding:10px 10px 9px;border-radius:9px;background:{{ w.bg }};border:1px solid {{ w.edge }};display:flex;flex-direction:column;gap:8px">
+                  <div style="position:relative;height:118px;border-radius:6px;background:#0A0D13;border:1px solid #171D28;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end">
+                    <div style="position:absolute;left:0;right:0;top:15%;border-top:1.5px dashed #F5B544;opacity:0.75"></div>
+                    <div style="height:{{ w.incH }};background:#4C7DFF"></div>
+                    <div style="height:{{ w.reqH }};background:{{ w.reqFill }}"></div>
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:2px">
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#E8ECF3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ w.name }}</span>
+                    <div style="display:flex;align-items:baseline;gap:6px">
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#C6CEDB">{{ w.total }}</span>
+                      <span style="font-size:10px;color:{{ w.tagColor }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ w.tag }}</span>
+                    </div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <span style="font-size:12px;color:#667085">Showing 16 of 24 &middot; 8 nodes below 50% with no role in this plan are collapsed</span>
+          </div>
+
+          <div style="width:372px;flex-shrink:0;display:flex;flex-direction:column;background:#0A0D13;min-height:0;overflow:hidden">
+            <div style="flex:0 0 auto;padding:18px 20px 14px;border-bottom:1px solid #1A1F29;display:flex;flex-direction:column;gap:7px">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.13em;text-transform:uppercase;color:#667085">Every pour in this plan</span>
+              <span style="font-size:13px;line-height:1.55;color:#98A2B3;text-wrap:pretty">Six pods, three destinations. Each pour is a request added to a node that has to hold it &mdash; not an average.</span>
+            </div>
+            <div style="flex:1 1 0;min-height:0;overflow:hidden;padding:14px 20px;display:flex;flex-direction:column;gap:7px">
+              <sc-for list="{{ pours }}" as="p" hint-placeholder-count="6">
+                <div style="padding:10px 11px;border-radius:7px;background:#0F131B;border:1px solid #171D28;display:flex;flex-direction:column;gap:5px">
+                  <div style="display:flex;align-items:center;gap:9px">
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#C6CEDB;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.pod }}</span>
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#7FA0FF;flex-shrink:0">{{ p.cost }}</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#667085;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.from }}</span>
+                    <span style="color:#4E5A6E;font-size:11px">&rarr;</span>
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#C6CEDB">{{ p.to }}</span>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="flex:0 0 auto;padding:14px 20px 18px;border-top:1px solid #1A1F29;display:flex;flex-direction:column;gap:9px">
+              <div style="padding:11px 12px;border-radius:7px;background:#0F131B;border:1px solid #171D28;display:flex;align-items:center;gap:10px">
+                <span style="font-size:12.5px;color:#98A2B3;flex:1">Worst case after the pour</span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#E8ECF3">85%</span>
+              </div>
+              <div style="padding:9px 12px;border:1px solid #2A3346;border-radius:7px;text-align:center;font-size:13px;font-weight:500;color:#E8ECF3">Open the 3 safe steps</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="3c" style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;padding:4px 9px;border-radius:6px;background:#4C7DFF;color:#fff">3c</span>
+      <span style="font-size:20px;font-weight:600">Cluster &mdash; Load lens</span>
+      <span style="font-size:14px;color:#98A2B3">&mdash; the Panel screen, rebuilt to answer one question: where is the gap between what pods <em>ask for</em> and what they <em>use</em>?</span>
+    </div>
+    <div style="width:1440px;height:940px;background:#06080C;border:1px solid #1E2430;border-radius:12px;overflow:hidden;display:flex;box-shadow:0 24px 64px rgba(0,0,0,0.5)">
+      <div style="width:224px;flex-shrink:0;background:#0A0D13;border-right:1px solid #1A1F29;display:flex;flex-direction:column">
+        <div style="height:60px;flex-shrink:0;display:flex;align-items:center;gap:11px;padding:0 20px;border-bottom:1px solid #1A1F29">
+          <svg viewBox="0 0 512 512" style="width:26px;height:26px;border-radius:50%;flex-shrink:0"><circle cx="256" cy="256" r="256" fill="#4C7DFF"></circle><polygon points="238,174 330.3,218.4 353,318.3 289.2,398.3 186.8,398.3 123,318.3 145.7,218.4" fill="none" stroke="#fff" stroke-width="40" stroke-linejoin="round"></polygon><rect x="332" y="96" width="40" height="322" rx="20" fill="#fff"></rect></svg>
+          <span style="font-size:15px;font-weight:600;letter-spacing:-0.01em">k8s-dencer</span>
+        </div>
+        <div style="padding:16px 12px;display:flex;flex-direction:column;gap:2px">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#4E5A6E;padding:6px 10px 8px">Plan</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#98A2B3;font-size:13.5px">Review<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#4E5A6E">14</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;background:#18203A;color:#B9CBFF;font-size:13.5px;font-weight:500">Cluster<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#7FA0FF">24</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#98A2B3;font-size:13.5px">Recommendations<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;padding:1px 6px;border-radius:9px;background:#3A2416;color:#F5B544">29</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#98A2B3;font-size:13.5px">History</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#4E5A6E;padding:18px 10px 8px">Lens</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;color:#98A2B3;font-size:13px">Rack</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;color:#98A2B3;font-size:13px">Wells</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;background:#151A24;color:#E8ECF3;font-size:13px">Load</div>
+        </div>
+        <div style="margin-top:auto;padding:14px 12px;border-top:1px solid #1A1F29">
+          <div style="padding:10px 11px;border:1px solid #1E2430;border-radius:8px;display:flex;flex-direction:column;gap:3px;background:#0C0F16">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#4E5A6E">Cluster</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#E8ECF3">dencer-demo</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+        <div style="height:60px;flex-shrink:0;border-bottom:1px solid #1A1F29;display:flex;align-items:center;gap:12px;padding:0 24px;background:#0A0D13">
+          <span style="font-size:14.5px;font-weight:600">Cluster</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#667085">24 nodes &middot; 43 pods &middot; 3 pools</span>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+            <div style="display:flex;gap:2px;padding:3px;background:#0F131B;border-radius:8px;border:1px solid #1A1F29">
+              <span style="font-size:12px;padding:5px 12px;border-radius:6px;color:#98A2B3">Rack</span>
+              <span style="font-size:12px;padding:5px 12px;border-radius:6px;color:#98A2B3">Wells</span>
+              <span style="font-size:12px;padding:5px 12px;border-radius:6px;background:#1E2430;color:#E8ECF3">Load</span>
+            </div>
+            <div style="padding:7px 12px;border:1px solid #1E2430;border-radius:7px;font-size:12.5px;color:#98A2B3">Sort: waste</div>
+          </div>
+        </div>
+
+        <div style="padding:22px 24px 18px;border-bottom:1px solid #1A1F29;background:#0A0D13;display:flex;align-items:flex-end;justify-content:space-between;gap:24px">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#667085">Requested vs actually used</span>
+            <h2 style="margin:0;font-size:28px;font-weight:600;letter-spacing:-0.025em">Pods reserve <span style="color:#F5B544">2.4&times;</span> the CPU they use</h2>
+            <p style="margin:0;font-size:13.5px;line-height:1.55;color:#98A2B3;max-width:620px;text-wrap:pretty">That gap is why the cluster looks busy and runs empty. The scheduler packs on requests, so consolidation is bounded by requests &mdash; these usage numbers tell you which teams to talk to, not which nodes can go.</p>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:9px;align-items:flex-end">
+            <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:#98A2B3"><span style="width:9px;height:9px;border-radius:2px;background:#4C7DFF"></span>used</div>
+            <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:#98A2B3"><span style="width:9px;height:9px;border-radius:2px;background:#F5B544;opacity:0.5"></span>reserved but idle</div>
+            <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:#98A2B3"><span style="width:9px;height:9px;border-radius:2px;background:#12161F;border:1px solid #2A3346"></span>unallocated</div>
+          </div>
+        </div>
+
+        <div style="flex:1;min-height:0;display:flex;flex-direction:column;padding:16px 24px 0;gap:10px">
+          <div style="display:grid;grid-template-columns:148px 82px 1fr 60px 60px 56px 60px 122px;gap:14px;padding:0 4px 9px;border-bottom:1px solid #1E2430;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.12em;text-transform:uppercase;color:#667085">
+            <span>Node</span><span>Pool</span><span>CPU used / reserved</span><span>Used</span><span>Res.</span><span>Mem</span><span>Pods</span><span>Plan</span>
+          </div>
+          <div style="flex:1;min-height:0;overflow:hidden">
+            <sc-for list="{{ loadRows }}" as="r" hint-placeholder-count="12">
+              <div style="display:grid;grid-template-columns:148px 82px 1fr 60px 60px 56px 60px 122px;gap:14px;align-items:center;padding:11px 4px;border-bottom:1px solid #12161F;background:{{ r.rowBg }}">
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#E8ECF3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.name }}</span>
+                <span style="font-size:11px;padding:2px 7px;border-radius:4px;background:#151A24;color:#818C9E;justify-self:start">{{ r.pool }}</span>
+                <div style="display:flex;height:16px;border-radius:4px;background:#12161F;border:1px solid #1E2430;overflow:hidden">
+                  <div style="width:{{ r.cpuW }};background:#4C7DFF"></div>
+                  <div style="width:{{ r.gapW }};background:#F5B544;opacity:0.5"></div>
+                </div>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#C6CEDB">{{ r.cpu }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#D2A85C">{{ r.req }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#98A2B3">{{ r.mem }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#98A2B3">{{ r.pods }}</span>
+                <div style="display:flex;align-items:center;gap:8px;min-width:0">
+                  <span style="width:6px;height:6px;border-radius:2px;background:{{ r.color }};flex-shrink:0"></span>
+                  <span style="font-size:12.5px;color:{{ r.color }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.label }}</span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="height:64px;flex-shrink:0;border-top:1px solid #1A1F29;background:#0A0D13;display:flex;align-items:center;gap:18px;padding:0 24px">
+          <span style="font-size:12.5px;color:#818C9E;text-wrap:pretty">Showing 12 of 24 nodes &middot; the rest sit within 5 points of their requests</span>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+            <div style="padding:9px 14px;border:1px solid #1E2430;border-radius:7px;font-size:13px;color:#98A2B3">Export CSV</div>
+            <div style="padding:9px 14px;border:1px solid #2A3346;border-radius:7px;font-size:13px;font-weight:500;color:#E8ECF3">Open the 3 safe steps</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<section style="padding:40px 56px 40px;display:flex;flex-direction:column;gap:48px">
+
+  <div style="display:flex;flex-direction:column;gap:12px;max-width:860px">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#7FA0FF">Turn 2 &middot; the rest of the 1a flow</div>
+    <h1 style="margin:0;font-size:40px;font-weight:600;letter-spacing:-0.025em">Rehearsal, execution, recommendations, history</h1>
+    <p style="margin:0;font-size:16px;line-height:1.6;color:#98A2B3;text-wrap:pretty">Five screens in <a href="#1a">1a</a>&rsquo;s language, completing the loop: rehearse &rarr; run &rarr; recover &rarr; unblock &rarr; account for it. Same rail, same verdict colours, same footer grammar. The blocking-rule cards and the packing grid from <a href="#1b">1b</a> land here as Recommendations and a Cluster lens.</p>
+  </div>
+
+  <div id="2a" style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;padding:4px 9px;border-radius:6px;background:#4C7DFF;color:#fff">2a</span>
+      <span style="font-size:20px;font-weight:600">Rehearsal result</span>
+      <span style="font-size:14px;color:#98A2B3">&mdash; the same trail a real run produces, with nothing touched. The only screen that can turn a maybe into a yes.</span>
+    </div>
+    <div style="width:1440px;height:940px;background:#06080C;border:1px solid #1E2430;border-radius:12px;overflow:hidden;display:flex;box-shadow:0 24px 64px rgba(0,0,0,0.5)">
+      <div style="width:224px;flex-shrink:0;background:#0A0D13;border-right:1px solid #1A1F29;display:flex;flex-direction:column">
+        <div style="height:60px;flex-shrink:0;display:flex;align-items:center;gap:11px;padding:0 20px;border-bottom:1px solid #1A1F29">
+          <svg viewBox="0 0 512 512" style="width:26px;height:26px;border-radius:50%;flex-shrink:0"><circle cx="256" cy="256" r="256" fill="#4C7DFF"></circle><polygon points="238,174 330.3,218.4 353,318.3 289.2,398.3 186.8,398.3 123,318.3 145.7,218.4" fill="none" stroke="#fff" stroke-width="40" stroke-linejoin="round"></polygon><rect x="332" y="96" width="40" height="322" rx="20" fill="#fff"></rect></svg>
+          <span style="font-size:15px;font-weight:600;letter-spacing:-0.01em">k8s-dencer</span>
+        </div>
+        <div style="padding:16px 12px;display:flex;flex-direction:column;gap:2px">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#4E5A6E;padding:6px 10px 8px">Plan</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;background:#18203A;color:#B9CBFF;font-size:13.5px;font-weight:500">Review<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#7FA0FF">14</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#98A2B3;font-size:13.5px">Cluster</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#98A2B3;font-size:13.5px">Recommendations<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;padding:1px 6px;border-radius:9px;background:#3A2416;color:#F5B544">29</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#98A2B3;font-size:13.5px">History</div>
+        </div>
+        <div style="margin-top:auto;padding:14px 12px;border-top:1px solid #1A1F29">
+          <div style="padding:10px 11px;border:1px solid #1E2430;border-radius:8px;display:flex;flex-direction:column;gap:3px;background:#0C0F16">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#4E5A6E">Cluster</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#E8ECF3">dencer-demo</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+        <div style="height:60px;flex-shrink:0;border-bottom:1px solid #1A1F29;display:flex;align-items:center;gap:12px;padding:0 24px;background:#0A0D13">
+          <span style="font-size:13px;color:#7FA0FF">&larr; Back to review</span>
+          <div style="width:1px;height:22px;background:#1E2430"></div>
+          <span style="font-size:14.5px;font-weight:600">Rehearsal</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#667085">plan 8081cdf &middot; 3 steps</span>
+          <span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#4E5A6E">09:12:07 &middot; 3.4s</span>
+        </div>
+
+        <div style="padding:26px 24px 22px;border-bottom:1px solid #1A1F29;background:#0A0D13;display:flex;align-items:flex-start;gap:32px">
+          <div style="display:flex;flex-direction:column;gap:11px;flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:9px">
+              <span style="width:8px;height:8px;border-radius:50%;background:#3DD68C"></span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#3DD68C">All 3 steps would succeed</span>
+            </div>
+            <h2 style="margin:0;font-size:32px;font-weight:600;letter-spacing:-0.025em;line-height:1.1">Nothing was cordoned. Nothing was evicted.</h2>
+            <p style="margin:0;font-size:14px;line-height:1.55;color:#98A2B3;max-width:640px;text-wrap:pretty">The Safety Guard ran in full against the live cluster and every check passed. Placement was simulated against real node capacity &mdash; all 6 pods found a home.</p>
+          </div>
+          <div style="width:300px;flex-shrink:0;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div style="padding:11px 12px;border-radius:8px;background:#0F1A16;border:1px solid #1D3A2C;display:flex;flex-direction:column;gap:2px"><span style="font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:600;color:#3DD68C">18 / 18</span><span style="font-size:11.5px;color:#7FCFA8">checks passed</span></div>
+            <div style="padding:11px 12px;border-radius:8px;background:#0F131B;border:1px solid #171D28;display:flex;flex-direction:column;gap:2px"><span style="font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:600">6 / 6</span><span style="font-size:11.5px;color:#818C9E">pods placed</span></div>
+            <div style="padding:11px 12px;border-radius:8px;background:#0F131B;border:1px solid #171D28;display:flex;flex-direction:column;gap:2px"><span style="font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:600">21 cores</span><span style="font-size:11.5px;color:#818C9E">would return</span></div>
+            <div style="padding:11px 12px;border-radius:8px;background:#0F131B;border:1px solid #171D28;display:flex;flex-direction:column;gap:2px"><span style="font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:600">116 GiB</span><span style="font-size:11.5px;color:#818C9E">would return</span></div>
+          </div>
+        </div>
+
+        <div style="flex:1;min-height:0;display:flex">
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;border-right:1px solid #1A1F29;padding:18px 20px;gap:12px">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.13em;text-transform:uppercase;color:#667085">Step by step</span>
+            <sc-for list="{{ rehearsal }}" as="s" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;gap:14px;padding:14px 15px;border-radius:9px;background:#0F131B;border:1px solid #171D28">
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#4E5A6E">{{ s.n }}</span>
+                <div style="display:flex;flex-direction:column;gap:3px;min-width:0;flex:1">
+                  <div style="display:flex;align-items:center;gap:9px">
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#E8ECF3">{{ s.node }}</span>
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#818C9E">{{ s.pods }}</span>
+                  </div>
+                  <span style="font-size:12px;color:#818C9E">{{ s.detail }}</span>
+                </div>
+                <span style="font-size:12.5px;font-weight:500;color:{{ s.color }}">{{ s.outcome }}</span>
+              </div>
+            </sc-for>
+            <div style="margin-top:6px;padding:13px 15px;border-radius:9px;border:1px dashed #2A3346;display:flex;align-items:center;gap:11px">
+              <span style="font-size:12.5px;color:#98A2B3;text-wrap:pretty">A rehearsal is a snapshot. If the cluster changes before you run, the Safety Guard re-checks each step and halts on the first refusal.</span>
+            </div>
+          </div>
+
+          <div style="width:520px;flex-shrink:0;display:flex;flex-direction:column;background:#080B10;min-height:0;overflow:hidden">
+            <div style="padding:14px 18px 10px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #12161F">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.13em;text-transform:uppercase;color:#667085">Trail</span>
+              <span style="margin-left:auto;font-size:12px;color:#7FA0FF">Copy</span>
+            </div>
+            <div style="flex:1;min-height:0;overflow:hidden;padding:12px 18px;display:flex;flex-direction:column;gap:5px">
+              <sc-for list="{{ trail }}" as="l" hint-placeholder-count="9">
+                <div style="display:flex;gap:12px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;line-height:1.5">
+                  <span style="color:#3A4353;flex-shrink:0">{{ l.t }}</span>
+                  <span style="color:{{ l.color }};white-space:pre-wrap">{{ l.text }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <div style="height:68px;flex-shrink:0;border-top:1px solid #1A1F29;background:#0A0D13;display:flex;align-items:center;gap:18px;padding:0 24px">
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span style="font-size:13.5px;font-weight:600">Rehearsal held for 3 steps &middot; 6 pods</span>
+            <span style="font-size:12px;color:#818C9E">Approving carries this selection straight into a real run.</span>
+          </div>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+            <div style="padding:9px 14px;border:1px solid #1E2430;border-radius:7px;font-size:13px;color:#98A2B3">Discard</div>
+            <div style="padding:9px 14px;border:1px solid #2A3346;border-radius:7px;font-size:13px;font-weight:500;color:#E8ECF3">Rehearse again</div>
+            <div style="padding:10px 18px;border-radius:7px;background:#4C7DFF;font-size:13.5px;font-weight:600;color:#fff">Drain 3 nodes</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="2b" style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;padding:4px 9px;border-radius:6px;background:#4C7DFF;color:#fff">2b</span>
+      <span style="font-size:20px;font-weight:600">Execution in progress</span>
+      <span style="font-size:14px;color:#98A2B3">&mdash; the review rows become progress rows in place. Abort stays reachable at every step boundary.</span>
+    </div>
+    <div style="width:1440px;height:940px;background:#06080C;border:1px solid #1E2430;border-radius:12px;overflow:hidden;display:flex;box-shadow:0 24px 64px rgba(0,0,0,0.5)">
+      <div style="width:224px;flex-shrink:0;background:#0A0D13;border-right:1px solid #1A1F29;display:flex;flex-direction:column">
+        <div style="height:60px;flex-shrink:0;display:flex;align-items:center;gap:11px;padding:0 20px;border-bottom:1px solid #1A1F29">
+          <svg viewBox="0 0 512 512" style="width:26px;height:26px;border-radius:50%;flex-shrink:0"><circle cx="256" cy="256" r="256" fill="#4C7DFF"></circle><polygon points="238,174 330.3,218.4 353,318.3 289.2,398.3 186.8,398.3 123,318.3 145.7,218.4" fill="none" stroke="#fff" stroke-width="40" stroke-linejoin="round"></polygon><rect x="332" y="96" width="40" height="322" rx="20" fill="#fff"></rect></svg>
+          <span style="font-size:15px;font-weight:600;letter-spacing:-0.01em">k8s-dencer</span>
+        </div>
+        <div style="padding:16px 12px;display:flex;flex-direction:column;gap:2px">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#4E5A6E;padding:6px 10px 8px">Plan</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;background:#18203A;color:#B9CBFF;font-size:13.5px;font-weight:500">Review<span style="margin-left:auto;display:flex;align-items:center;gap:6px"><span style="width:6px;height:6px;border-radius:50%;background:#4C7DFF"></span><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#7FA0FF">2/3</span></span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#98A2B3;font-size:13.5px">Cluster</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#98A2B3;font-size:13.5px">Recommendations<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;padding:1px 6px;border-radius:9px;background:#3A2416;color:#F5B544">29</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#98A2B3;font-size:13.5px">History</div>
+        </div>
+        <div style="margin-top:auto;padding:14px 12px;border-top:1px solid #1A1F29">
+          <div style="padding:10px 11px;border:1px solid #24374F;border-radius:8px;display:flex;flex-direction:column;gap:4px;background:#0A0F16">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#7FA0FF">Run in progress</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#C6CEDB">step 2 of 3 &middot; 00:41</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+        <div style="height:60px;flex-shrink:0;border-bottom:1px solid #1A1F29;display:flex;align-items:center;gap:12px;padding:0 24px;background:#0A0D13">
+          <span style="font-size:14.5px;font-weight:600">Draining 3 nodes</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#667085">plan 8081cdf &middot; started 09:14:22 by a.tedgimo</span>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#818C9E">rollback point r-4471</span>
+            <div style="padding:7px 13px;border:1px solid #40201F;border-radius:7px;font-size:12.5px;font-weight:500;color:#F2545B;background:#1C0F11">Abort run</div>
+          </div>
+        </div>
+
+        <div style="padding:24px 24px 20px;border-bottom:1px solid #1A1F29;background:#0A0D13;display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#667085">Step 2 of 3 &middot; evicting</span>
+              <h2 style="margin:0;font-size:30px;font-weight:600;letter-spacing:-0.025em">1 node reclaimed, 2 to go</h2>
+            </div>
+            <div style="display:flex;align-items:center;gap:22px">
+              <div style="display:flex;flex-direction:column;gap:2px"><span style="font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:500;color:#3DD68C">7 cores</span><span style="font-size:11.5px;color:#667085">returned so far</span></div>
+              <div style="width:1px;height:30px;background:#1E2430"></div>
+              <div style="display:flex;flex-direction:column;gap:2px"><span style="font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:500;color:#3DD68C">38 GiB</span><span style="font-size:11.5px;color:#667085">memory freed</span></div>
+              <div style="width:1px;height:30px;background:#1E2430"></div>
+              <div style="display:flex;flex-direction:column;gap:2px"><span style="font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:500">3 of 6</span><span style="font-size:11.5px;color:#667085">pods moved</span></div>
+            </div>
+          </div>
+          <div style="display:flex;height:6px;border-radius:3px;overflow:hidden;gap:2px;background:#12161F">
+            <div style="flex:34;background:#3DD68C;border-radius:3px 0 0 3px"></div>
+            <div style="flex:18;background:#4C7DFF"></div>
+            <div style="flex:48;background:#12161F;border-radius:0 3px 3px 0"></div>
+          </div>
+        </div>
+
+        <div style="flex:1;min-height:0;display:flex">
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;border-right:1px solid #1A1F29;padding:18px 20px;gap:12px">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.13em;text-transform:uppercase;color:#667085">Steps</span>
+            <sc-for list="{{ runSteps }}" as="s" hint-placeholder-count="3">
+              <div style="padding:14px 15px;border-radius:9px;background:#0F131B;border:1px solid #171D28;display:flex;flex-direction:column;gap:11px">
+                <div style="display:flex;align-items:center;gap:12px">
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#4E5A6E">{{ s.n }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#E8ECF3">{{ s.node }}</span>
+                  <span style="font-size:12px;color:#818C9E;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.meta }}</span>
+                  <span style="font-size:12.5px;font-weight:500;color:{{ s.color }}">{{ s.state }}</span>
+                </div>
+                <div style="display:flex;gap:7px">
+                  <sc-for list="{{ s.phases }}" as="p" hint-placeholder-count="4">
+                    <div style="flex:1;padding:6px 9px;border-radius:6px;background:{{ p.bg }};border:1px solid {{ p.border }};font-family:'IBM Plex Mono',monospace;font-size:11px;color:{{ p.color }};text-align:center">{{ p.label }}</div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="width:520px;flex-shrink:0;display:flex;flex-direction:column;background:#080B10;min-height:0;overflow:hidden">
+            <div style="padding:14px 18px 10px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #12161F">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.13em;text-transform:uppercase;color:#667085">Live trail</span>
+              <span style="display:flex;align-items:center;gap:6px;margin-left:auto;font-size:11.5px;color:#7FA0FF"><span style="width:6px;height:6px;border-radius:50%;background:#4C7DFF"></span>streaming</span>
+            </div>
+            <div style="flex:1;min-height:0;overflow:hidden;padding:12px 18px;display:flex;flex-direction:column;gap:5px">
+              <sc-for list="{{ runLog }}" as="l" hint-placeholder-count="7">
+                <div style="display:flex;gap:12px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;line-height:1.5">
+                  <span style="color:#3A4353;flex-shrink:0">{{ l.t }}</span>
+                  <span style="color:{{ l.color }};white-space:pre-wrap">{{ l.text }}</span>
+                </div>
+              </sc-for>
+              <div style="display:flex;gap:12px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;line-height:1.5">
+                <span style="color:#3A4353;flex-shrink:0">09:14:41</span>
+                <span style="color:#4C7DFF">step 02 waiting for pod termination&hellip;</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="height:68px;flex-shrink:0;border-top:1px solid #1A1F29;background:#0A0D13;display:flex;align-items:center;gap:18px;padding:0 24px">
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span style="font-size:13.5px;font-weight:600">The Safety Guard re-runs before every step</span>
+            <span style="font-size:12px;color:#818C9E">If a check fails, the run halts here and the cordon on the current node is reverted.</span>
+          </div>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+            <div style="padding:9px 14px;border:1px solid #1E2430;border-radius:7px;font-size:13px;color:#98A2B3">Pause after this step</div>
+            <div style="padding:9px 14px;border:1px solid #1E2430;border-radius:7px;font-size:13px;color:#98A2B3">Download trail</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="2c" style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;padding:4px 9px;border-radius:6px;background:#4C7DFF;color:#fff">2c</span>
+      <span style="font-size:20px;font-weight:600">Run halted by the Safety Guard</span>
+      <span style="font-size:14px;color:#98A2B3">&mdash; the screen that decides whether this tool is trusted. States what happened, what the cluster looks like now, and the two ways out.</span>
+    </div>
+    <div style="width:1440px;height:940px;background:#06080C;border:1px solid #1E2430;border-radius:12px;overflow:hidden;display:flex;box-shadow:0 24px 64px rgba(0,0,0,0.5)">
+      <div style="width:224px;flex-shrink:0;background:#0A0D13;border-right:1px solid #1A1F29;display:flex;flex-direction:column">
+        <div style="height:60px;flex-shrink:0;display:flex;align-items:center;gap:11px;padding:0 20px;border-bottom:1px solid #1A1F29">
+          <svg viewBox="0 0 512 512" style="width:26px;height:26px;border-radius:50%;flex-shrink:0"><circle cx="256" cy="256" r="256" fill="#4C7DFF"></circle><polygon points="238,174 330.3,218.4 353,318.3 289.2,398.3 186.8,398.3 123,318.3 145.7,218.4" fill="none" stroke="#fff" stroke-width="40" stroke-linejoin="round"></polygon><rect x="332" y="96" width="40" height="322" rx="20" fill="#fff"></rect></svg>
+          <span style="font-size:15px;font-weight:600;letter-spacing:-0.01em">k8s-dencer</span>
+        </div>
+        <div style="padding:16px 12px;display:flex;flex-direction:column;gap:2px">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#4E5A6E;padding:6px 10px 8px">Plan</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;background:#18203A;color:#B9CBFF;font-size:13.5px;font-weight:500">Review<span style="margin-left:auto;width:7px;height:7px;border-radius:1.5px;background:#F2545B"></span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#98A2B3;font-size:13.5px">Cluster</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#98A2B3;font-size:13.5px">Recommendations<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;padding:1px 6px;border-radius:9px;background:#3A2416;color:#F5B544">30</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#98A2B3;font-size:13.5px">History</div>
+        </div>
+        <div style="margin-top:auto;padding:14px 12px;border-top:1px solid #1A1F29">
+          <div style="padding:10px 11px;border:1px solid #40201F;border-radius:8px;display:flex;flex-direction:column;gap:4px;background:#150F11">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#F2545B">Run halted</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#C6CEDB">2 of 3 done &middot; 09:14</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+        <div style="height:60px;flex-shrink:0;border-bottom:1px solid #1A1F29;display:flex;align-items:center;gap:12px;padding:0 24px;background:#0A0D13">
+          <span style="font-size:14.5px;font-weight:600">Run 8081cdf</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#667085">09:14:22 &rarr; 09:15:03 &middot; a.tedgimo</span>
+          <span style="margin-left:auto;font-size:12.5px;color:#7FA0FF">Download trail</span>
+        </div>
+
+        <div style="padding:26px 24px 24px;border-bottom:1px solid #1A1F29;background:#0A0D13;display:flex;flex-direction:column;gap:18px">
+          <div style="display:flex;align-items:flex-start;gap:32px">
+            <div style="display:flex;flex-direction:column;gap:12px;flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:9px">
+                <span style="width:8px;height:8px;border-radius:2px;background:#F2545B"></span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#F2545B">Halted at step 3 of 3</span>
+              </div>
+              <h2 style="margin:0;font-size:32px;font-weight:600;letter-spacing:-0.025em;line-height:1.1">2 nodes reclaimed. The third was refused and reverted.</h2>
+              <p style="margin:0;font-size:14px;line-height:1.6;color:#C6CEDB;max-width:700px;text-wrap:pretty">Between the plan and step 3, <span style="font-family:'IBM Plex Mono',monospace;color:#E8ECF3">dencer-demo/checkout-api</span> lost a replica to an unrelated crash-loop. Draining <span style="font-family:'IBM Plex Mono',monospace;color:#E8ECF3">kwok-himem-3</span> would have taken zone&nbsp;b to one replica, so the Safety Guard refused it. <strong style="font-weight:600;color:#E8ECF3">No pod was evicted for step 3</strong> and the cordon was removed.</p>
+            </div>
+            <div style="width:300px;flex-shrink:0;display:flex;flex-direction:column;gap:8px">
+              <div style="padding:12px 13px;border-radius:8px;background:#0F1A16;border:1px solid #1D3A2C;display:flex;flex-direction:column;gap:3px">
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#7FCFA8">Kept</span>
+                <span style="font-size:13px;color:#E8ECF3">2 nodes reclaimed &middot; 14 cores, 76 GiB</span>
+              </div>
+              <div style="padding:12px 13px;border-radius:8px;background:#0F131B;border:1px solid #171D28;display:flex;flex-direction:column;gap:3px">
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#818C9E">Cluster now</span>
+                <span style="font-size:13px;color:#E8ECF3">22 nodes &middot; no cordons left behind</span>
+              </div>
+              <div style="padding:12px 13px;border-radius:8px;background:#0F131B;border:1px solid #171D28;display:flex;flex-direction:column;gap:3px">
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#818C9E">Rollback point</span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#E8ECF3">r-4471 &middot; unused</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="flex:1;min-height:0;display:flex">
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;border-right:1px solid #1A1F29;padding:18px 20px;gap:12px">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.13em;text-transform:uppercase;color:#667085">What ran</span>
+            <sc-for list="{{ haltSteps }}" as="s" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;gap:14px;padding:14px 15px;border-radius:9px;background:#0F131B;border:1px solid #171D28">
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#4E5A6E">{{ s.n }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#E8ECF3">{{ s.node }}</span>
+                <span style="font-size:12px;color:#818C9E;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.meta }}</span>
+                <span style="font-size:12.5px;font-weight:500;color:{{ s.color }}">{{ s.state }}</span>
+              </div>
+            </sc-for>
+
+            <div style="margin-top:6px;padding:15px 16px;border-radius:9px;background:#150F11;border:1px solid #3A1D1F;display:flex;flex-direction:column;gap:9px">
+              <div style="display:flex;align-items:center;gap:9px">
+                <span style="font-size:10px;font-weight:600;letter-spacing:0.08em;padding:2px 6px;border-radius:4px;background:#40201F;color:#F2545B">REFUSAL</span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#D98A8D">topologySpread/checkout-api</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;line-height:1.55">
+                <span style="color:#C6CEDB">required: 2 replicas per zone &middot; maxSkew 1</span>
+                <span style="color:#C6CEDB">at plan time: zone-a 2 &middot; zone-b 2 &middot; zone-c 2</span>
+                <span style="color:#D98A8D">at step 3:    zone-a 2 &middot; zone-b 1 &middot; zone-c 2  &larr; drifted</span>
+              </div>
+            </div>
+          </div>
+
+          <div style="width:392px;flex-shrink:0;display:flex;flex-direction:column;background:#0A0D13;min-height:0;overflow:hidden">
+            <div style="padding:18px 20px 14px;border-bottom:1px solid #1A1F29;display:flex;flex-direction:column;gap:7px">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.13em;text-transform:uppercase;color:#667085">Two ways forward</span>
+              <span style="font-size:13px;color:#98A2B3;text-wrap:pretty">The remaining step is not lost &mdash; it goes back to the ledger as held back, with this refusal attached.</span>
+            </div>
+            <div style="flex:1;min-height:0;overflow:hidden;padding:16px 20px;display:flex;flex-direction:column;gap:12px">
+              <div style="padding:14px 15px;border-radius:9px;background:#0F131B;border:1px solid #24374F;display:flex;flex-direction:column;gap:7px">
+                <span style="font-size:13.5px;font-weight:600">Wait for the replica to recover</span>
+                <span style="font-size:12.5px;line-height:1.5;color:#98A2B3;text-wrap:pretty">checkout-api is already rescheduling. Recompute in a few minutes and step 3 will most likely go Green on its own.</span>
+                <span style="font-size:12.5px;color:#7FA0FF">Recompute the plan</span>
+              </div>
+              <div style="padding:14px 15px;border-radius:9px;background:#0F131B;border:1px solid #171D28;display:flex;flex-direction:column;gap:7px">
+                <span style="font-size:13.5px;font-weight:600">Change the rule</span>
+                <span style="font-size:12.5px;line-height:1.5;color:#98A2B3;text-wrap:pretty">Raising checkout-api to maxSkew 2 would let this drain proceed with one replica in zone&nbsp;b. That is a real availability trade.</span>
+                <span style="font-size:12.5px;color:#7FA0FF">Open in Recommendations</span>
+              </div>
+              <div style="padding:13px 15px;border-radius:9px;border:1px dashed #2A3346;display:flex;flex-direction:column;gap:5px">
+                <span style="font-size:12.5px;font-weight:500;color:#C6CEDB">Not offered: force the drain</span>
+                <span style="font-size:12px;line-height:1.5;color:#818C9E;text-wrap:pretty">There is no override in this UI. A refusal is the product working.</span>
+              </div>
+            </div>
+            <div style="flex:0 0 auto;padding:14px 20px 18px;border-top:1px solid #1A1F29;display:flex;gap:8px">
+              <div style="flex:1;padding:9px 12px;border:1px solid #2A3346;border-radius:7px;text-align:center;font-size:13px;font-weight:500;color:#E8ECF3">Back to review</div>
+              <div style="padding:9px 14px;border-radius:7px;background:#4C7DFF;text-align:center;font-size:13px;font-weight:600;color:#fff">Recompute</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="2d" style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;padding:4px 9px;border-radius:6px;background:#4C7DFF;color:#fff">2d</span>
+      <span style="font-size:20px;font-weight:600">Recommendations</span>
+      <span style="font-size:14px;color:#98A2B3">&mdash; 29 high-severity findings become an ordered work queue, ranked by how many steps each one unblocks.</span>
+    </div>
+    <div style="width:1440px;height:940px;background:#06080C;border:1px solid #1E2430;border-radius:12px;overflow:hidden;display:flex;box-shadow:0 24px 64px rgba(0,0,0,0.5)">
+      <div style="width:224px;flex-shrink:0;background:#0A0D13;border-right:1px solid #1A1F29;display:flex;flex-direction:column">
+        <div style="height:60px;flex-shrink:0;display:flex;align-items:center;gap:11px;padding:0 20px;border-bottom:1px solid #1A1F29">
+          <svg viewBox="0 0 512 512" style="width:26px;height:26px;border-radius:50%;flex-shrink:0"><circle cx="256" cy="256" r="256" fill="#4C7DFF"></circle><polygon points="238,174 330.3,218.4 353,318.3 289.2,398.3 186.8,398.3 123,318.3 145.7,218.4" fill="none" stroke="#fff" stroke-width="40" stroke-linejoin="round"></polygon><rect x="332" y="96" width="40" height="322" rx="20" fill="#fff"></rect></svg>
+          <span style="font-size:15px;font-weight:600;letter-spacing:-0.01em">k8s-dencer</span>
+        </div>
+        <div style="padding:16px 12px;display:flex;flex-direction:column;gap:2px">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#4E5A6E;padding:6px 10px 8px">Plan</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#98A2B3;font-size:13.5px">Review<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#4E5A6E">14</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#98A2B3;font-size:13.5px">Cluster</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;background:#18203A;color:#B9CBFF;font-size:13.5px;font-weight:500">Recommendations<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;padding:1px 6px;border-radius:9px;background:#3A2416;color:#F5B544">29</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#98A2B3;font-size:13.5px">History</div>
+        </div>
+        <div style="margin-top:auto;padding:14px 12px;border-top:1px solid #1A1F29">
+          <div style="padding:10px 11px;border:1px solid #1E2430;border-radius:8px;display:flex;flex-direction:column;gap:3px;background:#0C0F16">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#4E5A6E">Cluster</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#E8ECF3">dencer-demo</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+        <div style="height:60px;flex-shrink:0;border-bottom:1px solid #1A1F29;display:flex;align-items:center;gap:12px;padding:0 24px;background:#0A0D13">
+          <span style="font-size:14.5px;font-weight:600">Recommendations</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#667085">34 findings &middot; 29 high</span>
+          <div style="margin-left:auto;display:flex;gap:4px">
+            <span style="font-size:12px;padding:5px 11px;border-radius:6px;background:#151A24;color:#E8ECF3">Blocking a step</span>
+            <span style="font-size:12px;padding:5px 11px;border-radius:6px;color:#98A2B3">All findings</span>
+          </div>
+        </div>
+
+        <div style="padding:24px 24px 20px;border-bottom:1px solid #1A1F29;background:#0A0D13;display:flex;align-items:flex-end;justify-content:space-between;gap:24px">
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#667085">Ranked by nodes unlocked</span>
+            <h2 style="margin:0;font-size:30px;font-weight:600;letter-spacing:-0.025em">6 rules hold back 11 of your 14 nodes</h2>
+            <p style="margin:0;font-size:13.5px;color:#98A2B3">Fixing the top three would take today&rsquo;s safe plan from 3 nodes to 8.</p>
+          </div>
+          <div style="display:flex;align-items:center;gap:22px">
+            <div style="display:flex;flex-direction:column;gap:2px"><span style="font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:500">11 steps</span><span style="font-size:11.5px;color:#667085">would unblock</span></div>
+            <div style="width:1px;height:30px;background:#1E2430"></div>
+            <div style="display:flex;flex-direction:column;gap:2px"><span style="font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:500">79 cores</span><span style="font-size:11.5px;color:#667085">still stranded</span></div>
+          </div>
+        </div>
+
+        <div style="flex:1;min-height:0;display:flex">
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;border-right:1px solid #1A1F29;min-height:0">
+            <div style="height:42px;flex-shrink:0;display:flex;align-items:center;gap:12px;padding:0 20px;border-bottom:1px solid #1A1F29">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.13em;text-transform:uppercase;color:#667085">Rule</span>
+              <span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.13em;text-transform:uppercase;color:#667085">Unblocks</span>
+            </div>
+            <div style="flex:1;min-height:0;overflow:hidden">
+              <sc-for list="{{ recs }}" as="r" hint-placeholder-count="6">
+                <div style="display:flex;align-items:flex-start;gap:12px;padding:14px 20px;border-bottom:1px solid #12161F;background:{{ r.rowBg }};border-left:2px solid {{ r.rowEdge }}">
+                  <span style="font-size:10px;font-weight:600;letter-spacing:0.08em;padding:2px 6px;border-radius:4px;background:{{ r.sevBg }};color:{{ r.sevColor }};flex-shrink:0;margin-top:1px">{{ r.sev }}</span>
+                  <div style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#E8ECF3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.rule }}</span>
+                    <span style="font-size:12.5px;line-height:1.45;color:#818C9E;text-wrap:pretty">{{ r.text }}</span>
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-end;flex-shrink:0">
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#7FA0FF">{{ r.unblocks }}</span>
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#4E5A6E">{{ r.nodes }}</span>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="width:452px;flex-shrink:0;display:flex;flex-direction:column;background:#0A0D13;min-height:0;overflow:hidden">
+            <div style="flex:0 0 auto;padding:18px 20px 14px;border-bottom:1px solid #1A1F29;display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;align-items:center;gap:9px">
+                <span style="font-size:10px;font-weight:600;letter-spacing:0.08em;padding:2px 6px;border-radius:4px;background:#40201F;color:#F2545B">HIGH</span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#818C9E">blocks steps 08, 09, 13</span>
+              </div>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:14.5px;color:#E8ECF3;line-height:1.4">PodDisruptionBudget/<br>dencer-demo-payments</span>
+              <p style="margin:0;font-size:13px;line-height:1.55;color:#98A2B3;text-wrap:pretty">minAvailable equals the replica count, so the budget allows zero disruptions. Every eviction request is refused &mdash; not just by k8s-dencer, but by anything that drains a node, including a cloud provider maintenance event.</p>
+            </div>
+
+            <div style="flex:1 1 0;min-height:0;overflow:hidden;padding:16px 20px;display:flex;flex-direction:column;gap:14px">
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.13em;text-transform:uppercase;color:#667085">Affected</span>
+                <div style="display:flex;flex-direction:column;gap:6px">
+                  <div style="display:flex;align-items:center;gap:10px;padding:8px 11px;border-radius:7px;background:#0F131B;border:1px solid #171D28"><span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#C6CEDB;flex:1">deploy/payments-worker</span><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#818C9E">3 replicas</span></div>
+                  <div style="display:flex;align-items:center;gap:10px;padding:8px 11px;border-radius:7px;background:#0F131B;border:1px solid #171D28"><span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#C6CEDB;flex:1">nodes kwok-std-0, kwok-std-1, kwok-std-10</span><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#818C9E">3 nodes</span></div>
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:8px;min-height:0">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.13em;text-transform:uppercase;color:#667085">Suggested change</span>
+                  <span style="margin-left:auto;font-size:12px;color:#7FA0FF">Copy patch</span>
+                </div>
+                <div style="padding:12px 14px;border-radius:8px;background:#080B10;border:1px solid #171D28;display:flex;flex-direction:column;gap:3px">
+                  <sc-for list="{{ yaml }}" as="y" hint-placeholder-count="9">
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;line-height:1.55;color:{{ y.color }};white-space:pre">{{ y.text }}</span>
+                  </sc-for>
+                </div>
+                <span style="font-size:12px;line-height:1.5;color:#818C9E;text-wrap:pretty">One replica of three may be unavailable at a time. k8s-dencer does not apply this &mdash; it is your change to make, in your repo.</span>
+              </div>
+            </div>
+
+            <div style="flex:0 0 auto;padding:14px 20px 18px;border-top:1px solid #1A1F29;display:flex;flex-direction:column;gap:9px">
+              <div style="display:flex;gap:8px">
+                <div style="flex:1;padding:9px 12px;border:1px solid #2A3346;border-radius:7px;text-align:center;font-size:13px;font-weight:500;color:#E8ECF3">Open the 3 blocked steps</div>
+                <div style="padding:9px 12px;border:1px solid #1E2430;border-radius:7px;font-size:13px;color:#98A2B3">Mute</div>
+              </div>
+              <span style="font-size:11.5px;color:#667085;text-align:center">Muting keeps the finding out of the queue but not out of the plan.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="2e" style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;padding:4px 9px;border-radius:6px;background:#4C7DFF;color:#fff">2e</span>
+      <span style="font-size:20px;font-weight:600">History</span>
+      <span style="font-size:14px;color:#98A2B3">&mdash; your &ldquo;estate over time&rdquo; chart, made legible, over an audit ledger of every run and who authorised it.</span>
+    </div>
+    <div style="width:1440px;height:940px;background:#06080C;border:1px solid #1E2430;border-radius:12px;overflow:hidden;display:flex;box-shadow:0 24px 64px rgba(0,0,0,0.5)">
+      <div style="width:224px;flex-shrink:0;background:#0A0D13;border-right:1px solid #1A1F29;display:flex;flex-direction:column">
+        <div style="height:60px;flex-shrink:0;display:flex;align-items:center;gap:11px;padding:0 20px;border-bottom:1px solid #1A1F29">
+          <svg viewBox="0 0 512 512" style="width:26px;height:26px;border-radius:50%;flex-shrink:0"><circle cx="256" cy="256" r="256" fill="#4C7DFF"></circle><polygon points="238,174 330.3,218.4 353,318.3 289.2,398.3 186.8,398.3 123,318.3 145.7,218.4" fill="none" stroke="#fff" stroke-width="40" stroke-linejoin="round"></polygon><rect x="332" y="96" width="40" height="322" rx="20" fill="#fff"></rect></svg>
+          <span style="font-size:15px;font-weight:600;letter-spacing:-0.01em">k8s-dencer</span>
+        </div>
+        <div style="padding:16px 12px;display:flex;flex-direction:column;gap:2px">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#4E5A6E;padding:6px 10px 8px">Plan</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#98A2B3;font-size:13.5px">Review<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#4E5A6E">14</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#98A2B3;font-size:13.5px">Cluster</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#98A2B3;font-size:13.5px">Recommendations<span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;padding:1px 6px;border-radius:9px;background:#3A2416;color:#F5B544">29</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;background:#18203A;color:#B9CBFF;font-size:13.5px;font-weight:500">History</div>
+        </div>
+        <div style="margin-top:auto;padding:14px 12px;border-top:1px solid #1A1F29">
+          <div style="padding:10px 11px;border:1px solid #1E2430;border-radius:8px;display:flex;flex-direction:column;gap:3px;background:#0C0F16">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#4E5A6E">Cluster</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#E8ECF3">dencer-demo</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+        <div style="height:60px;flex-shrink:0;border-bottom:1px solid #1A1F29;display:flex;align-items:center;gap:12px;padding:0 24px;background:#0A0D13">
+          <span style="font-size:14.5px;font-weight:600">History</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#667085">every plan, run and rehearsal on dencer-demo</span>
+          <div style="margin-left:auto;display:flex;gap:2px;padding:3px;background:#0F131B;border-radius:8px;border:1px solid #1A1F29">
+            <span style="font-size:12px;padding:5px 12px;border-radius:6px;background:#1E2430;color:#E8ECF3">24h</span>
+            <span style="font-size:12px;padding:5px 12px;border-radius:6px;color:#98A2B3">7d</span>
+            <span style="font-size:12px;padding:5px 12px;border-radius:6px;color:#98A2B3">30d</span>
+          </div>
+        </div>
+
+        <div style="padding:24px 24px 22px;border-bottom:1px solid #1A1F29;background:#0A0D13;display:flex;flex-direction:column;gap:18px">
+          <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#667085">The fleet you ran vs the fleet you needed</span>
+              <h2 style="margin:0;font-size:30px;font-weight:600;letter-spacing:-0.025em">You carried <span style="color:#F5B544">13 spare nodes</span> on average today</h2>
+            </div>
+            <div style="display:flex;align-items:center;gap:18px">
+              <div style="display:flex;align-items:center;gap:7px;font-size:12px;color:#98A2B3"><span style="width:10px;height:10px;border-radius:2px;background:#3D4A5E"></span>needed</div>
+              <div style="display:flex;align-items:center;gap:7px;font-size:12px;color:#98A2B3"><span style="width:10px;height:10px;border-radius:2px;background:#F5B544"></span>spare</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:flex-end;gap:4px;height:150px;padding-top:6px">
+            <div style="display:flex;flex-direction:column;justify-content:space-between;height:150px;padding-right:8px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#4E5A6E">
+              <span>28</span><span>21</span><span>14</span><span>7</span><span>0</span>
+            </div>
+            <sc-for list="{{ estate }}" as="e" hint-placeholder-count="24">
+              <div style="flex:1;height:150px;display:flex;flex-direction:column;justify-content:flex-end;gap:1px">
+                <div style="height:{{ e.gapH }};background:#F5B544;border-radius:2px 2px 0 0;opacity:0.85"></div>
+                <div style="height:{{ e.needH }};background:#3D4A5E;border-radius:0 0 2px 2px"></div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#4E5A6E;padding-left:34px">
+            <span>08:34</span><span>08:53</span><span>09:11</span><span>09:30</span><span>09:48</span>
+          </div>
+        </div>
+
+        <div style="flex:1;min-height:0;display:flex;flex-direction:column;padding:18px 24px 0;gap:12px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.13em;text-transform:uppercase;color:#667085">Ledger</span>
+            <span style="font-size:12px;color:#818C9E">6 entries &middot; retained 90 days</span>
+            <span style="margin-left:auto;font-size:12px;color:#7FA0FF">Export CSV</span>
+          </div>
+          <div style="display:grid;grid-template-columns:150px 96px 92px 104px 1fr 120px 74px;gap:14px;padding:0 4px 9px;border-bottom:1px solid #1E2430;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.12em;text-transform:uppercase;color:#667085">
+            <span>When</span><span>Plan</span><span>Steps</span><span>Reclaimed</span><span>Outcome</span><span>Authorised by</span><span></span>
+          </div>
+          <div style="flex:1;min-height:0;overflow:hidden">
+            <sc-for list="{{ history }}" as="h" hint-placeholder-count="6">
+              <div style="display:grid;grid-template-columns:150px 96px 92px 104px 1fr 120px 74px;gap:14px;align-items:center;padding:13px 4px;border-bottom:1px solid #12161F">
+                <span style="font-size:13px;color:#E8ECF3">{{ h.when }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#818C9E">{{ h.hash }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#C6CEDB">{{ h.steps }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#C6CEDB">{{ h.nodes }}</span>
+                <div style="display:flex;align-items:center;gap:9px;min-width:0">
+                  <span style="width:6px;height:6px;border-radius:2px;background:{{ h.color }};flex-shrink:0"></span>
+                  <span style="font-size:13px;color:{{ h.color }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ h.outcome }}</span>
+                </div>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#818C9E">{{ h.who }}</span>
+                <span style="font-size:12.5px;color:#7FA0FF">Trail</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<section style="padding:40px 56px 96px;display:flex;flex-direction:column;gap:48px">
+
+  <div style="display:flex;flex-direction:column;gap:12px;max-width:840px">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#7FA0FF">Turn 1 &middot; plan review, two directions</div>
+    <h1 style="margin:0;font-size:40px;font-weight:600;letter-spacing:-0.025em">k8s-dencer &mdash; product UI</h1>
+    <p style="margin:0;font-size:16px;line-height:1.6;color:#98A2B3;text-wrap:pretty">Same capabilities as your current build &mdash; plan header, Green/Yellow/Red triage, step list, Safety Guard verdicts, recommendations, rehearsal, history, the four cluster views &mdash; rebuilt around the one job: <strong style="color:#E8ECF3;font-weight:600">an SRE deciding whether to approve this plan.</strong> Both directions use the same design system below; they differ in what the screen leads with.</p>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:28px">
+    <div style="background:#0C0F16;border:1px solid #1E2430;border-radius:14px;padding:24px 28px;display:flex;flex-direction:column;gap:16px;min-width:300px">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#667085">Palette</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="height:44px;border-radius:8px;background:#06080C;border:1px solid #1E2430"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#667085">canvas</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="height:44px;border-radius:8px;background:#0C0F16;border:1px solid #1E2430"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#667085">surface</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="height:44px;border-radius:8px;background:#151A24"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#667085">raised</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="height:44px;border-radius:8px;background:#1E2430"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#667085">border</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="height:44px;border-radius:8px;background:#4C7DFF"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#667085">accent</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="height:44px;border-radius:8px;background:#3DD68C"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#667085">green</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="height:44px;border-radius:8px;background:#F5B544"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#667085">yellow</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="height:44px;border-radius:8px;background:#F2545B"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#667085">red</span></div>
+      </div>
+      <p style="margin:0;font-size:13px;line-height:1.55;color:#98A2B3;text-wrap:pretty">Your build sits at ~1.6:1 contrast in places (grey load bars on near-black). Every pair here clears WCAG AA: body text 8.9:1, secondary 5.2:1, all three verdict colours &ge; 4.6:1 on surface.</p>
+    </div>
+
+    <div style="background:#0C0F16;border:1px solid #1E2430;border-radius:14px;padding:24px 28px;display:flex;flex-direction:column;gap:18px;flex:1;min-width:420px">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#667085">What changed, and why</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px 28px">
+        <div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:13.5px;font-weight:600">One primary action, not three</span><span style="font-size:13px;line-height:1.5;color:#98A2B3">Run / Dry run / Run to optimum competed as equals. Now: one filled button reflecting the actual selection, rehearsal as its sibling, optimum demoted to a menu.</span></div>
+        <div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:13.5px;font-weight:600">The step list is the screen</span><span style="font-size:13px;line-height:1.5;color:#98A2B3">It was a 320&thinsp;px sidebar showing 4 of 14 steps. It is now the main object, grouped by verdict, with per-step Safety Guard reasoning.</span></div>
+        <div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:13.5px;font-weight:600">Red explains itself inline</span><span style="font-size:13px;line-height:1.5;color:#98A2B3">&ldquo;7 held back&rdquo; was a number with no path to the reason. Every held-back step now names the rule and the fix.</span></div>
+        <div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:13.5px;font-weight:600">Four views became one, plus lenses</span><span style="font-size:13px;line-height:1.5;color:#98A2B3">Rack / Wells / Panel showed the same nodes three ways at equal weight. They are now switchable lenses on one cluster panel.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="1a" style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;padding:4px 9px;border-radius:6px;background:#4C7DFF;color:#fff">1a</span>
+      <span style="font-size:20px;font-weight:600">The ledger</span>
+      <span style="font-size:14px;color:#98A2B3">&mdash; leads with the decision. Every step, its verdict, and its reasoning, in one reviewable list.</span>
+    </div>
+
+    <div style="width:1440px;height:940px;background:#06080C;border:1px solid #1E2430;border-radius:12px;overflow:hidden;display:flex;box-shadow:0 24px 64px rgba(0,0,0,0.5)">
+
+      <div style="width:224px;flex-shrink:0;background:#0A0D13;border-right:1px solid #1A1F29;display:flex;flex-direction:column">
+        <div style="height:60px;flex-shrink:0;display:flex;align-items:center;gap:11px;padding:0 20px;border-bottom:1px solid #1A1F29">
+          <svg viewBox="0 0 512 512" style="width:26px;height:26px;border-radius:50%;flex-shrink:0"><circle cx="256" cy="256" r="256" fill="#4C7DFF"></circle><polygon points="238,174 330.3,218.4 353,318.3 289.2,398.3 186.8,398.3 123,318.3 145.7,218.4" fill="none" stroke="#fff" stroke-width="40" stroke-linejoin="round"></polygon><rect x="332" y="96" width="40" height="322" rx="20" fill="#fff"></rect></svg>
+          <span style="font-size:15px;font-weight:600;letter-spacing:-0.01em">k8s-dencer</span>
+        </div>
+        <div style="padding:16px 12px;display:flex;flex-direction:column;gap:2px">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#4E5A6E;padding:6px 10px 8px">Plan</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;background:#18203A;color:#B9CBFF;font-size:13.5px;font-weight:500">
+            <svg viewBox="0 0 16 16" style="width:15px;height:15px;flex-shrink:0"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"></path></svg>
+            Review
+            <span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#7FA0FF">14</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#98A2B3;font-size:13.5px">
+            <svg viewBox="0 0 16 16" style="width:15px;height:15px;flex-shrink:0"><rect x="2" y="2.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4" fill="none"></rect><rect x="9" y="2.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4" fill="none"></rect><rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4" fill="none"></rect><rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4" fill="none"></rect></svg>
+            Cluster
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#98A2B3;font-size:13.5px">
+            <svg viewBox="0 0 16 16" style="width:15px;height:15px;flex-shrink:0"><path d="M8 2v3M8 11v3M3.5 8h-2M14.5 8h-2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.4" fill="none"></circle></svg>
+            Recommendations
+            <span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;padding:1px 6px;border-radius:9px;background:#3A2416;color:#F5B544">29</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:#98A2B3;font-size:13.5px">
+            <svg viewBox="0 0 16 16" style="width:15px;height:15px;flex-shrink:0"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4" fill="none"></circle><path d="M8 5v3.2l2.2 1.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"></path></svg>
+            History
+          </div>
+        </div>
+        <div style="margin-top:auto;padding:14px 12px;border-top:1px solid #1A1F29;display:flex;flex-direction:column;gap:10px">
+          <div style="padding:10px 11px;border:1px solid #1E2430;border-radius:8px;display:flex;flex-direction:column;gap:3px;background:#0C0F16">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#4E5A6E">Cluster</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#E8ECF3">dencer-demo</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding:2px 4px">
+            <div style="width:22px;height:22px;border-radius:5px;background:#1E2430;display:flex;align-items:center;justify-content:center;font-size:10px;font-family:'IBM Plex Mono',monospace;color:#98A2B3">sa</div>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#667085;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">k8s-dencer-ui</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+
+        <div style="height:60px;flex-shrink:0;border-bottom:1px solid #1A1F29;display:flex;align-items:center;gap:16px;padding:0 24px;background:#0A0D13">
+          <div style="display:flex;align-items:baseline;gap:9px">
+            <span style="font-size:14.5px;font-weight:600">Consolidation plan</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#667085">8081cdf</span>
+          </div>
+          <div style="width:1px;height:22px;background:#1E2430"></div>
+          <div style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:#98A2B3">
+            <span style="width:6px;height:6px;border-radius:50%;background:#3DD68C"></span>
+            Fresh &middot; computed 41s ago
+          </div>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#4E5A6E">greedy-first-fit-decreasing</span>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+            <div style="display:flex;align-items:center;gap:7px;padding:6px 11px;border:1px solid #1E2430;border-radius:7px;font-size:12.5px;color:#98A2B3">
+              <svg viewBox="0 0 16 16" style="width:13px;height:13px"><path d="M13.5 8a5.5 5.5 0 1 1-1.7-4M13.5 2.5V6h-3.4" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"></path></svg>
+              Recompute
+            </div>
+            <div style="width:30px;height:30px;border:1px solid #1E2430;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#98A2B3">
+              <svg viewBox="0 0 16 16" style="width:14px;height:14px"><circle cx="8" cy="8" r="2.6" stroke="currentColor" stroke-width="1.4" fill="none"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path></svg>
+            </div>
+          </div>
+        </div>
+
+        <div style="padding:26px 24px 20px;border-bottom:1px solid #1A1F29;display:flex;align-items:flex-start;gap:32px;background:#0A0D13">
+          <div style="display:flex;flex-direction:column;gap:11px;min-width:0;flex:1">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#667085">If you approve everything safe</div>
+            <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
+              <h2 style="margin:0;font-size:34px;font-weight:600;letter-spacing:-0.025em;line-height:1.05">Reclaim 3 of 24 nodes</h2>
+              <span style="font-size:15px;color:#98A2B3">now &middot; <span style="color:#E8ECF3">14 reclaimable</span> if the held-back rules are resolved</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:22px;padding-top:2px">
+              <div style="display:flex;flex-direction:column;gap:2px"><span style="font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:500">21 cores</span><span style="font-size:11.5px;color:#667085">returned to the pool</span></div>
+              <div style="width:1px;height:30px;background:#1E2430"></div>
+              <div style="display:flex;flex-direction:column;gap:2px"><span style="font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:500">116 GiB</span><span style="font-size:11.5px;color:#667085">memory freed</span></div>
+              <div style="width:1px;height:30px;background:#1E2430"></div>
+              <div style="display:flex;flex-direction:column;gap:2px"><span style="font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:500">6 pods</span><span style="font-size:11.5px;color:#667085">rescheduled, 0 downtime</span></div>
+            </div>
+          </div>
+
+          <div style="width:300px;flex-shrink:0;display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;gap:2px">
+              <div style="flex:3;background:#3DD68C;border-radius:4px 0 0 4px"></div>
+              <div style="flex:4;background:#F5B544"></div>
+              <div style="flex:7;background:#F2545B;border-radius:0 4px 4px 0"></div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+              <div style="padding:10px 11px;border-radius:8px;background:#0F1A16;border:1px solid #1D3A2C;display:flex;flex-direction:column;gap:2px">
+                <div style="display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:#3DD68C"></span><span style="font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:#3DD68C">3</span></div>
+                <span style="font-size:11.5px;color:#7FCFA8">Safe now</span>
+              </div>
+              <div style="padding:10px 11px;border-radius:8px;background:#1A1509;border:1px solid #3D2F13;display:flex;flex-direction:column;gap:2px">
+                <div style="display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:1px;background:#F5B544;transform:rotate(45deg)"></span><span style="font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:#F5B544">4</span></div>
+                <span style="font-size:11.5px;color:#D2A85C">Needs a call</span>
+              </div>
+              <div style="padding:10px 11px;border-radius:8px;background:#1C0F11;border:1px solid #40201F;display:flex;flex-direction:column;gap:2px">
+                <div style="display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:1.5px;background:#F2545B"></span><span style="font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:#F2545B">7</span></div>
+                <span style="font-size:11.5px;color:#D98A8D">Held back</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="flex:1;min-height:0;display:flex">
+
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;border-right:1px solid #1A1F29">
+            <div style="height:46px;flex-shrink:0;display:flex;align-items:center;gap:10px;padding:0 20px;border-bottom:1px solid #1A1F29">
+              <div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#98A2B3">
+                <span style="width:14px;height:14px;border-radius:3px;border:1.5px solid #4C7DFF;background:#4C7DFF;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 10 10" style="width:8px;height:8px"><path d="M1.5 5.2 4 7.5 8.5 2.5" stroke="#06080C" stroke-width="1.8" fill="none" stroke-linecap="round"></path></svg></span>
+                3 of 14 selected
+              </div>
+              <div style="width:1px;height:18px;background:#1E2430"></div>
+              <div style="display:flex;gap:4px">
+                <span style="font-size:12px;padding:4px 9px;border-radius:6px;background:#151A24;color:#E8ECF3">All 14</span>
+                <span style="font-size:12px;padding:4px 9px;border-radius:6px;color:#98A2B3">Safe 3</span>
+                <span style="font-size:12px;padding:4px 9px;border-radius:6px;color:#98A2B3">Caution 4</span>
+                <span style="font-size:12px;padding:4px 9px;border-radius:6px;color:#98A2B3">Held 7</span>
+              </div>
+              <span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#4E5A6E">execution order</span>
+            </div>
+
+            <div style="flex:1;min-height:0;position:relative;display:flex;flex-direction:column"><div style="flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column">
+              <sc-for list="{{ groups }}" as="g" hint-placeholder-count="2">
+                <div style="display:flex;flex-direction:column">
+                  <div style="display:flex;align-items:center;gap:9px;padding:11px 20px 8px;background:#080B10">
+                    <span style="width:7px;height:7px;border-radius:2px;background:{{ g.color }}"></span>
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.13em;text-transform:uppercase;color:{{ g.color }}">{{ g.label }}</span>
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#4E5A6E">{{ g.note }}</span>
+                  </div>
+                  <sc-for list="{{ g.rows }}" as="r" hint-placeholder-count="3">
+                    <div style="display:grid;grid-template-columns:26px 30px 1fr 96px 78px 1fr 16px;align-items:center;gap:12px;padding:11px 20px;border-top:1px solid #12161F;background:{{ r.bg }}">
+                      <span style="width:15px;height:15px;border-radius:3.5px;border:1.5px solid {{ r.boxBorder }};background:{{ r.boxFill }};display:flex;align-items:center;justify-content:center">{{ r.tick }}</span>
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#4E5A6E">{{ r.n }}</span>
+                      <div style="display:flex;align-items:center;gap:9px;min-width:0">
+                        <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:{{ r.nameColor }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.node }}</span>
+                        <span style="font-size:10.5px;padding:1.5px 6px;border-radius:4px;background:#151A24;color:#818C9E;flex-shrink:0">{{ r.pool }}</span>
+                      </div>
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#98A2B3">{{ r.pods }}</span>
+                      <span style="font-size:11.5px;font-weight:500;color:{{ r.color }}">{{ r.verdict }}</span>
+                      <span style="font-size:12.5px;color:#818C9E;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.why }}</span>
+                      <span style="color:#3A4353;font-size:12px">&rsaquo;</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-for>
+            </div>
+            <div style="position:absolute;left:0;right:0;bottom:0;height:56px;pointer-events:none;background:linear-gradient(to bottom, rgba(6,8,12,0) 0%, rgba(6,8,12,0.92) 70%, #06080C 100%);display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px"><span style="font-size:11.5px;color:#818C9E">4 more steps below</span></div>
+            <div style="position:absolute;top:8px;right:4px;bottom:8px;width:4px;border-radius:2px;background:#12161F"><div style="width:4px;height:62%;border-radius:2px;background:#2A3346"></div></div>
+          </div>
+          </div>
+
+          <div style="width:392px;flex-shrink:0;display:flex;flex-direction:column;background:#0A0D13;min-height:0;overflow:hidden">
+            <div style="padding:18px 20px 14px;border-bottom:1px solid #1A1F29;display:flex;flex-direction:column;gap:9px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="width:7px;height:7px;border-radius:1px;background:#F5B544;transform:rotate(45deg)"></span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.13em;text-transform:uppercase;color:#F5B544">Needs a call &middot; step 04</span>
+              </div>
+              <div style="display:flex;align-items:baseline;gap:10px">
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:17px;color:#E8ECF3">kwok-spot-4</span>
+                <span style="font-size:11.5px;padding:2px 7px;border-radius:4px;background:#151A24;color:#818C9E">spot</span>
+              </div>
+              <p style="margin:0;font-size:13px;line-height:1.55;color:#98A2B3;text-wrap:pretty">Drainable, but one of the three pods is the only replica of a workload with no PodDisruptionBudget. Nothing will stop the eviction &mdash; that is the call you are making.</p>
+            </div>
+
+            <div style="flex:1 1 0;min-height:0;position:relative;padding:16px 20px 8px;display:flex;flex-direction:column;gap:11px;overflow:hidden">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.13em;text-transform:uppercase;color:#667085">Safety Guard</span>
+              <sc-for list="{{ checks }}" as="c" hint-placeholder-count="5">
+                <div style="display:grid;grid-template-columns:16px 1fr auto;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #12161F">
+                  <span style="color:{{ c.color }};font-size:12px;text-align:center">{{ c.glyph }}</span>
+                  <span style="font-size:12.5px;color:#C6CEDB">{{ c.label }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:{{ c.color }}">{{ c.value }}</span>
+                </div>
+              </sc-for>
+              <div style="position:absolute;left:0;right:0;bottom:0;height:34px;pointer-events:none;background:linear-gradient(to bottom, rgba(10,13,19,0) 0%, #0A0D13 90%)"></div>
+            </div>
+
+            <div style="flex:0 0 auto;padding:14px 20px;display:flex;flex-direction:column;gap:10px;border-top:1px solid #12161F">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.13em;text-transform:uppercase;color:#667085">Where the pods go</span>
+              <sc-for list="{{ moves }}" as="m" hint-placeholder-count="3">
+                <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;background:#0F131B;border:1px solid #171D28">
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#C6CEDB;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.pod }}</span>
+                  <span style="color:#4E5A6E;font-size:12px">&rarr;</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#7FA0FF;flex-shrink:0">{{ m.to }}</span>
+                  <span style="font-size:10.5px;color:{{ m.flagColor }};flex-shrink:0">{{ m.flag }}</span>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="flex:0 0 auto;padding:14px 20px 18px;border-top:1px solid #1A1F29;display:flex;flex-direction:column;gap:9px">
+              <div style="display:flex;gap:8px">
+                <div style="flex:1;padding:9px 12px;border:1px solid #2A3346;border-radius:7px;text-align:center;font-size:13px;font-weight:500;color:#E8ECF3">Add to selection</div>
+                <div style="padding:9px 12px;border:1px solid #1E2430;border-radius:7px;text-align:center;font-size:13px;color:#98A2B3">Skip</div>
+              </div>
+              <span style="font-size:11.5px;color:#667085;text-align:center">Adding this step also adds a rollback point before it.</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="height:68px;flex-shrink:0;border-top:1px solid #1A1F29;background:#0A0D13;display:flex;align-items:center;gap:18px;padding:0 24px">
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span style="font-size:13.5px;font-weight:600">3 steps selected &middot; 6 pods move</span>
+            <span style="font-size:12px;color:#818C9E">All Green. Safety Guard re-runs per step; the run halts on the first refusal.</span>
+          </div>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+            <div style="padding:9px 14px;border:1px solid #1E2430;border-radius:7px;font-size:13px;color:#98A2B3">Copy as YAML</div>
+            <div style="padding:9px 14px;border:1px solid #2A3346;border-radius:7px;font-size:13px;font-weight:500;color:#E8ECF3">Rehearse</div>
+            <div style="padding:10px 18px;border-radius:7px;background:{{ accent }};font-size:13.5px;font-weight:600;color:#fff;display:flex;align-items:center;gap:9px">
+              Drain 3 nodes
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;opacity:0.7">&crarr;</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="1b" style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;padding:4px 9px;border-radius:6px;background:#4C7DFF;color:#fff">1b</span>
+      <span style="font-size:20px;font-weight:600">The packing</span>
+      <span style="font-size:14px;color:#98A2B3">&mdash; leads with the shape of the change. Before / after node packing is the hero; the ledger sits under it.</span>
+    </div>
+
+    <div style="width:1440px;height:940px;background:#06080C;border:1px solid #1E2430;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.5)">
+      <div style="height:56px;flex-shrink:0;border-bottom:1px solid #1A1F29;display:flex;align-items:center;gap:14px;padding:0 22px;background:#0A0D13">
+        <svg viewBox="0 0 512 512" style="width:24px;height:24px;border-radius:50%"><circle cx="256" cy="256" r="256" fill="#4C7DFF"></circle><polygon points="238,174 330.3,218.4 353,318.3 289.2,398.3 186.8,398.3 123,318.3 145.7,218.4" fill="none" stroke="#fff" stroke-width="40" stroke-linejoin="round"></polygon><rect x="332" y="96" width="40" height="322" rx="20" fill="#fff"></rect></svg>
+        <span style="font-size:14.5px;font-weight:600">k8s-dencer</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#667085">dencer-demo</span>
+        <div style="margin-left:24px;display:flex;gap:2px;padding:3px;background:#0F131B;border-radius:8px;border:1px solid #1A1F29">
+          <span style="font-size:12.5px;padding:5px 12px;border-radius:6px;background:#1E2430;color:#E8ECF3">Plan</span>
+          <span style="font-size:12.5px;padding:5px 12px;border-radius:6px;color:#98A2B3">Cluster</span>
+          <span style="font-size:12.5px;padding:5px 12px;border-radius:6px;color:#98A2B3">Recommendations</span>
+          <span style="font-size:12.5px;padding:5px 12px;border-radius:6px;color:#98A2B3">History</span>
+        </div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#4E5A6E">8081cdf &middot; 41s ago</span>
+          <div style="padding:8px 16px;border-radius:7px;background:#4C7DFF;font-size:13px;font-weight:600;color:#fff">Drain 3 nodes</div>
+        </div>
+      </div>
+
+      <div style="padding:22px 24px 16px;display:flex;align-items:flex-end;justify-content:space-between;gap:24px">
+        <div style="display:flex;flex-direction:column;gap:7px">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#667085">The fleet you run vs the fleet you need</span>
+          <h2 style="margin:0;font-size:30px;font-weight:600;letter-spacing:-0.025em">24 nodes today &rarr; <span style="color:#3DD68C">21</span> safely, <span style="color:#818C9E">10 at optimum</span></h2>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:12px;padding:5px 11px;border-radius:6px;background:#151A24;color:#E8ECF3">Packing</span>
+          <span style="font-size:12px;padding:5px 11px;border-radius:6px;color:#98A2B3">Rack</span>
+          <span style="font-size:12px;padding:5px 11px;border-radius:6px;color:#98A2B3">Load</span>
+        </div>
+      </div>
+
+      <div style="padding:0 24px;display:flex;gap:16px;flex-shrink:0">
+        <div style="flex:1;border:1px solid #1A1F29;border-radius:10px;background:#0A0D13;padding:16px 18px;display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;align-items:baseline;gap:9px">
+            <span style="font-size:13.5px;font-weight:600">Now</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#667085">24 nodes &middot; 43 pods &middot; 38% mean utilisation</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:7px">
+            <sc-for list="{{ before }}" as="b" hint-placeholder-count="24">
+              <div style="display:flex;flex-direction:column;justify-content:flex-end;height:74px;border-radius:5px;background:#0F131B;border:1px solid #171D28;overflow:hidden;padding:3px">
+                <div style="height:{{ b.h }};border-radius:3px;background:{{ b.fill }}"></div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="flex:1;border:1px solid #24374F;border-radius:10px;background:#0A0F16;padding:16px 18px;display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;align-items:baseline;gap:9px">
+            <span style="font-size:13.5px;font-weight:600;color:#B9CBFF">After the 3 safe steps</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#667085">21 nodes &middot; 43 pods &middot; 43% mean</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:7px">
+            <sc-for list="{{ after }}" as="a" hint-placeholder-count="24">
+              <div style="display:flex;flex-direction:column;justify-content:flex-end;height:74px;border-radius:5px;background:{{ a.bg }};border:1px solid {{ a.border }};overflow:hidden;padding:3px">
+                <div style="height:{{ a.h }};border-radius:3px;background:{{ a.fill }}"></div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+      <div style="padding:8px 24px 0;display:flex;align-items:center;gap:18px;flex-shrink:0">
+        <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:#818C9E"><span style="width:9px;height:9px;border-radius:2px;background:#3D4A5E"></span>pods staying put</div>
+        <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:#818C9E"><span style="width:9px;height:9px;border-radius:2px;background:#4C7DFF"></span>pods arriving</div>
+        <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:#818C9E"><span style="width:9px;height:9px;border-radius:2px;background:#3DD68C"></span>node reclaimed</div>
+        <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:#818C9E"><span style="width:9px;height:9px;border-radius:2px;background:#F2545B"></span>held back by a rule</div>
+        <span style="margin-left:auto;font-size:12px;color:#667085">Hover a node to trace its pods across both sides.</span>
+      </div>
+
+      <div style="flex:1;min-height:0;margin:18px 24px 0;border-top:1px solid #1A1F29;display:flex;min-width:0">
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;padding-right:20px">
+          <div style="display:flex;align-items:center;gap:10px;padding:14px 0 10px">
+            <span style="font-size:13.5px;font-weight:600">14 steps</span>
+            <div style="display:flex;gap:4px;margin-left:6px">
+              <span style="font-size:11.5px;padding:3px 8px;border-radius:5px;background:#0F1A16;color:#3DD68C;border:1px solid #1D3A2C">3 safe</span>
+              <span style="font-size:11.5px;padding:3px 8px;border-radius:5px;background:#1A1509;color:#F5B544;border:1px solid #3D2F13">4 caution</span>
+              <span style="font-size:11.5px;padding:3px 8px;border-radius:5px;background:#1C0F11;color:#F2545B;border:1px solid #40201F">7 held</span>
+            </div>
+            <span style="margin-left:auto;font-size:12px;color:#667085">3 selected</span>
+          </div>
+          <div style="flex:1;min-height:0;overflow:hidden">
+            <sc-for list="{{ flatRows }}" as="r" hint-placeholder-count="7">
+              <div style="display:grid;grid-template-columns:26px 28px 1fr 84px 74px 1fr;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid #12161F">
+                <span style="width:15px;height:15px;border-radius:3.5px;border:1.5px solid {{ r.boxBorder }};background:{{ r.boxFill }};display:flex;align-items:center;justify-content:center">{{ r.tick }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#4E5A6E">{{ r.n }}</span>
+                <div style="display:flex;align-items:center;gap:8px;min-width:0">
+                  <span style="width:6px;height:6px;border-radius:2px;background:{{ r.color }};flex-shrink:0"></span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:{{ r.nameColor }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.node }}</span>
+                </div>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#98A2B3">{{ r.pods }}</span>
+                <span style="font-size:11.5px;font-weight:500;color:{{ r.color }}">{{ r.verdict }}</span>
+                <span style="font-size:12px;color:#818C9E;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.why }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="width:330px;flex-shrink:0;border-left:1px solid #1A1F29;padding:14px 0 0 20px;display:flex;flex-direction:column;gap:12px;min-height:0">
+          <div style="display:flex;align-items:center;gap:9px">
+            <span style="font-size:13.5px;font-weight:600">What is blocking the rest</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:9px;min-height:0;overflow:hidden">
+            <sc-for list="{{ blockers }}" as="b" hint-placeholder-count="3">
+              <div style="padding:11px 12px;border-radius:8px;background:#0F131B;border:1px solid #171D28;display:flex;flex-direction:column;gap:6px">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span style="font-size:10px;font-weight:600;letter-spacing:0.08em;padding:2px 6px;border-radius:4px;background:{{ b.tagBg }};color:{{ b.tagColor }}">{{ b.tag }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#818C9E;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ b.rule }}</span>
+                </div>
+                <p style="margin:0;font-size:12.5px;line-height:1.5;color:#C6CEDB;text-wrap:pretty">{{ b.text }}</p>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span style="font-size:11.5px;color:#7FA0FF">{{ b.fix }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#4E5A6E">unblocks {{ b.unblocks }}</span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#4C7DFF&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;#4C7DFF&quot;,&quot;#6E5BFF&quot;,&quot;#2AA6C7&quot;,&quot;#3DD68C&quot;],&quot;section&quot;:&quot;Theme&quot;}}">
+const G = '#3DD68C', Y = '#F5B544', R = '#F2545B';
+const tick = React.createElement('svg', { viewBox: '0 0 10 10', style: { width: 8, height: 8 } },
+  React.createElement('path', { d: 'M1.5 5.2 4 7.5 8.5 2.5', stroke: '#06080C', strokeWidth: 1.8, fill: 'none', strokeLinecap: 'round' }));
+
+const SAFE = [
+  { n: '01', node: 'kwok-himem-1', pool: 'himem', pods: '2 pods', why: 'All 2 pods have spare replicas and a home' },
+  { n: '02', node: 'kwok-himem-2', pool: 'himem', pods: '2 pods', why: 'PDB headroom 2, spread unaffected' },
+  { n: '03', node: 'kwok-himem-3', pool: 'himem', pods: '2 pods', why: 'PDB headroom 2, spread unaffected' }
+];
+const CAUTION = [
+  { n: '04', node: 'kwok-spot-4', pool: 'spot', pods: '3 pods', why: '1 single-replica pod, no PDB declared', sel: 'focus' },
+  { n: '05', node: 'kwok-spot-7', pool: 'spot', pods: '3 pods', why: 'Zone b drops to 1 of 2 for checkout-api' },
+  { n: '06', node: 'kwok-std-9', pool: 'standard', pods: '3 pods', why: 'Destination has no matching toleration yet' },
+  { n: '07', node: 'kwok-std-7', pool: 'standard', pods: '3 pods', why: 'Pod anti-affinity tightens to zero slack' }
+];
+const HELD = [
+  { n: '08', node: 'kwok-std-0', pool: 'standard', pods: '3 pods', why: 'PDB dencer-demo-payments allows 0 disruptions' },
+  { n: '09', node: 'kwok-std-1', pool: 'standard', pods: '3 pods', why: 'PDB dencer-demo-payments allows 0 disruptions' },
+  { n: '10', node: 'kwok-spot-1', pool: 'spot', pods: '4 pods', why: 'No node satisfies required node affinity' },
+  { n: '11', node: 'kwok-std-8', pool: 'standard', pods: '4 pods', why: 'Would break topology spread, maxSkew 1' },
+  { n: '12', node: 'kwok-spot-0', pool: 'spot', pods: '4 pods', why: 'Local storage pod cannot be rescheduled' },
+  { n: '13', node: 'kwok-std-10', pool: 'standard', pods: '3 pods', why: 'PDB dencer-demo-search allows 0 disruptions' },
+  { n: '14', node: 'orbstack', pool: 'control', pods: '3 pods', why: 'Control-plane node, excluded by policy' }
+];
+
+class Component extends DCLogic {
+  row(r, verdict, color, selected) {
+    return {
+      ...r, verdict, color,
+      nameColor: verdict === 'Held back' ? '#818C9E' : '#E8ECF3',
+      bg: r.sel === 'focus' ? '#101521' : 'transparent',
+      boxBorder: selected ? '#4C7DFF' : '#2A3346',
+      boxFill: selected ? '#4C7DFF' : 'transparent',
+      tick: selected ? tick : null
+    };
+  }
+  lightRows(rows, verdict, color, selected) {
+    const tickL = React.createElement('svg', { viewBox: '0 0 10 10', style: { width: 8, height: 8 } },
+      React.createElement('path', { d: 'M1.5 5.2 4 7.5 8.5 2.5', stroke: '#FFFFFF', strokeWidth: 1.8, fill: 'none', strokeLinecap: 'round' }));
+    return rows.map(r => ({
+      ...r, verdict, color,
+      nameColor: verdict === 'Held back' ? '#6B7684' : '#0B1220',
+      bg: r.sel === 'focus' ? '#EFF3FE' : '#FFFFFF',
+      boxBorder: selected ? '#2A5FE0' : '#C2CAD6',
+      boxFill: selected ? '#2A5FE0' : '#FFFFFF',
+      tick: selected ? tickL : null
+    }));
+  }
+  extra(accent) {
+    const phase = (label, state) => ({
+      label,
+      color: state === 'done' ? G : state === 'live' ? accent : '#4E5A6E',
+      bg: state === 'done' ? '#0F1A16' : state === 'live' ? '#101A33' : '#0F131B',
+      border: state === 'done' ? '#1D3A2C' : state === 'live' ? '#24374F' : '#171D28'
+    });
+    return {
+      rehearsal: [
+        { n: '01', node: 'kwok-himem-1', pods: '2 pods', outcome: 'Would drain cleanly', color: G, detail: '6 checks passed · 2 pods placed on kwok-std-3, kwok-std-6' },
+        { n: '02', node: 'kwok-himem-2', pods: '2 pods', outcome: 'Would drain cleanly', color: G, detail: '6 checks passed · 2 pods placed on kwok-std-4' },
+        { n: '03', node: 'kwok-himem-3', pods: '2 pods', outcome: 'Would drain cleanly', color: G, detail: '6 checks passed · 2 pods placed on kwok-std-6, kwok-std-11' }
+      ],
+      trail: [
+        { t: '09:12:04', text: 'rehearsal started · plan 8081cdf · 3 steps · no cluster writes', color: '#818C9E' },
+        { t: '09:12:04', text: 'step 01 kwok-himem-1 · safety guard: 6/6 pass', color: '#C6CEDB' },
+        { t: '09:12:05', text: '  pdb dencer-demo/api  headroom 2  ok', color: '#818C9E' },
+        { t: '09:12:05', text: '  topology checkout-api  skew 0 → 0  ok', color: '#818C9E' },
+        { t: '09:12:05', text: '  simulated placement  2/2 pods scheduled', color: '#818C9E' },
+        { t: '09:12:06', text: 'step 02 kwok-himem-2 · safety guard: 6/6 pass', color: '#C6CEDB' },
+        { t: '09:12:07', text: 'step 03 kwok-himem-3 · safety guard: 6/6 pass', color: '#C6CEDB' },
+        { t: '09:12:07', text: 'rehearsal complete · 3 of 3 would succeed · 21 cores, 116 GiB', color: G },
+        { t: '09:12:07', text: 'no node was cordoned · no pod was evicted', color: '#818C9E' }
+      ],
+      runSteps: [
+        { n: '01', node: 'kwok-himem-1', state: 'Reclaimed', color: G, meta: '2 pods moved · 12s', phases: [phase('cordon', 'done'), phase('evict', 'done'), phase('verify', 'done'), phase('reclaim', 'done')] },
+        { n: '02', node: 'kwok-himem-2', state: 'Evicting', color: accent, meta: '1 of 2 pods moved · rollback point set', phases: [phase('cordon', 'done'), phase('evict', 'live'), phase('verify', 'next'), phase('reclaim', 'next')] },
+        { n: '03', node: 'kwok-himem-3', state: 'Queued', color: '#818C9E', meta: 'safety guard re-runs before this step', phases: [phase('cordon', 'next'), phase('evict', 'next'), phase('verify', 'next'), phase('reclaim', 'next')] }
+      ],
+      runLog: [
+        { t: '09:14:22', text: 'run started · 3 steps · abort available at any step boundary', color: '#818C9E' },
+        { t: '09:14:23', text: 'step 01 cordon kwok-himem-1', color: '#C6CEDB' },
+        { t: '09:14:29', text: 'step 01 evict api-7c2f, api-9d18 → kwok-std-3, kwok-std-6', color: '#C6CEDB' },
+        { t: '09:14:35', text: 'step 01 reclaimed · 7 cores, 38 GiB returned', color: G },
+        { t: '09:14:36', text: 'step 02 safety guard re-run: 6/6 pass', color: '#C6CEDB' },
+        { t: '09:14:37', text: 'step 02 rollback point r-4471 set', color: '#818C9E' },
+        { t: '09:14:38', text: 'step 02 evict ledger-cron-0a13 → kwok-std-4', color: '#C6CEDB' }
+      ],
+      haltSteps: [
+        { n: '01', node: 'kwok-himem-1', state: 'Reclaimed', color: G, meta: '2 pods moved · 12s' },
+        { n: '02', node: 'kwok-himem-2', state: 'Reclaimed', color: G, meta: '2 pods moved · 14s' },
+        { n: '03', node: 'kwok-himem-3', state: 'Refused', color: R, meta: 'cordon reverted · no pod was evicted' }
+      ],
+      recs: [
+        { sev: 'HIGH', sevBg: '#40201F', sevColor: '#F2545B', rule: 'PodDisruptionBudget/dencer-demo-payments', unblocks: '3 steps', nodes: '11 cores · 60 GiB', text: 'Allows 0 disruptions (3 healthy, 3 required): every drain is refused.', sel: true },
+        { sev: 'HIGH', sevBg: '#40201F', sevColor: '#F2545B', rule: 'nodeAffinity/gpu-batch', unblocks: '1 step', nodes: '4 cores · 24 GiB', text: 'Required node affinity matches no node outside the pool being drained.', sel: false },
+        { sev: 'HIGH', sevBg: '#40201F', sevColor: '#F2545B', rule: 'PodDisruptionBudget/dencer-demo-search', unblocks: '1 step', nodes: '3 cores · 16 GiB', text: 'Allows 0 disruptions; the search tier has no surge capacity.', sel: false },
+        { sev: 'MED', sevBg: '#3D2F13', sevColor: '#F5B544', rule: 'topologySpread/checkout-api', unblocks: '2 steps', nodes: '7 cores · 38 GiB', text: 'maxSkew 1 across 3 zones leaves no slack; zone b would fall to one replica.', sel: false },
+        { sev: 'MED', sevBg: '#3D2F13', sevColor: '#F5B544', rule: 'emptyDir/media-transcode', unblocks: '1 step', nodes: '4 cores · 24 GiB', text: 'Local storage pod cannot be rescheduled without data loss.', sel: false },
+        { sev: 'LOW', sevBg: '#1E2430', sevColor: '#98A2B3', rule: 'replicas/ledger-cron', unblocks: '0 steps', nodes: 'safety only', text: 'Single replica with no PDB: eviction is allowed but unprotected.', sel: false }
+      ].map(r => ({ ...r, rowBg: r.sel ? '#101521' : 'transparent', rowEdge: r.sel ? accent : 'transparent' })),
+      yaml: [
+        { text: 'apiVersion: policy/v1', color: '#818C9E' },
+        { text: 'kind: PodDisruptionBudget', color: '#818C9E' },
+        { text: 'metadata:', color: '#818C9E' },
+        { text: '  name: dencer-demo-payments', color: '#C6CEDB' },
+        { text: 'spec:', color: '#818C9E' },
+        { text: '-  minAvailable: 3', color: R },
+        { text: '+  minAvailable: 2', color: G },
+        { text: '  selector:', color: '#818C9E' },
+        { text: '    matchLabels: { app: payments }', color: '#C6CEDB' }
+      ],
+      history: [
+        { when: 'Today 09:14', hash: '8081cdf', steps: '2 of 3', nodes: '2 nodes', outcome: 'Halted by Safety Guard', color: R, who: 'a.tedgimo' },
+        { when: 'Today 08:41', hash: '5c19ab2', steps: '4 of 4', nodes: '4 nodes', outcome: 'Completed', color: G, who: 'a.tedgimo' },
+        { when: 'Yesterday 22:03', hash: 'e77b410', steps: '0 of 6', nodes: '—', outcome: 'Rehearsal only', color: '#98A2B3', who: 'ci-bot' },
+        { when: 'Yesterday 17:30', hash: '2f0da84', steps: '3 of 3', nodes: '3 nodes', outcome: 'Completed', color: G, who: 'm.rivera' },
+        { when: 'Yesterday 09:02', hash: 'bb41c07', steps: '1 of 5', nodes: '1 node', outcome: 'Aborted by operator', color: Y, who: 'm.rivera' },
+        { when: 'Mon 14:22', hash: '9ad3e51', steps: '5 of 5', nodes: '5 nodes', outcome: 'Completed', color: G, who: 'a.tedgimo' }
+      ],
+      lightGroups: [
+        { label: 'Safe now', note: 'Safety Guard passed every check', color: '#17875A', rows: this.lightRows(SAFE, 'Safe', '#17875A', true) },
+        { label: 'Needs a call', note: 'drainable, but a judgement is yours to make', color: '#9A6400', rows: this.lightRows(CAUTION, 'Caution', '#9A6400', false) },
+        { label: 'Held back', note: 'a rule refuses the drain', color: '#C0343C', rows: this.lightRows(HELD, 'Held back', '#C0343C', false) }
+      ],
+      lightChecks: [
+        { label: 'PodDisruptionBudgets', value: '2 of 3 ok', color: '#9A6400', glyph: '\u25C6' },
+        { label: 'Topology spread', value: 'maxSkew held', color: '#17875A', glyph: '\u25CF' },
+        { label: 'Affinity / anti-affinity', value: 'satisfied', color: '#17875A', glyph: '\u25CF' },
+        { label: 'Taints & tolerations', value: 'satisfied', color: '#17875A', glyph: '\u25CF' },
+        { label: 'Single-replica workloads', value: '1 found', color: '#9A6400', glyph: '\u25C6' },
+        { label: 'Destination capacity', value: '3 of 3 placed', color: '#17875A', glyph: '\u25CF' }
+      ],
+      lightMoves: [
+        { pod: 'payments-worker-7f4c', to: 'kwok-std-3', flag: '', flagColor: '#6B7684' },
+        { pod: 'search-indexer-2b91', to: 'kwok-std-4', flag: '', flagColor: '#6B7684' },
+        { pod: 'ledger-cron-0a13', to: 'kwok-std-6', flag: 'only replica', flagColor: '#9A6400' }
+      ],
+      wells: [
+        ['kwok-std-3', 'standard', 71, 14, 'in'],
+        ['kwok-std-6', 'standard', 66, 21, 'in'],
+        ['kwok-std-4', 'standard', 69, 14, 'in'],
+        ['kwok-std-11', 'standard', 64, 0, 'room'],
+        ['kwok-spot-5', 'spot', 78, 0, 'tight'],
+        ['kwok-spot-3', 'spot', 62, 0, 'room'],
+        ['kwok-std-2', 'standard', 58, 0, 'room'],
+        ['kwok-spot-2', 'spot', 55, 0, 'room'],
+        ['kwok-spot-6', 'spot', 61, 0, 'room'],
+        ['kwok-std-5', 'standard', 57, 0, 'room'],
+        ['kwok-himem-1', 'himem', 22, 0, 'draining'],
+        ['kwok-himem-2', 'himem', 22, 0, 'draining'],
+        ['kwok-himem-3', 'himem', 24, 0, 'draining'],
+        ['kwok-std-0', 'standard', 84, 0, 'blocked'],
+        ['kwok-std-1', 'standard', 88, 0, 'blocked'],
+        ['kwok-spot-1', 'spot', 74, 0, 'blocked']
+      ].map(([name, pool, req, incoming, state]) => {
+        const meta = {
+          in: { edge: '#24374F', bg: '#0A0F16', tag: 'receiving', tagColor: accent },
+          room: { edge: '#171D28', bg: '#0F131B', tag: 'has room', tagColor: '#818C9E' },
+          tight: { edge: '#3D2F13', bg: '#141009', tag: 'near limit', tagColor: Y },
+          draining: { edge: '#1D3A2C', bg: '#0C1712', tag: 'emptying', tagColor: G },
+          blocked: { edge: '#3A1D1F', bg: '#120C0E', tag: 'held back', tagColor: R }
+        }[state];
+        return {
+          name, pool, state, ...meta,
+          reqH: req + '%', incH: incoming + '%',
+          total: (req + incoming) + '%',
+          free: (100 - req - incoming) + '% free',
+          reqFill: state === 'draining' ? '#1D3A2C' : '#3D4A5E'
+        };
+      }),
+      pours: [
+        { pod: 'api-7c2f', from: 'kwok-himem-1', to: 'kwok-std-3', cost: '+7 pts' },
+        { pod: 'api-9d18', from: 'kwok-himem-1', to: 'kwok-std-6', cost: '+7 pts' },
+        { pod: 'ledger-cron-0a13', from: 'kwok-himem-2', to: 'kwok-std-4', cost: '+14 pts' },
+        { pod: 'search-api-4e02', from: 'kwok-himem-2', to: 'kwok-std-3', cost: '+7 pts' },
+        { pod: 'queue-worker-1a77', from: 'kwok-himem-3', to: 'kwok-std-6', cost: '+14 pts' },
+        { pod: 'queue-worker-8b31', from: 'kwok-himem-3', to: 'kwok-std-4', cost: '+7 pts' }
+      ],
+      loadRows: [
+        ['kwok-spot-5', 'spot', 34, 53, 78, 4, 'keep'],
+        ['kwok-std-3', 'standard', 50, 25, 71, 3, 'keep'],
+        ['kwok-std-4', 'standard', 28, 50, 69, 3, 'keep'],
+        ['kwok-std-6', 'standard', 28, 50, 66, 3, 'keep'],
+        ['kwok-std-11', 'standard', 50, 25, 64, 3, 'keep'],
+        ['kwok-std-1', 'standard', 17, 45, 88, 3, 'held'],
+        ['kwok-std-0', 'standard', 14, 38, 84, 3, 'held'],
+        ['kwok-spot-4', 'spot', 12, 31, 44, 3, 'caution'],
+        ['kwok-std-9', 'standard', 11, 31, 39, 3, 'caution'],
+        ['kwok-himem-1', 'himem', 8, 31, 22, 2, 'target'],
+        ['kwok-himem-2', 'himem', 8, 31, 22, 2, 'target'],
+        ['kwok-himem-3', 'himem', 9, 31, 24, 2, 'target']
+      ].map(([name, pool, cpu, mem, req, pods, state]) => {
+        const meta = {
+          target: { color: G, label: 'Safe to drain' },
+          caution: { color: Y, label: 'Needs a call' },
+          held: { color: R, label: 'Held back' },
+          keep: { color: '#818C9E', label: 'Stays' }
+        }[state];
+        return {
+          name, pool, pods: pods + '', ...meta,
+          cpu: cpu + '%', mem: mem + '%', req: req + '%',
+          cpuW: cpu + '%', memW: mem + '%', reqW: req + '%',
+          gapW: (req - cpu) + '%',
+          waste: (req - cpu) + ' pts',
+          rowBg: state === 'target' ? '#0B120F' : 'transparent'
+        };
+      }),
+      nodes: [
+        ['kwok-himem-1', 'himem', 31, 'target', [1, 1]],
+        ['kwok-himem-2', 'himem', 31, 'target', [1, 1]],
+        ['kwok-himem-3', 'himem', 31, 'target', [1, 2]],
+        ['kwok-spot-0', 'spot', 38, 'held', [1, 3, 1, 1]],
+        ['kwok-spot-1', 'spot', 44, 'held', [2, 1, 3, 1]],
+        ['kwok-spot-2', 'spot', 38, 'keep', [1, 2, 1]],
+        ['kwok-spot-3', 'spot', 50, 'keep', [2, 2, 1]],
+        ['kwok-spot-4', 'spot', 31, 'caution', [1, 1, 4]],
+        ['kwok-spot-5', 'spot', 53, 'keep', [2, 1, 2, 1]],
+        ['kwok-spot-6', 'spot', 38, 'keep', [1, 1, 2, 1]],
+        ['kwok-spot-7', 'spot', 31, 'caution', [1, 2, 1]],
+        ['kwok-std-0', 'standard', 38, 'held', [4, 1, 1]],
+        ['kwok-std-1', 'standard', 45, 'held', [4, 1, 1]],
+        ['kwok-std-2', 'standard', 38, 'keep', [1, 2, 1]],
+        ['kwok-std-3', 'standard', 50, 'keep', [2, 2, 1]],
+        ['kwok-std-4', 'standard', 50, 'keep', [2, 1, 2]],
+        ['kwok-std-5', 'standard', 38, 'keep', [1, 2, 1]],
+        ['kwok-std-6', 'standard', 50, 'keep', [2, 2, 1]],
+        ['kwok-std-7', 'standard', 38, 'caution', [1, 1, 2]],
+        ['kwok-std-8', 'standard', 44, 'held', [2, 1, 1, 2]],
+        ['kwok-std-9', 'standard', 31, 'caution', [1, 1, 1]],
+        ['kwok-std-10', 'standard', 38, 'held', [1, 3, 1]],
+        ['kwok-std-11', 'standard', 50, 'keep', [2, 2, 1]],
+        ['orbstack', 'control', 23, 'held', [1, 1, 1]]
+      ].map(([name, pool, util, state, pods]) => {
+        const meta = {
+          target: { edge: '#1D3A2C', bg: '#0C1712', dot: G, label: 'safe to drain' },
+          caution: { edge: '#3D2F13', bg: '#141009', dot: Y, label: 'needs a call' },
+          held: { edge: '#3A1D1F', bg: '#120C0E', dot: R, label: 'held back' },
+          keep: { edge: '#171D28', bg: '#0F131B', dot: '#3D4A5E', label: 'stays' }
+        }[state];
+        return {
+          name, pool, util: util + '%', state, ...meta,
+          pods: pods.map((w, i) => ({
+            flex: w,
+            fill: state === 'held' && i === 1 ? R : state === 'caution' && i === 2 ? Y : '#3D4A5E'
+          })),
+          podCount: pods.length + ' pods'
+        };
+      }),
+      estate: [27, 27, 27, 26, 26, 26, 25, 25, 24, 24, 24, 24, 23, 23, 24, 24, 24, 25, 25, 24, 24, 24, 24, 24]
+        .map((run, i) => {
+          const need = [14, 14, 13, 13, 13, 12, 12, 12, 11, 11, 11, 10, 10, 10, 10, 10, 10, 11, 11, 10, 10, 10, 10, 10][i];
+          return { runH: (run / 28 * 100) + '%', needH: (need / 28 * 100) + '%', gapH: ((run - need) / 28 * 100) + '%' };
+        })
+    };
+  }
+  renderVals() {
+    const accent = this.props.accent ?? '#4C7DFF';
+    const safe = SAFE.map(r => this.row(r, 'Safe', G, true));
+    const caution = CAUTION.map(r => this.row(r, 'Caution', Y, false));
+    const held = HELD.map(r => this.row(r, 'Held back', R, false));
+
+    const before = [38, 31, 31, 31, 44, 38, 50, 31, 53, 38, 31, 38, 45, 38, 50, 50, 38, 50, 38, 44, 31, 38, 50, 23]
+      .map(v => ({ h: v + '%', fill: '#3D4A5E' }));
+
+    const after = before.map((b, i) => {
+      if (i === 1 || i === 2 || i === 3) return { h: '0%', fill: 'transparent', bg: '#0C1712', border: '#1D3A2C' };
+      if (i === 0 || i === 4 || i === 6) return { h: (parseInt(b.h) + 14) + '%', fill: accent, bg: '#0F131B', border: '#24374F' };
+      if (i === 9 || i === 12 || i === 17) return { h: b.h, fill: '#3D4A5E', bg: '#150F11', border: '#3A1D1F' };
+      return { h: b.h, fill: '#3D4A5E', bg: '#0F131B', border: '#171D28' };
+    });
+
+    return {
+      ...this.extra(accent),
+      accent,
+      groups: [
+        { label: 'Safe now', note: 'Safety Guard passed every check', color: G, rows: safe },
+        { label: 'Needs a call', note: 'drainable, but a judgement is yours to make', color: Y, rows: caution },
+        { label: 'Held back', note: 'a rule refuses the drain', color: R, rows: held }
+      ],
+      checks: [
+        { label: 'PodDisruptionBudgets', value: '2 of 3 ok', color: Y, glyph: '\u25C6' },
+        { label: 'Topology spread', value: 'maxSkew held', color: G, glyph: '\u25CF' },
+        { label: 'Affinity / anti-affinity', value: 'satisfied', color: G, glyph: '\u25CF' },
+        { label: 'Taints & tolerations', value: 'satisfied', color: G, glyph: '\u25CF' },
+        { label: 'Single-replica workloads', value: '1 found', color: Y, glyph: '\u25C6' },
+        { label: 'Destination capacity', value: '3 of 3 placed', color: G, glyph: '\u25CF' }
+      ],
+      moves: [
+        { pod: 'payments-worker-7f4c', to: 'kwok-std-3', flag: '', flagColor: '#667085' },
+        { pod: 'search-indexer-2b91', to: 'kwok-std-4', flag: '', flagColor: '#667085' },
+        { pod: 'ledger-cron-0a13', to: 'kwok-std-6', flag: 'only replica', flagColor: Y }
+      ],
+      flatRows: [...safe, ...caution.slice(0, 2), ...held.slice(0, 3)],
+      blockers: [
+        { tag: 'HIGH', tagBg: '#40201F', tagColor: '#F2545B', rule: 'PodDisruptionBudget/dencer-demo-payments', text: 'Allows 0 disruptions (3 healthy, 3 required): every drain is refused and any node loss violates it.', fix: 'Add a replica, or lower minAvailable', unblocks: '3 steps' },
+        { tag: 'HIGH', tagBg: '#40201F', tagColor: '#F2545B', rule: 'nodeAffinity/gpu-batch', text: 'Required node affinity matches no node outside the pool being drained.', fix: 'Relax to preferred, or keep 1 node', unblocks: '1 step' },
+        { tag: 'MED', tagBg: '#3D2F13', tagColor: '#F5B544', rule: 'topologySpread/checkout-api', text: 'maxSkew 1 across 3 zones leaves no slack; zone b would fall to a single replica.', fix: 'Raise to maxSkew 2', unblocks: '2 steps' }
+      ]
+    };
+  }
+}
+
+</script>
+</body>
+</html>

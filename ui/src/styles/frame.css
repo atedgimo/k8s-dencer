@@ -1,0 +1,355 @@
+/*
+ * The app frame — rail, top bar, footer (assets/design/README.md, 1a).
+ *
+ * Measurements are the handoff's: 224px rail, 60px top bar, 68px footer.
+ * The content region is the only thing that scrolls; the frame is fixed
+ * chrome. Elevation direction differs per theme by token, not by rule here:
+ * every card carries `border: 1px solid var(--inset-border)`, which is
+ * transparent in dark (elevation by fill) and real in light (elevation by
+ * border, never shadow).
+ */
+
+.frame {
+  display: flex;
+  height: 100%;
+  background: var(--canvas);
+}
+
+.frame-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.frame-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The workspace is the row that grows; everything above and below it is
+   fixed chrome for the current destination. */
+.frame-content > .workspace {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Destinations that are one scrolling document rather than field + sidebar. */
+.workspace-single {
+  display: block;
+  overflow: auto;
+}
+
+/* ------------------------------------------------------------------ rail */
+
+.rail {
+  width: var(--rail-w);
+  flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+
+.rail-lockup {
+  height: var(--topbar-h);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.rail-logo {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.rail-wordmark {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-1);
+}
+
+.rail-nav {
+  padding: var(--space-4) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rail-group {
+  color: var(--text-faint);
+  padding: 6px 10px 8px;
+}
+
+.rail-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  text-align: left;
+  font-size: var(--text-sm);
+  color: var(--text-3);
+}
+
+.rail-item:hover {
+  color: var(--text-1);
+  background: var(--inset);
+}
+
+.rail-item.is-on {
+  background: var(--nav-active-bg);
+  color: var(--accent-text-2);
+  font-weight: 500;
+}
+
+.rail-icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.rail-badge {
+  margin-left: auto;
+  font-size: var(--text-2xs);
+  color: var(--accent-text);
+}
+
+.rail-badge-pill {
+  padding: 1px 6px;
+  border-radius: 9px;
+  background: var(--caution-bg);
+  color: var(--caution);
+}
+
+.rail-foot {
+  margin-top: auto;
+  padding: 14px var(--space-3);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rail-cluster {
+  padding: 10px 11px;
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius);
+  background: var(--surface-alt);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.rail-cluster-label {
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+}
+
+.rail-cluster-name {
+  font-size: var(--text-xs);
+  color: var(--text-1);
+}
+
+.rail-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 2px 4px;
+  min-width: 0;
+}
+
+.rail-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  background: var(--border-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-2xs);
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+
+.rail-identity-name {
+  font-size: var(--text-2xs);
+  color: var(--text-5);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rail-signout {
+  margin-left: auto;
+  flex-shrink: 0;
+  border: 0;
+  background: none;
+  padding: 2px 4px;
+  font-size: var(--text-2xs);
+  color: var(--text-5);
+}
+
+.rail-signout:hover {
+  color: var(--text-1);
+}
+
+/* ---------------------------------------------------------------- top bar */
+
+.topbar {
+  height: var(--topbar-h);
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 0 var(--space-6);
+  background: var(--surface);
+}
+
+.topbar-plan {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+
+.topbar-title {
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.topbar-hash {
+  font-size: var(--text-xs);
+  color: var(--text-5);
+}
+
+.topbar-sep {
+  width: 1px;
+  height: 22px;
+  background: var(--border-card);
+}
+
+.topbar-fresh {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+.topbar-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--safe);
+}
+
+.topbar-dot-stale {
+  background: var(--caution);
+}
+
+.topbar-strategy {
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+}
+
+.topbar-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.topbar-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: none;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+.topbar-btn:hover {
+  color: var(--text-1);
+  background: var(--raised);
+}
+
+.topbar-square {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+  padding: 0;
+}
+
+.topbar-square:disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
+
+.topbar-btn-icon {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+/* ----------------------------------------------------------------- footer */
+
+.appfooter {
+  height: var(--footer-h);
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: 0 var(--space-6);
+  font-size: var(--text-xs);
+  color: var(--text-5);
+}
+
+.appfooter-link {
+  margin-left: auto;
+  color: var(--accent-text);
+  text-decoration: none;
+}
+
+.appfooter-link:hover {
+  text-decoration: underline;
+}
+
+/* -------------------------------------------------- interim page wrappers
+   Hosts for the unmigrated screens while their redesigns land. The
+   Recommendations destination gets a readable column; Cluster gets the old
+   field plus the lens switcher that used to live in the app bar. */
+
+.page-recs {
+  padding: var(--space-6);
+  overflow: auto;
+  max-width: 720px;
+}
+
+.lensbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-6) 0;
+}

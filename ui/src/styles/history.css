@@ -94,7 +94,7 @@
 .chart-ylabel,
 .chart-xlabel {
   fill: var(--graphite-dim);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .chart-line {
