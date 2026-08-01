@@ -521,6 +521,7 @@ helm --kube-context "$CTX" upgrade --install "$RELEASE" "$REPO/charts/k8s-dencer
   --set persistence.enabled=true \
   --set-string persistence.storageClass=standard-rwo \
   --set executor.enabled=true \
+  --set planner.usageSource=metrics-server \
   "${READINESS_SET[@]}" \
   "${SAFETY_SET[@]}" \
   --set planner.minNodeAge=30s \
