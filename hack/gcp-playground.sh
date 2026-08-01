@@ -104,7 +104,15 @@ cluster_delete() {
       sed 's/^/    /' /tmp/dencer-play-del.err
     fi
   fi
+  # The context is only a third of the residue: get-credentials also wrote
+  # cluster and user entries under the canonical GKE name, and leaving them
+  # behind is how a kubeconfig fills with pointers to machines that no
+  # longer exist — found on a real workstation, as a dangling current
+  # context erroring at localhost:8080.
   kubectl config delete-context "$CTX" >/dev/null 2>&1 || true
+  gke_name="gke_${project:-$(gcloud config get-value project 2>/dev/null)}_${GCP_ZONE}_${CLUSTER}"
+  kubectl config delete-cluster "$gke_name" >/dev/null 2>&1 || true
+  kubectl config delete-user "$gke_name" >/dev/null 2>&1 || true
 }
 
 if [[ "${1:-}" == "clean" ]]; then
