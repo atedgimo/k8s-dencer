@@ -225,10 +225,14 @@ receipt. It deletes nothing, ever.
 `make gcp-play` stands up a throwaway GKE cluster with the full demo on top,
 hands you the UI for twenty minutes, and then deletes everything it made.
 
-- **A random scenario each run** — one of the demo chart's seven constraint
-  scenarios, on a KWOK fabric whose size also varies (24–40 fake nodes,
-  free); the three real `e2-medium` nodes underneath are the entire bill,
-  a few cents for the window.
+- **Real nodes, real drains, by default** — six `e2-medium` machines running
+  restricted-PSS-compliant workloads with real readiness probes, shaped by a
+  random scenario (fragmented, PDB-blocked, topology-spread, anti-affinity,
+  a genuinely tainted pool, stateful). Every drain is a real eviction, and a
+  node you free is Google's own autoscaler's to remove (~11 minutes,
+  observed — inside the window). Still cents for the session.
+- **`PLAY_FABRIC=kwok`** keeps the free variant: a 24–40 fake-node KWOK
+  fabric on three real machines, when fleet size matters more than realness.
 - **It never launches silently** — it prints the cluster, the scenario, the
   cost ceiling, and waits for a typed `yes`.
 - **It always tears down** — the countdown ends in deletion; Ctrl-C ends in

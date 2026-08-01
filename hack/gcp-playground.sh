@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 #
-# A timed GCP playground: a real GKE cluster, the KWOK demo fabric with a
-# RANDOM scenario on top, the published k8s-dencer release installed — live
-# for a fixed window so a human can play with the product, then destroyed.
+# A timed GCP playground: a real GKE cluster, REAL workloads shaped by a
+# random scenario, the published k8s-dencer release installed — live for a
+# fixed window so a human can play with the product, then destroyed.
 #
 #   ./hack/gcp-playground.sh            twenty minutes, then gone
 #   PLAY_MINUTES=30 ./hack/gcp-playground.sh
+#   PLAY_FABRIC=kwok ./hack/gcp-playground.sh   fake-node fabric instead
 #   ./hack/gcp-playground.sh clean      delete a playground left behind
 #
 # Design rules, in order of importance:
@@ -18,20 +19,22 @@
 #   3. It leaves your kubeconfig alone. The current context is restored the
 #      moment credentials are fetched; every command here is --context'd.
 #
-# The scenario is drawn at random from the demo chart's set, and the fabric
-# size varies run to run, so each playground is a different cluster to read.
-# KWOK nodes are free; the bill is the handful of real nodes underneath.
+# Real nodes are the default because they are the honest demo: real pods
+# with real probes, drains through the real eviction API, and any node you
+# free is Google's own autoscaler's to remove — observed at ~11 minutes,
+# inside the window. The KWOK variant survives behind PLAY_FABRIC=kwok for
+# when a bigger, free fleet matters more than realness.
 
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 
 PLAY_MINUTES="${PLAY_MINUTES:-20}"
+PLAY_FABRIC="${PLAY_FABRIC:-real}"
 CLUSTER="${CLUSTER:-dencer-play}"
 CTX="gke-play"
 GCP_ZONE="${GCP_ZONE:-us-central1-a}"
 GCP_MACHINE="${GCP_MACHINE:-e2-medium}"
-REAL_NODES="${REAL_NODES:-3}"
 NS="k8s-dencer"
 DEMO_NS="dencer-demo"
 KWOK_NS="kwok"
@@ -40,6 +43,14 @@ RELEASE="k8s-dencer"
 UI_PORT="${UI_PORT:-8092}"
 GHCR_TAG="${GHCR_TAG:-$(awk '/^appVersion:/ {gsub(/"/,"",$2); print $2}' "$REPO/charts/k8s-dencer/Chart.yaml")}"
 
+# Real mode needs enough machines that consolidation has something to say;
+# the KWOK variant needs only a perch for the product.
+if [[ "$PLAY_FABRIC" == "real" ]]; then
+  REAL_NODES="${REAL_NODES:-6}"
+else
+  REAL_NODES="${REAL_NODES:-3}"
+fi
+
 bold()  { printf '\033[1m%s\033[0m\n' "$*"; }
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
 red()   { printf '\033[31m%s\033[0m\n' "$*"; }
@@ -47,9 +58,13 @@ fail()  { red "ERROR: $*"; exit 1; }
 
 # ------------------------------------------------------------- the draw
 # One scenario per run, drawn at random so the playground is a different
-# cluster to read each time. The fabric size varies too — enough nodes that
-# the plan has something to say, few enough that the control plane is bored.
-SCENARIOS=(a-fragmented b-pdb-blocked c-topology-spread d-anti-affinity e-tainted-pool f-stateful g-showcase)
+# cluster to read each time. g-showcase stays KWOK-only: its heterogeneous
+# fleet is built of fake node shapes real machines cannot fake.
+if [[ "$PLAY_FABRIC" == "real" ]]; then
+  SCENARIOS=(a-fragmented b-pdb-blocked c-topology-spread d-anti-affinity e-tainted-pool f-stateful)
+else
+  SCENARIOS=(a-fragmented b-pdb-blocked c-topology-spread d-anti-affinity e-tainted-pool f-stateful g-showcase)
+fi
 SCENARIO="${SCENARIO:-${SCENARIOS[$((RANDOM % ${#SCENARIOS[@]}))]}}"
 FABRIC_NODES="${FABRIC_NODES:-$((24 + RANDOM % 17))}"
 
@@ -96,7 +111,11 @@ est_cents="$(python3 -c "print(round($REAL_NODES * 3.4 * (($PLAY_MINUTES + 10) /
 bold "==> the playground, before it exists"
 echo "    project    ${project}"
 echo "    cluster    ${CLUSTER} (${REAL_NODES}× ${GCP_MACHINE}, zone ${GCP_ZONE})"
-echo "    scenario   ${SCENARIO} on a ${FABRIC_NODES}-node KWOK fabric (fake nodes, free)"
+if [[ "$PLAY_FABRIC" == "real" ]]; then
+  echo "    scenario   ${SCENARIO}, as REAL workloads on the real nodes"
+else
+  echo "    scenario   ${SCENARIO} on a ${FABRIC_NODES}-node KWOK fabric (fake nodes, free)"
+fi
 echo "    images     ghcr.io/atedgimo/k8s-dencer-*:${GHCR_TAG}"
 echo "    window     ${PLAY_MINUTES} minutes, then the cluster is deleted"
 echo "    cost       roughly ${est_cents}¢ if the teardown runs; the teardown always runs"
@@ -139,40 +158,293 @@ kubectl config rename-context "$(kubectl config current-context)" "$CTX" >/dev/n
 restore_context
 green "  up"
 
-# ---------------------------------------------------------------- fabric
-bold "==> KWOK fabric + scenario ${SCENARIO} (${FABRIC_NODES} fake nodes)"
-helm repo add kwok https://kwok.sigs.k8s.io/charts/ >/dev/null 2>&1 || true
-helm repo update kwok >/dev/null 2>&1
-# Rendered and filtered rather than helm-installed: the kwok chart hard-codes
-# a FlowSchema referencing the cluster-critical "exempt" priority level, and
-# GKE's flowcontrol guardrail webhook denies exactly that. Without the
-# exemption kwok is merely subject to normal API fairness, which a 40-node
-# fabric never notices — and this cluster is throwaway, so helm's release
-# bookkeeping buys nothing here.
-kubectl --context "$CTX" create namespace "$KWOK_NS" --dry-run=client -o yaml \
-  | kubectl --context "$CTX" apply -f - >/dev/null
-# apply -n, not just template --namespace: helm template renders manifests
-# WITHOUT namespace metadata (helm install injects it server-side), so a bare
-# apply lands everything in the context's default namespace — found live,
-# the rollout wait then looking for a controller that existed one namespace
-# over. Explicit namespaces in rendered docs still win over -n.
-# --include-crds: the third thing helm install does that helm template does
-# not — the chart's crds/ directory never renders without it, and stage-fast's
-# Stage objects have nothing to land on. Found live, one launch per layer.
-helm template kwok kwok/kwok --version "$KWOK_CHART_VERSION" \
-  --namespace "$KWOK_NS" --include-crds -f "$REPO/demo/kwok-values.yaml" \
-  | python3 -c 'import sys; print("\n---".join(d for d in sys.stdin.read().split("\n---") if "kind: FlowSchema" not in d))' \
-  | kubectl --context "$CTX" -n "$KWOK_NS" apply -f - >/dev/null
-kubectl --context "$CTX" wait --for=condition=established crd/stages.kwok.x-k8s.io --timeout=60s >/dev/null
-kubectl --context "$CTX" -n "$KWOK_NS" rollout status deployment/kwok-controller --timeout=3m >/dev/null
-helm --kube-context "$CTX" upgrade --install kwok-stage-fast kwok/stage-fast --version "$KWOK_CHART_VERSION" \
-  --namespace "$KWOK_NS" --wait --timeout 3m >/dev/null
-helm --kube-context "$CTX" upgrade --install dencer-demo "$REPO/demo/charts/dencer-demo" \
-  --namespace "$DEMO_NS" --create-namespace \
-  --set scenario="$SCENARIO" \
-  --set nodes.count="$FABRIC_NODES" \
-  --wait --timeout 3m >/dev/null
-green "  fabric up"
+# ------------------------------------------------------- real workloads
+# Restricted-PSS-compliant nginx with real readiness probes, sized so six
+# e2-mediums end up fragmented: enough spread that the plan frees a node or
+# two, enough headroom that every eviction has somewhere to land. The
+# scenario adds the constraint that should change the ratings — the same
+# grammar as the demo chart, spoken by real pods.
+real_base() {
+  cat <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: play-web, namespace: ${DEMO_NS}, labels: { app: play-web } }
+spec:
+  replicas: 8
+  selector: { matchLabels: { app: play-web } }
+  template:
+    metadata: { labels: { app: play-web } }
+    spec:
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: web
+          image: nginxinc/nginx-unprivileged:1.27-alpine
+          ports: [{ containerPort: 8080 }]
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: ["ALL"] } }
+          resources: { requests: { cpu: 150m, memory: 64Mi }, limits: { cpu: 300m, memory: 128Mi } }
+          readinessProbe: { httpGet: { path: /, port: 8080 }, initialDelaySeconds: 2, periodSeconds: 3 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: play-cache, namespace: ${DEMO_NS}, labels: { app: play-cache } }
+spec:
+  replicas: 5
+  selector: { matchLabels: { app: play-cache } }
+  template:
+    metadata: { labels: { app: play-cache } }
+    spec:
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: web
+          image: nginxinc/nginx-unprivileged:1.27-alpine
+          ports: [{ containerPort: 8080 }]
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: ["ALL"] } }
+          resources: { requests: { cpu: 120m, memory: 64Mi }, limits: { cpu: 250m, memory: 128Mi } }
+          readinessProbe: { httpGet: { path: /, port: 8080 }, initialDelaySeconds: 2, periodSeconds: 3 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: play-filler, namespace: ${DEMO_NS}, labels: { app: play-filler } }
+spec:
+  replicas: 6
+  selector: { matchLabels: { app: play-filler } }
+  template:
+    metadata: { labels: { app: play-filler } }
+    spec:
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: web
+          image: nginxinc/nginx-unprivileged:1.27-alpine
+          ports: [{ containerPort: 8080 }]
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: ["ALL"] } }
+          resources: { requests: { cpu: 100m, memory: 48Mi }, limits: { cpu: 200m, memory: 96Mi } }
+          readinessProbe: { httpGet: { path: /, port: 8080 }, initialDelaySeconds: 2, periodSeconds: 3 }
+EOF
+}
+
+real_scenario() {
+  case "$SCENARIO" in
+    a-fragmented) ;; # the base alone: pure bin-packing headroom
+    b-pdb-blocked) cat <<EOF
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: play-payments, namespace: ${DEMO_NS}, labels: { app: play-payments } }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: play-payments } }
+  template:
+    metadata: { labels: { app: play-payments } }
+    spec:
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: web
+          image: nginxinc/nginx-unprivileged:1.27-alpine
+          ports: [{ containerPort: 8080 }]
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: ["ALL"] } }
+          resources: { requests: { cpu: 150m, memory: 64Mi }, limits: { cpu: 300m, memory: 128Mi } }
+          readinessProbe: { httpGet: { path: /, port: 8080 }, initialDelaySeconds: 2, periodSeconds: 3 }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: { name: play-payments, namespace: ${DEMO_NS} }
+spec:
+  minAvailable: 2
+  selector: { matchLabels: { app: play-payments } }
+EOF
+      ;;
+    c-topology-spread) cat <<EOF
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: play-checkout, namespace: ${DEMO_NS}, labels: { app: play-checkout } }
+spec:
+  replicas: 4
+  selector: { matchLabels: { app: play-checkout } }
+  template:
+    metadata: { labels: { app: play-checkout } }
+    spec:
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector: { matchLabels: { app: play-checkout } }
+      containers:
+        - name: web
+          image: nginxinc/nginx-unprivileged:1.27-alpine
+          ports: [{ containerPort: 8080 }]
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: ["ALL"] } }
+          resources: { requests: { cpu: 120m, memory: 64Mi }, limits: { cpu: 250m, memory: 128Mi } }
+          readinessProbe: { httpGet: { path: /, port: 8080 }, initialDelaySeconds: 2, periodSeconds: 3 }
+EOF
+      ;;
+    d-anti-affinity) cat <<EOF
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: play-broker, namespace: ${DEMO_NS}, labels: { app: play-broker } }
+spec:
+  replicas: 3
+  selector: { matchLabels: { app: play-broker } }
+  template:
+    metadata: { labels: { app: play-broker } }
+    spec:
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector: { matchLabels: { app: play-broker } }
+      containers:
+        - name: web
+          image: nginxinc/nginx-unprivileged:1.27-alpine
+          ports: [{ containerPort: 8080 }]
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: ["ALL"] } }
+          resources: { requests: { cpu: 120m, memory: 64Mi }, limits: { cpu: 250m, memory: 128Mi } }
+          readinessProbe: { httpGet: { path: /, port: 8080 }, initialDelaySeconds: 2, periodSeconds: 3 }
+EOF
+      ;;
+    e-tainted-pool) cat <<EOF
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: play-ledger, namespace: ${DEMO_NS}, labels: { app: play-ledger } }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: play-ledger } }
+  template:
+    metadata: { labels: { app: play-ledger } }
+    spec:
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      tolerations:
+        - { key: dedicated, operator: Equal, value: play, effect: NoSchedule }
+      nodeSelector: { dencer-play/dedicated: "true" }
+      containers:
+        - name: web
+          image: nginxinc/nginx-unprivileged:1.27-alpine
+          ports: [{ containerPort: 8080 }]
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: ["ALL"] } }
+          resources: { requests: { cpu: 120m, memory: 64Mi }, limits: { cpu: 250m, memory: 128Mi } }
+          readinessProbe: { httpGet: { path: /, port: 8080 }, initialDelaySeconds: 2, periodSeconds: 3 }
+EOF
+      ;;
+    f-stateful) cat <<EOF
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: { name: play-ledgerdb, namespace: ${DEMO_NS}, labels: { app: play-ledgerdb } }
+spec:
+  replicas: 2
+  serviceName: play-ledgerdb
+  selector: { matchLabels: { app: play-ledgerdb } }
+  template:
+    metadata: { labels: { app: play-ledgerdb } }
+    spec:
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: web
+          image: nginxinc/nginx-unprivileged:1.27-alpine
+          ports: [{ containerPort: 8080 }]
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: ["ALL"] } }
+          resources: { requests: { cpu: 120m, memory: 64Mi }, limits: { cpu: 250m, memory: 128Mi } }
+          readinessProbe: { httpGet: { path: /, port: 8080 }, initialDelaySeconds: 2, periodSeconds: 3 }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: play-ledgerdb, namespace: ${DEMO_NS} }
+spec:
+  clusterIP: None
+  selector: { app: play-ledgerdb }
+  ports: [{ port: 8080 }]
+---
+apiVersion: v1
+kind: Pod
+metadata: { name: play-adhoc, namespace: ${DEMO_NS}, labels: { app: play-adhoc } }
+spec:
+  securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+  containers:
+    - name: web
+      image: nginxinc/nginx-unprivileged:1.27-alpine
+      ports: [{ containerPort: 8080 }]
+      securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: ["ALL"] } }
+      resources: { requests: { cpu: 100m, memory: 48Mi }, limits: { cpu: 200m, memory: 96Mi } }
+      readinessProbe: { httpGet: { path: /, port: 8080 }, initialDelaySeconds: 2, periodSeconds: 3 }
+EOF
+      ;;
+  esac
+}
+
+install_real_fabric() {
+  bold "==> real workloads, scenario ${SCENARIO}"
+  kubectl --context "$CTX" create namespace "$DEMO_NS" >/dev/null
+  # The same PodSecurity bar the e2e holds: if any playground pod violates
+  # restricted, admission refuses it here rather than a reviewer noticing.
+  kubectl --context "$CTX" label namespace "$DEMO_NS" \
+    pod-security.kubernetes.io/enforce=restricted \
+    pod-security.kubernetes.io/enforce-version=latest >/dev/null
+
+  if [[ "$SCENARIO" == "e-tainted-pool" ]]; then
+    # A real dedicated pool: one machine tainted and labelled, and a workload
+    # that tolerates it. The plan has to reason about a node most pods
+    # cannot land on.
+    dedicated="$(kubectl --context "$CTX" get nodes -o jsonpath='{.items[0].metadata.name}')"
+    kubectl --context "$CTX" taint node "$dedicated" dedicated=play:NoSchedule --overwrite >/dev/null
+    kubectl --context "$CTX" label node "$dedicated" dencer-play/dedicated=true --overwrite >/dev/null
+    echo "    tainted ${dedicated} as the dedicated pool"
+  fi
+
+  { real_base; real_scenario; } | kubectl --context "$CTX" apply -f - >/dev/null
+
+  # Rollouts, not scheduling: real pods must pass their real probes before
+  # the planner reads a cluster worth planning.
+  for d in $(kubectl --context "$CTX" -n "$DEMO_NS" get deploy -o name); do
+    kubectl --context "$CTX" -n "$DEMO_NS" rollout status "$d" --timeout=3m >/dev/null
+  done
+  if kubectl --context "$CTX" -n "$DEMO_NS" get statefulset play-ledgerdb >/dev/null 2>&1; then
+    kubectl --context "$CTX" -n "$DEMO_NS" rollout status statefulset/play-ledgerdb --timeout=3m >/dev/null
+  fi
+  green "  workloads Ready on real nodes"
+}
+
+install_kwok_fabric() {
+  bold "==> KWOK fabric + scenario ${SCENARIO} (${FABRIC_NODES} fake nodes)"
+  helm repo add kwok https://kwok.sigs.k8s.io/charts/ >/dev/null 2>&1 || true
+  helm repo update kwok >/dev/null 2>&1
+  # Rendered and filtered rather than helm-installed: the kwok chart
+  # hard-codes a FlowSchema referencing the cluster-critical "exempt"
+  # priority level, and GKE's flowcontrol guardrail webhook denies exactly
+  # that. helm template also skips namespace injection and the crds/
+  # directory, hence -n and --include-crds — one live launch per lesson.
+  kubectl --context "$CTX" create namespace "$KWOK_NS" --dry-run=client -o yaml \
+    | kubectl --context "$CTX" apply -f - >/dev/null
+  helm template kwok kwok/kwok --version "$KWOK_CHART_VERSION" \
+    --namespace "$KWOK_NS" --include-crds -f "$REPO/demo/kwok-values.yaml" \
+    | python3 -c 'import sys; print("\n---".join(d for d in sys.stdin.read().split("\n---") if "kind: FlowSchema" not in d))' \
+    | kubectl --context "$CTX" -n "$KWOK_NS" apply -f - >/dev/null
+  kubectl --context "$CTX" wait --for=condition=established crd/stages.kwok.x-k8s.io --timeout=60s >/dev/null
+  kubectl --context "$CTX" -n "$KWOK_NS" rollout status deployment/kwok-controller --timeout=3m >/dev/null
+  helm --kube-context "$CTX" upgrade --install kwok-stage-fast kwok/stage-fast --version "$KWOK_CHART_VERSION" \
+    --namespace "$KWOK_NS" --wait --timeout 3m >/dev/null
+  helm --kube-context "$CTX" upgrade --install dencer-demo "$REPO/demo/charts/dencer-demo" \
+    --namespace "$DEMO_NS" --create-namespace \
+    --set scenario="$SCENARIO" \
+    --set nodes.count="$FABRIC_NODES" \
+    --wait --timeout 3m >/dev/null
+  green "  fabric up"
+}
+
+if [[ "$PLAY_FABRIC" == "real" ]]; then
+  install_real_fabric
+  # Real pods have real probes, so the executor keeps its honest default.
+  READINESS_SET=()
+  SAFETY_SET=(--set safety.maxNodesPerRun=3 --set safety.minReadyNodes=3)
+else
+  install_kwok_fabric
+  # KWOK pods reach Running and never Ready; only this fabric weakens it.
+  READINESS_SET=(--set executor.readiness=Running)
+  SAFETY_SET=(--set safety.maxNodesPerRun=8 --set safety.minReadyNodes=5)
+fi
 
 # --------------------------------------------------------------- product
 bold "==> k8s-dencer ${GHCR_TAG} (published images)"
@@ -182,10 +454,9 @@ helm --kube-context "$CTX" upgrade --install "$RELEASE" "$REPO/charts/k8s-dencer
   --set persistence.enabled=true \
   --set-string persistence.storageClass=standard-rwo \
   --set executor.enabled=true \
-  --set executor.readiness=Running \
+  "${READINESS_SET[@]}" \
+  "${SAFETY_SET[@]}" \
   --set planner.minNodeAge=30s \
-  --set safety.maxNodesPerRun=8 \
-  --set safety.minReadyNodes=5 \
   --set-string planner.image.registry=ghcr.io \
   --set-string uiBackend.image.registry=ghcr.io \
   --set-string executor.image.registry=ghcr.io \
@@ -223,9 +494,14 @@ green  "  UI      http://localhost:${UI_PORT}"
 echo   "  token   (valid ${PLAY_MINUTES}m — paste into the sign-in field)"
 echo   "  ${TOKEN}"
 echo
-echo   "  scenario ${SCENARIO}: watch the plan explain it. Drain something safe;"
-echo   "  the fabric's fake nodes drain instantly, and any REAL node you drain"
-echo   "  is Google's autoscaler's to remove (~11 minutes, observed)."
+if [[ "$PLAY_FABRIC" == "real" ]]; then
+  echo "  scenario ${SCENARIO}, on real machines: every drain is a real eviction,"
+  echo "  and a node you free is Google's autoscaler's to remove — ~11 minutes,"
+  echo "  observed. Start it early if you want to watch the ledger move."
+else
+  echo "  scenario ${SCENARIO}: the fabric's fake nodes drain instantly; any REAL"
+  echo "  node you drain is Google's autoscaler's to remove (~11 minutes)."
+fi
 echo
 
 # ------------------------------------------------------------- the clock
