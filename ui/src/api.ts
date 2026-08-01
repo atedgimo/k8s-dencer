@@ -95,15 +95,10 @@ export interface GraphStats {
   nodesBefore: number;
   reclaimable: number;
   steps: number;
-  ratings: Record<Impact, number>;
-  podsMoved: number;
-  /**
-   * The summed allocatable of every node the plan drains. Nodes are not
-   * fungible — a count of 15 may be a rack of 96-core machines or a drawer
-   * of 2-core ones — so the verdict states what the count is worth.
-   */
-  cpuReclaimableMilli: number;
-  memReclaimableBytes: number;
+  // ratings/podsMoved/cpuReclaimableMilli/memReclaimableBytes are gone with
+  // their reader, the old verdict panel: the hero derives per-verdict counts
+  // and pricing from the steps it already renders, so the numbers cannot
+  // disagree with the list under them.
 }
 
 export interface GraphPayload {
