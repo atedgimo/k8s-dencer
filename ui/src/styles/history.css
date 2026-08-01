@@ -1,200 +1,213 @@
-/* The History surface — the cluster over time. Ink is achromatic; the only
-   colour is a run marker's rating, which already means risk everywhere. */
+/*
+ * History (2e) — needed vs spare stacked bars over the audit ledger.
+ * Replaces the hand-drawn SVG bands wholesale.
+ */
 
-.history {
+.historypage {
   flex: 1;
-  min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
-  padding: var(--space-4) var(--space-5);
   overflow-y: auto;
 }
 
-.history-head {
+.historypage-head {
+  height: var(--topbar-h);
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-4);
+  align-items: center;
+  gap: 12px;
+  padding: 0 var(--space-6);
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
-.history-ranges {
-  display: inline-flex;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-
-.history-range {
-  padding: var(--space-1) var(--space-3);
-  border: 0;
-  background: transparent;
-  color: var(--graphite);
-  font-size: var(--text-xs);
-  cursor: pointer;
-}
-
-.history-range.is-on {
-  background: var(--surface-3);
-  color: var(--text-primary);
-}
-
-.history-empty {
-  color: var(--graphite);
-  font-size: var(--text-sm);
-  max-width: 60ch;
-}
-
-.history-band {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface-1);
-  padding: var(--space-4);
-}
-
-.history-band-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-4);
-  margin-bottom: var(--space-3);
-}
-
-.history-band-title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--text-lg);
+.historypage-title {
+  font-size: var(--text-md);
   font-weight: 600;
 }
 
-.history-band-now {
-  color: var(--graphite);
+.historypage-counts {
   font-size: var(--text-xs);
+  color: var(--text-5);
 }
 
-.history-band svg {
-  display: block;
-  width: 100%;
-  height: auto;
+.historypage-ranges {
+  margin-left: auto;
 }
 
-.history-band-note {
-  margin: var(--space-2) 0 0;
-  color: var(--graphite-dim);
-  font-size: var(--text-2xs);
-  max-width: 72ch;
+.historypage-empty {
+  padding: 20px var(--space-6);
+  font-size: var(--text-sm);
+  color: var(--text-5);
+  text-wrap: pretty;
 }
 
-/* chart ink */
-.chart-grid line {
-  stroke: var(--edge-soft);
-  stroke-width: 1;
+/* ---------------------------------------------------------------- estate */
+
+.estate {
+  padding: 20px var(--space-6) 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
 }
 
-.chart-ylabel,
-.chart-xlabel {
-  fill: var(--graphite-dim);
-  font-size: 11px;
-}
-
-.chart-line {
-  fill: none;
-  stroke: var(--text-primary);
-  stroke-width: 1.5;
-}
-
-.chart-line-step {
-  stroke-width: 2;
-}
-
-.chart-line-dim {
-  stroke: var(--graphite);
-  stroke-dasharray: 3 3;
-}
-
-.chart-area {
-  fill: var(--graphite);
-  opacity: 0.18;
-  stroke: none;
-}
-
-.chart-run-tick {
-  stroke: var(--edge-soft);
-  stroke-width: 1;
-}
-
-.chart-run-mark {
-  font-size: 11px;
-  fill: var(--graphite);
-}
-
-/* Ratings mean risk; a run's outcome may borrow the scale it already owns. */
-.chart-run-succeeded { fill: var(--risk-green); }
-.chart-run-blocked   { fill: var(--risk-yellow); }
-.chart-run-failed    { fill: var(--risk-red); }
-
-/* ------------------------------------------------ recommendations (sidebar) */
-
-.recs {
-  border-top: 1px solid var(--border);
-  margin-top: var(--space-4);
-  padding-top: var(--space-3);
-}
-
-.recs-toggle {
+.estate-head {
   display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  width: 100%;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  text-align: left;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-6);
+  padding-bottom: 14px;
 }
 
-.recs-count { color: var(--text-primary); font-size: var(--text-sm); }
-.recs-high { color: var(--graphite); font-size: var(--text-xs); }
-.recs-chevron { margin-left: auto; color: var(--graphite-dim); }
-
-.recs-list {
-  list-style: none;
-  margin: var(--space-3) 0 0;
-  padding: 0;
+.estate-lead {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  max-height: 40vh;
-  overflow-y: auto;
+  gap: 8px;
 }
 
-.recs-item-head { display: flex; gap: var(--space-2); align-items: baseline; }
+.estate-headline {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: var(--tracking-display);
+}
 
-/* Severity is a word with weight — chores, not alarms; never the risk hexes. */
-.recs-sev {
+.estate-spare-word {
+  color: var(--caution);
+}
+
+.estate-swatch-needed {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--fill-50);
+}
+
+.estate-swatch-spare {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--caution);
+}
+
+.estate-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 150px;
+  padding-top: 6px;
+}
+
+.estate-yaxis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 150px;
+  padding-right: 8px;
   font-size: var(--text-2xs);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--graphite);
+  color: var(--text-faint);
 }
-.recs-sev-high { color: var(--text-primary); font-weight: 600; }
 
-.recs-workload { font-size: var(--text-xs); word-break: break-all; }
+.estate-bars {
+  flex: 1;
+  height: 150px;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+}
 
-.recs-why {
-  margin: var(--space-1) 0 0;
-  color: var(--graphite);
+.estate-bar {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 1px;
+}
+
+.estate-bar-spare {
+  background: var(--caution);
+  border-radius: 2px 2px 0 0;
+  opacity: 0.85;
+}
+
+.estate-bar-needed {
+  background: var(--fill-50);
+  border-radius: 0 0 2px 2px;
+}
+
+.estate-xaxis {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-2xs);
+  color: var(--text-faint);
+  padding: 6px 0 0 34px;
+}
+
+/* ---------------------------------------------------------------- ledger */
+
+.auditledger {
+  padding: 18px var(--space-6) 24px;
+}
+
+.auditledger-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+}
+
+.auditledger-head .eyebrow {
+  letter-spacing: 0.13em;
+}
+
+.auditledger-count {
   font-size: var(--text-xs);
+  color: var(--text-4);
 }
 
-.recs-copy {
-  margin-top: var(--space-1);
-  padding: 0 var(--space-2);
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--graphite);
-  font-size: var(--text-2xs);
-  cursor: pointer;
+.auditrow {
+  display: grid;
+  grid-template-columns: 150px 96px 92px 60px 1fr 150px 160px;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--hairline);
+  font-size: var(--text-xs);
+  color: var(--text-2);
 }
-.recs-copy:hover { color: var(--text-primary); border-style: solid; }
+
+.auditrow-head {
+  border-bottom: 1px solid var(--border-card);
+  padding-bottom: 9px;
+}
+
+.auditrow-when {
+  color: var(--text-3);
+}
+
+.auditrow-plan {
+  color: var(--text-1);
+}
+
+.auditrow-mode {
+  color: var(--text-4);
+}
+
+.auditrow-outcome.is-safe {
+  color: var(--safe);
+}
+
+.auditrow-outcome.is-held {
+  color: var(--held);
+}
+
+.auditrow-actor {
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

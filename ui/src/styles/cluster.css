@@ -1,0 +1,553 @@
+/*
+ * The Cluster destination (3b Rack, 3d Wells, 3c Load) — one screen, three
+ * lenses. Geometry from the handoff: 8-column wells grid, rack cards with
+ * request-width pod bars, the load table's split bar.
+ */
+
+.clusterpage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.clusterpage-head {
+  height: var(--topbar-h);
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 var(--space-6);
+  background: var(--surface);
+}
+
+.clusterpage-title {
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.clusterpage-counts {
+  font-size: var(--text-xs);
+  color: var(--text-5);
+}
+
+.clusterpage-lenses {
+  margin-left: auto;
+}
+
+.clusterpage-hero {
+  padding: 20px var(--space-6) 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-6);
+}
+
+.clusterpage-hero-lead {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 0;
+}
+
+.clusterpage-headline {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: var(--tracking-display);
+}
+
+.clusterpage-hint {
+  font-size: var(--text-2xs);
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+.clusterpage-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+/* ------------------------------------------------------------------ rack */
+
+.rackgrid {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 18px 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-auto-rows: min-content;
+  gap: 10px;
+  border-right: 1px solid var(--border);
+}
+
+.racknode {
+  padding: 11px 12px;
+  border-radius: 9px;
+  background: var(--inset);
+  border: 1px solid var(--inset-border);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  text-align: left;
+}
+
+.racknode-safe {
+  background: var(--safe-bg);
+  border-color: var(--safe-border);
+}
+
+.racknode-caution {
+  background: var(--caution-bg);
+  border-color: var(--caution-border);
+}
+
+.racknode-held {
+  background: var(--held-bg);
+  border-color: var(--held-border);
+}
+
+.racknode.is-on {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.racknode-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.racknode-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.racknode-dot-safe {
+  background: var(--safe);
+}
+
+.racknode-dot-caution {
+  background: var(--caution);
+}
+
+.racknode-dot-held {
+  background: var(--held);
+}
+
+.racknode-dot-stays {
+  background: var(--text-faint);
+}
+
+.racknode-name {
+  font-size: var(--text-2xs);
+  line-height: 1.5;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.racknode-util {
+  font-size: var(--text-2xs);
+  color: var(--text-4);
+  flex-shrink: 0;
+}
+
+.racknode-pods {
+  display: flex;
+  gap: 3px;
+  height: 26px;
+}
+
+.rackpod {
+  border-radius: 3px;
+  background: var(--raised);
+}
+
+.rackpod-safe {
+  background: var(--safe);
+  opacity: 0.75;
+}
+
+.rackpod-caution {
+  background: var(--caution);
+  opacity: 0.75;
+}
+
+.rackpod-held {
+  background: var(--held);
+  opacity: 0.6;
+}
+
+.rackpod-empty {
+  background: none;
+  border: 1px dashed var(--border-card);
+}
+
+/* Genuinely evicted mid-run: the drawn position is already a lie. */
+.rackpod.is-evicted {
+  opacity: 0.15;
+}
+
+.racknode-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.racknode-count {
+  font-size: var(--text-2xs);
+  color: var(--text-faint);
+  flex: 1;
+}
+
+.racknode-label {
+  font-size: var(--text-2xs);
+}
+
+.racknode-label-safe {
+  color: var(--safe);
+}
+
+.racknode-label-caution {
+  color: var(--caution);
+}
+
+.racknode-label-held {
+  color: var(--held);
+}
+
+.racknode-label-stays {
+  color: var(--text-4);
+}
+
+/* ------------------------------------------------------ shared detail pane */
+
+.clusterdetail {
+  width: 360px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.clusterdetail-wells {
+  width: 372px;
+}
+
+.clusterdetail-head {
+  flex: 0 0 auto;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.clusterdetail-name {
+  font-size: 17px;
+  color: var(--text-1);
+}
+
+.clusterdetail-why {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--text-3);
+  text-wrap: pretty;
+}
+
+.clusterdetail-body {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.clusterdetail-empty {
+  padding: 20px;
+  font-size: var(--text-sm);
+  color: var(--text-5);
+  text-wrap: pretty;
+}
+
+/* ----------------------------------------------------------------- wells */
+
+.wellslegend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.wellslegend-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--text-2xs);
+  color: var(--text-3);
+}
+
+.wellslegend-req {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--fill-50);
+}
+
+.wellslegend-inc {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.wellslegend-gap {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--caution);
+  opacity: 0.5;
+}
+
+.wellslegend-ceil {
+  width: 14px;
+  height: 0;
+  border-top: 1.5px dashed var(--caution);
+}
+
+.wellsgrid-wrap {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 18px 20px;
+  border-right: 1px solid var(--border);
+}
+
+.wellsgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  grid-auto-rows: min-content;
+  gap: 10px;
+}
+
+.well {
+  padding: 10px 10px 9px;
+  border-radius: 9px;
+  background: var(--inset);
+  border: 1px solid var(--inset-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.well-receiving {
+  border-color: var(--border-strong);
+  background: var(--nav-active-bg);
+}
+
+.well-tight {
+  background: var(--caution-bg);
+  border-color: var(--caution-border);
+}
+
+.well-emptying {
+  background: var(--safe-bg);
+  border-color: var(--safe-border);
+}
+
+.well-blocked {
+  background: var(--held-bg);
+  border-color: var(--held-border);
+}
+
+.well-vessel {
+  position: relative;
+  height: 118px;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--inset-border);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.well-ceiling {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1.5px dashed var(--caution);
+  opacity: 0.75;
+  z-index: 1;
+}
+
+.well-inc {
+  background: var(--accent);
+}
+
+.well-req {
+  background: var(--fill-50);
+}
+
+.well-req-emptying {
+  background: var(--safe-border);
+}
+
+.well-name {
+  font-size: var(--text-2xs);
+  line-height: 1.5;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.well-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.well-total {
+  font-size: var(--text-xs);
+  color: var(--text-2);
+}
+
+.well-tag {
+  font-size: var(--text-2xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.well-tag-receiving {
+  color: var(--accent-text);
+}
+
+.well-tag-room {
+  color: var(--text-4);
+}
+
+.well-tag-tight {
+  color: var(--caution);
+}
+
+.well-tag-emptying {
+  color: var(--safe);
+}
+
+.well-tag-blocked {
+  color: var(--held);
+}
+
+.wells-worst {
+  margin-top: 8px;
+  padding: 12px 13px;
+  border-radius: var(--radius);
+  background: var(--inset);
+  border: 1px solid var(--border-strong);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wells-worst-value {
+  font-size: var(--text-lg);
+  color: var(--text-1);
+}
+
+/* ------------------------------------------------------------------ load */
+
+.loadempty {
+  padding: var(--space-6);
+  font-size: var(--text-sm);
+  color: var(--text-3);
+  max-width: 560px;
+}
+
+.loadtable {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px var(--space-6) 20px;
+}
+
+.loadrow {
+  display: grid;
+  grid-template-columns: 148px 82px 1fr 60px 60px 56px 60px 122px;
+  gap: 14px;
+  align-items: center;
+  padding: 11px 4px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.loadrow-head {
+  border-bottom: 1px solid var(--border-card);
+  padding-bottom: 9px;
+}
+
+.loadrow-head .eyebrow {
+  letter-spacing: 0.13em;
+}
+
+.loadrow-name {
+  font-size: var(--text-xs);
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.loadrow-pool {
+  font-size: var(--text-2xs);
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--raised);
+  color: var(--text-4);
+  justify-self: start;
+}
+
+.loadbar {
+  display: flex;
+  height: 16px;
+  border-radius: 4px;
+  background: var(--hairline);
+  border: 1px solid var(--border-card);
+  overflow: hidden;
+}
+
+.loadbar-used {
+  background: var(--accent);
+}
+
+.loadbar-gap {
+  background: var(--caution);
+  opacity: 0.5;
+}
+
+.loadrow-num {
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+.loadrow-req {
+  color: var(--caution-text);
+}

@@ -458,3 +458,29 @@ func TestDedupRefreshesSnapshotWhenUsageIsCollected(t *testing.T) {
 		t.Error("the stored snapshot kept its stale usage; the right-sizing report ages without bound on steady clusters")
 	}
 }
+
+// An upgraded planner re-verifying an identical plan under a new ceiling must
+// not leave the stored row describing the old policy. Found live: the first
+// deploy of the packing ceiling drew no Wells line, because the plan's steps
+// had not changed and dedup kept the pre-ceiling row.
+func TestDedupCarriesTheCeilingForward(t *testing.T) {
+	ctx := context.Background()
+	s := openTemp(t)
+
+	rec := record("same-hash", step(1, "n1", model.ImpactGreen))
+	rec.Plan.PackCeiling = 0
+	mustSave(t, s, rec, true)
+
+	rec.Plan.PackCeiling = 0.85
+	if stored, err := s.Save(ctx, rec); err != nil || stored {
+		t.Fatalf("identical steps must dedup: stored=%v err=%v", stored, err)
+	}
+
+	got, err := s.Latest(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Plan.PackCeiling != 0.85 {
+		t.Errorf("stored ceiling = %v, want 0.85 — the dedup touch dropped the policy", got.Plan.PackCeiling)
+	}
+}

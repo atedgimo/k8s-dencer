@@ -368,3 +368,50 @@ func TestHandsOffNodeIsNeverACandidate(t *testing.T) {
 		}
 	}
 }
+
+// The packing ceiling is real planner behaviour, not a line the UI draws:
+// a destination that could hold the pods at 100% of allocatable but not at
+// the ceiling receives nothing, and the drain that depended on it does not
+// happen. The Wells lens draws its dashed line at exactly this fraction, so
+// this test is what keeps that line honest.
+func TestPackCeilingRefusesDestinationsAboveIt(t *testing.T) {
+	snap := &model.ClusterSnapshot{
+		TakenAt: time.Now().UTC(),
+		Nodes: []model.Node{
+			{Name: "drainable", Ready: true,
+				Allocatable: model.Resources{MilliCPU: 4000, MemoryBytes: 8 << 30, Pods: 110}},
+			{Name: "dest", Ready: true,
+				Allocatable: model.Resources{MilliCPU: 4000, MemoryBytes: 8 << 30, Pods: 110}},
+		},
+		Pods: []model.Pod{
+			{Namespace: "app", Name: "mover", NodeName: "drainable", Phase: model.PodRunning, Ready: true,
+				Requests: model.Resources{MilliCPU: 2000, MemoryBytes: 1 << 30},
+				Owner:    &model.OwnerRef{Kind: "ReplicaSet", Name: "mover"}},
+			{Namespace: "app", Name: "sitter", NodeName: "dest", Phase: model.PodRunning, Ready: true,
+				Requests: model.Resources{MilliCPU: 1500, MemoryBytes: 1 << 30},
+				Owner:    &model.OwnerRef{Kind: "ReplicaSet", Name: "sitter"}},
+		},
+	}
+
+	// 1500 + 2000 = 3500m: fits 4000m allocatable, but not 85% of it (3400m).
+	opts := testOptions()
+	opts.PackCeiling = 0.85
+	if p := planFor(t, snap, opts); len(p.Steps) != 0 {
+		t.Errorf("with the ceiling, the drain must be refused; got %d step(s)", len(p.Steps))
+	}
+
+	opts.PackCeiling = 0
+	p := planFor(t, snap, opts)
+	if len(p.Steps) != 1 {
+		t.Fatalf("without the ceiling the same drain fits; got %d step(s)", len(p.Steps))
+	}
+	if p.PackCeiling != 0 {
+		t.Errorf("plan records ceiling %v, want 0", p.PackCeiling)
+	}
+
+	opts.PackCeiling = 0.95
+	if p := planFor(t, snap, opts); len(p.Steps) != 1 || p.PackCeiling != 0.95 {
+		t.Errorf("at 0.95 (3800m) the drain fits and the plan must record its ceiling; got %d step(s), ceiling %v",
+			len(p.Steps), p.PackCeiling)
+	}
+}

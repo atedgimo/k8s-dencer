@@ -82,7 +82,12 @@ type Data struct {
 	CPURequested   int64  `json:"cpuRequested,omitempty"`
 	MemAllocatable int64  `json:"memAllocatable,omitempty"`
 	MemRequested   int64  `json:"memRequested,omitempty"`
-	DrainStep      int    `json:"drainStep,omitempty"`
+	// Measured usage, summed from the node's pods when the snapshot came
+	// from a metrics-capable source; absent otherwise, and the Load lens
+	// renders its honest "unmeasured" state instead of a guess.
+	CPUUsed   int64 `json:"cpuUsed,omitempty"`
+	MemUsed   int64 `json:"memUsed,omitempty"`
+	DrainStep int   `json:"drainStep,omitempty"`
 
 	// Occupancy, always sent. In detail mode the UI could count the pod
 	// elements itself; in aggregated mode there are none to count, and having
@@ -113,6 +118,12 @@ type Stats struct {
 	// the product came to report a prediction in the language of an outcome.
 	Reclaimable int `json:"reclaimable"`
 	Steps       int `json:"steps"`
+
+	// PackCeiling is the utilisation fraction THIS plan refused to pack
+	// above, copied from the plan record — the Wells lens draws its ceiling
+	// line here, and the line must describe the plan on screen, not the
+	// current config. Zero on plans that predate the ceiling.
+	PackCeiling float64 `json:"packCeiling,omitempty"`
 
 	// ratings, podsMoved, cpuReclaimableMilli and memReclaimableBytes lived
 	// here and are gone again: their reader was the old verdict panel, which
@@ -148,7 +159,10 @@ func BuildWith(plan *model.Plan, snap *model.ClusterSnapshot, analysis *constrai
 
 	// One pass for occupancy, so the node loop below does not walk every pod
 	// per node — that shape is how the PDB edges came to be quadratic.
-	type tally struct{ pods, blocked, pinned int }
+	type tally struct {
+		pods, blocked, pinned int
+		usedCPU, usedMem      int64
+	}
 	occupancy := make(map[string]*tally, len(snap.Nodes))
 	for i := range snap.Pods {
 		pod := &snap.Pods[i]
@@ -161,6 +175,10 @@ func BuildWith(plan *model.Plan, snap *model.ClusterSnapshot, analysis *constrai
 			occupancy[pod.NodeName] = t
 		}
 		t.pods++
+		if pod.Usage != nil {
+			t.usedCPU += pod.Usage.MilliCPU
+			t.usedMem += pod.Usage.MemoryBytes
+		}
 		if !pod.IsMovable() {
 			t.pinned++
 		}
@@ -187,6 +205,8 @@ func BuildWith(plan *model.Plan, snap *model.ClusterSnapshot, analysis *constrai
 				CPURequested:   requested.MilliCPU,
 				MemAllocatable: n.Allocatable.MemoryBytes,
 				MemRequested:   requested.MemoryBytes,
+				CPUUsed:        occ(occupancy, n.Name).usedCPU,
+				MemUsed:        occ(occupancy, n.Name).usedMem,
 				DrainStep:      drainStep[n.Name],
 				PodCount:       occ(occupancy, n.Name).pods,
 				BlockedCount:   occ(occupancy, n.Name).blocked,
@@ -240,6 +260,7 @@ func buildStats(plan *model.Plan) Stats {
 		NodesBefore: plan.NodesBefore,
 		Reclaimable: plan.ReclaimedNodes(),
 		Steps:       len(plan.Steps),
+		PackCeiling: plan.PackCeiling,
 	}
 }
 

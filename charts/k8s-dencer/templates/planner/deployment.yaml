@@ -61,6 +61,8 @@ spec:
               value: {{ .Values.planner.minNodeAge | quote }}
             - name: MAX_STEPS
               value: {{ .Values.planner.maxSteps | quote }}
+            - name: PACK_CEILING
+              value: {{ .Values.planner.packCeiling | quote }}
             {{- with .Values.planner.excludeNamespaces }}
             - name: EXCLUDE_NAMESPACES
               value: {{ join "," . | quote }}

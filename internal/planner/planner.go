@@ -60,6 +60,12 @@ type Options struct {
 	// Now is the reference time for MinNodeAge. Zero uses the snapshot time,
 	// which keeps planning reproducible from a fixture.
 	Now time.Time
+
+	// PackCeiling caps destination utilisation during trial placement:
+	// 0.85 plans to 85% of a node's allocatable CPU and memory. Nothing sane
+	// packs production to 100% — zero headroom absorbs no burst, no failed
+	// neighbour, no rollout surge. Zero or ≥ 1 disables the ceiling.
+	PackCeiling float64
 }
 
 // DefaultExcludeNodeLabels are the label keys that mark a node as
@@ -74,6 +80,7 @@ func DefaultOptions() Options {
 	return Options{
 		ExcludeNodeLabels: DefaultExcludeNodeLabels,
 		MinNodeAge:        10 * time.Minute,
+		PackCeiling:       0.85,
 	}
 }
 

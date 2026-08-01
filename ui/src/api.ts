@@ -73,6 +73,9 @@ export interface GraphData {
   cpuRequested?: number;
   memAllocatable?: number;
   memRequested?: number;
+  /** Measured usage summed from the node's pods; absent when unmeasured. */
+  cpuUsed?: number;
+  memUsed?: number;
   drainStep?: number;
   podCount?: number;
   blockedCount?: number;
@@ -95,6 +98,9 @@ export interface GraphStats {
   nodesBefore: number;
   reclaimable: number;
   steps: number;
+  /** The utilisation fraction THIS plan refused to pack above; the Wells
+   *  lens draws its ceiling line here. Absent on plans that predate it. */
+  packCeiling?: number;
   // ratings/podsMoved/cpuReclaimableMilli/memReclaimableBytes are gone with
   // their reader, the old verdict panel: the hero derives per-verdict counts
   // and pricing from the steps it already renders, so the numbers cannot
@@ -162,6 +168,10 @@ export interface HistoryRunMarker {
   mode?: string;
   dryRun: boolean;
   finishedAt?: string;
+  /** The audit ledger's point: who authorised it, of what plan, how much. */
+  actor?: string;
+  planId?: string;
+  steps?: number;
 }
 
 export interface HistoryResponse {

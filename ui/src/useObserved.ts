@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { ObservedNode } from "./components/FieldViews";
 import { ReclamationState } from "./useReclamations";
 import { RunState } from "./useRun";
 
@@ -17,6 +16,20 @@ import { RunState } from "./useRun";
  * confusion this overlay exists to end, rebuilt one layer up. Guarded by
  * test/ui, mutation-tested.
  */
+export interface ObservedNode {
+  /** `spec.unschedulable` is set right now. */
+  cordoned?: boolean;
+  /** The node's Ready condition is false or unknown — it may not be running pods properly. */
+  notReady?: boolean;
+  /**
+   * Where the node is in its afterlife. `awaiting`: drained for real and still
+   * present — the machine is costing money and nothing has removed it yet.
+   * `reclaimed`: the Node object actually disappeared; the one outcome that
+   * saves anything.
+   */
+  reclaim?: "awaiting" | "reclaimed";
+}
+
 export interface Observed {
   nodes: Map<string, ObservedNode>;
   /**

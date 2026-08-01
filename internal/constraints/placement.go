@@ -31,13 +31,32 @@ type nodeState struct {
 
 // NewPlacement builds a working assignment from a snapshot's current state.
 func NewPlacement(snap *model.ClusterSnapshot) *Placement {
+	return NewPlacementCeiling(snap, 0)
+}
+
+// NewPlacementCeiling is NewPlacement with a packing ceiling: each node's
+// capacity basis becomes ceiling × allocatable (CPU and memory; the pod
+// count stays whole — it is a kubelet limit, not a utilisation target).
+// Nothing sane packs production nodes to 100%: a node with zero headroom
+// cannot absorb a burst, a failed neighbour, or the next rollout's surge.
+// A ceiling of 0, or ≥ 1, means the full allocatable.
+//
+// A node already above its ceiling simply accepts nothing new — free goes
+// negative and every CanPlace fails — which is the correct reading: it has
+// no headroom to sell.
+func NewPlacementCeiling(snap *model.ClusterSnapshot, ceiling float64) *Placement {
 	p := &Placement{
 		spread:    newSpreadIndex(),
 		nodes:     make(map[string]*nodeState, len(snap.Nodes)),
 		nodeOrder: make([]string, 0, len(snap.Nodes)),
 	}
 	for _, n := range snap.Nodes {
-		p.nodes[n.Name] = &nodeState{node: n, free: n.Allocatable}
+		free := n.Allocatable
+		if ceiling > 0 && ceiling < 1 {
+			free.MilliCPU = int64(float64(free.MilliCPU) * ceiling)
+			free.MemoryBytes = int64(float64(free.MemoryBytes) * ceiling)
+		}
+		p.nodes[n.Name] = &nodeState{node: n, free: free}
 		p.nodeOrder = append(p.nodeOrder, n.Name)
 	}
 	for _, pod := range snap.Pods {
