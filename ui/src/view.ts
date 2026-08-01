@@ -32,7 +32,13 @@ export type FieldView = "rack" | "wells" | "panel";
  * than "right now"), and conflating the axes would make "come back from
  * History to the view I was using" impossible.
  */
-export type Surface = "field" | "history";
+export type Surface = "plan" | "history" | "advice";
+
+export const SURFACE_LABELS: Record<Surface, string> = {
+  plan: "Plan",
+  history: "History",
+  advice: "Advice",
+};
 
 const KEY = "dencer.view";
 
