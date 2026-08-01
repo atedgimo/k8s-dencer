@@ -490,19 +490,24 @@ install_kwok_fabric() {
   green "  fabric up"
 }
 
+# The executor's readiness bar and the safety envelope follow the fabric:
+# real pods have real probes, so real mode keeps the honest Ready default.
 if [[ "$PLAY_FABRIC" == "real" ]]; then
-  install_real_fabric
-  # Real pods have real probes, so the executor keeps its honest default.
   READINESS_SET=()
   SAFETY_SET=(--set safety.maxNodesPerRun=3 --set safety.minReadyNodes=3)
 else
-  install_kwok_fabric
   # KWOK pods reach Running and never Ready; only this fabric weakens it.
   READINESS_SET=(--set executor.readiness=Running)
   SAFETY_SET=(--set safety.maxNodesPerRun=8 --set safety.minReadyNodes=5)
 fi
 
 # --------------------------------------------------------------- product
+# The product installs FIRST, onto an empty cluster. Launch four found the
+# alternative: workloads packed the nodes, the ui-backend squeezed in, and
+# the planner — required by the shared SQLite volume to land on the
+# ui-backend's exact node — had 50m of nowhere left to go. Pending forever,
+# then the helm wait died. The tenant being demoed gets first pick; the
+# planner replans every resync, so workload arrival order changes nothing.
 bold "==> k8s-dencer ${GHCR_TAG} (published images)"
 helm --kube-context "$CTX" upgrade --install "$RELEASE" "$REPO/charts/k8s-dencer" \
   --namespace "$NS" --create-namespace \
@@ -538,6 +543,14 @@ helm --kube-context "$CTX" upgrade --install "$RELEASE" "$REPO/charts/k8s-dencer
     fail "chart did not install (diagnostics above)"
   }
 green "  installed"
+
+# ---------------------------------------------------------------- fabric
+if [[ "$PLAY_FABRIC" == "real" ]]; then
+  install_real_fabric
+else
+  install_kwok_fabric
+fi
+
 
 # ---------------------------------------------------------------- access
 bold "==> access"
