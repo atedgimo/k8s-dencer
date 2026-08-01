@@ -70,6 +70,12 @@ deciding what to build next and telling users what they get.
   `pods/eviction` leaks to any other role
 
 ### Observing reality (not just predicting it)
+- **History** — the cluster as a line, not a moment: the estate with its
+  reclaimable slice shaded, the ledger climbing as capacity is *measured*
+  returned (run markers on the timeline; hollow ones were rehearsals), and
+  requests versus measured usage. One sample per planner cycle, 30-day
+  window. The demo fabric can play the missing autoscaler
+  (`make demo-reclaim`) so the whole story shows locally
 - **Reclaimer evidence, three-valued** — a recorded removal is proof, a
   visible autoscaler pod is a promise, and neither is *not* "no reclaimer"
   (managed control planes hide theirs). When drains are pending and there is

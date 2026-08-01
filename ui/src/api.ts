@@ -140,6 +140,37 @@ export interface StepDetail {
   constraints: PodConstraints[];
 }
 
+/** One point on the planner's timeline. Mirrors store.Sample. */
+export interface HistorySample {
+  takenAt: string;
+  nodes: number;
+  pods: number;
+  cpuReqMilli: number;
+  cpuAllocMilli: number;
+  memReqBytes: number;
+  memAllocBytes: number;
+  cpuUsedMilli: number;
+  memUsedBytes: number;
+  hasUsage: boolean;
+  reclaimable: number;
+}
+
+export interface HistoryRunMarker {
+  id: string;
+  status: RunStatus;
+  mode?: string;
+  dryRun: boolean;
+  finishedAt?: string;
+}
+
+export interface HistoryResponse {
+  hours: number;
+  samples: HistorySample[];
+  plans: Array<{ id: string; generatedAt: string; nodesBefore: number; nodesAfter: number }>;
+  reclamations: Reclamation[];
+  runs: HistoryRunMarker[];
+}
+
 const base = () => runtimeConfig().apiBaseUrl;
 
 /** ApiError distinguishes "nothing planned yet" from a real failure — a fresh
@@ -273,6 +304,9 @@ export interface Reclamation {
   step?: number;
   resolvedAt?: string;
   outcome?: "reclaimed" | "returned";
+  /** Allocatable captured at drain time — the ledger's measured inputs. */
+  cpuMilli?: number;
+  memBytes?: number;
 }
 
 export interface ReclamationsResponse {
@@ -366,6 +400,10 @@ export const api = {
       maxImpact,
       dryRun,
     }),
+
+  /** The cluster's timeline, chart-ready. */
+  history: (hours: number, signal?: AbortSignal) =>
+    get<HistoryResponse>(`/api/v1/history?hours=${hours}`, signal),
 
   run: (runId: string, signal?: AbortSignal) => get<RunDetail>(`/api/v1/runs/${runId}`, signal),
 

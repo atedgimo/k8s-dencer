@@ -49,6 +49,10 @@ happens to be able to execute, not an autoscaler with a UI.
   never an open-ended "optimize".
 - **Refuses steps that became unsafe** between planning and execution, naming
   the rule that stopped it.
+- **Draws the cluster over time, not just now.** A History surface: the
+  estate with its reclaimable slice, a measured savings ledger climbing as
+  nodes are actually removed, requests versus observed usage — with run
+  markers on the timeline.
 - **Checks whether draining actually saved anything.** k8s-dencer never deletes
   a node — something else does — so it watches, and tells you when a node you
   drained is still sitting there.
