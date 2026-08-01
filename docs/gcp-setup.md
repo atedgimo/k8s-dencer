@@ -220,6 +220,31 @@ command is a `list`) of clusters, instances, disks, load balancers, static
 IPs and snapshots. Run it after any cloud session; an empty report is the
 receipt. It deletes nothing, ever.
 
+## The playground
+
+`make gcp-play` stands up a throwaway GKE cluster with the full demo on top,
+hands you the UI for twenty minutes, and then deletes everything it made.
+
+- **A random scenario each run** — one of the demo chart's seven constraint
+  scenarios, on a KWOK fabric whose size also varies (24–40 fake nodes,
+  free); the three real `e2-medium` nodes underneath are the entire bill,
+  a few cents for the window.
+- **It never launches silently** — it prints the cluster, the scenario, the
+  cost ceiling, and waits for a typed `yes`.
+- **It always tears down** — the countdown ends in deletion; Ctrl-C ends in
+  deletion; a failure mid-flight ends in deletion; and the run finishes with
+  the `gke-leftovers` audit as the receipt. If a cluster somehow survives,
+  `make gcp-play-clean` knows where it lives.
+- **Your kubeconfig is left alone** — the current context is restored the
+  moment credentials are fetched; the playground is addressed by `--context`
+  throughout.
+- The window is `PLAY_MINUTES` (default 20); the token it prints expires
+  with the window.
+
+It installs the **published** images (`ghcr.io` at the chart's appVersion),
+so the UI you play with is the last released one — cut a release first if
+you want the playground to show newer work.
+
 ## The second run
 
 The first cloud test (M23) proved one thing: a reclaimer nobody here wrote
