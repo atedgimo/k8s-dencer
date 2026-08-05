@@ -23,6 +23,24 @@ The symlink is what makes `kubectl dencer plan` work — kubectl treats any
 `kubectl-*` binary on PATH as a plugin. Every global flag is spelled the way
 kubectl spells it, so muscle memory carries over.
 
+## CLI-only install (no web UI)
+
+The CLI needs two of the release's components: the **planner** (produces the
+plans) and the **ui-backend** (the API the CLI talks to — the name is
+historical; it serves the CLI equally). The web frontend is optional:
+
+```bash
+helm install k8s-dencer oci://ghcr.io/atedgimo/charts/k8s-dencer \
+  --namespace k8s-dencer --create-namespace \
+  --set uiFrontend.enabled=false
+```
+
+Add `--set executor.enabled=true` only if this install should be able to
+`run`, `converge` or `drain` — analysis commands need no executor. Leave
+`ingress`/`httpRoute` disabled (their target is the frontend). Everything
+else — authentication, RBAC, the plan store — is identical to a full
+install.
+
 ## Connecting
 
 With no flags, `dencer` finds the `ui-backend` Service through your kubeconfig
