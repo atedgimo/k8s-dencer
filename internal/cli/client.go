@@ -22,7 +22,6 @@ import (
 	"strings"
 	"time"
 
-	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -30,6 +29,9 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
+
+	// Legacy OIDC kubeconfigs name an auth-provider rather than an exec plugin.
+	_ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
 )
 
 const defaultOperatorSA = "dencer-operator"
@@ -95,20 +97,20 @@ func Connect(ctx context.Context, cfg Config) (*Client, error) {
 		restCfg.CAFile = ""
 	}
 
-	clientset, err := kubernetes.NewForConfig(restCfg)
-	if err != nil {
-		return nil, fmt.Errorf("kubernetes client: %w", err)
-	}
-
 	c.token = cfg.Token
 	if c.token == "" {
 		c.token = os.Getenv("DENCER_TOKEN")
 	}
 	if c.token == "" {
-		c.token, err = resolveToken(ctx, restCfg, clientset, cfg.Namespace, cfg.Release)
+		c.token, err = resolveToken(restCfg, cfg.Namespace)
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	clientset, err := kubernetes.NewForConfig(restCfg)
+	if err != nil {
+		return nil, fmt.Errorf("kubernetes client: %w", err)
 	}
 
 	local, stop, err := forward(ctx, restCfg, clientset, cfg.Namespace, cfg.Release)
@@ -149,10 +151,10 @@ func restConfig(cfg Config) (*rest.Config, error) {
 // (gcloud, aws, az, OIDC) only materialise a token when client-go builds a
 // transport — the same path kubectl uses — so tokenViaTransport runs the
 // plugin once and captures the Authorization header. Client-certificate
-// kubeconfigs — the default on k3d, kind and OrbStack — have no bearer token at
-// all; in that case we mint one for the operator ServiceAccount through the
-// API, which the port-forward already authenticated.
-func resolveToken(ctx context.Context, cfg *rest.Config, cs kubernetes.Interface, ns, release string) (string, error) {
+// kubeconfigs — the default on k3d, kind and OrbStack — have no bearer token;
+// rather than fail with "unauthenticated" from the server, say so here and
+// name the fix.
+func resolveToken(cfg *rest.Config, ns string) (string, error) {
 	if cfg.BearerToken != "" {
 		return cfg.BearerToken, nil
 	}
@@ -162,7 +164,8 @@ func resolveToken(ctx context.Context, cfg *rest.Config, cs kubernetes.Interface
 			return string(bytes.TrimSpace(b)), nil
 		}
 	}
-	if cfg.ExecProvider != nil || cfg.AuthProvider != nil {
+	if cfg.ExecProvider != nil {
+		fmt.Fprintf(os.Stderr, "running kubeconfig credential plugin: %s\n", cfg.ExecProvider.Command)
 		tok, err := tokenViaTransport(cfg)
 		if err != nil {
 			return "", fmt.Errorf(
@@ -173,7 +176,25 @@ func resolveToken(ctx context.Context, cfg *rest.Config, cs kubernetes.Interface
 		}
 		return tok, nil
 	}
-	return mintOperatorToken(ctx, cs, ns, release)
+	if cfg.AuthProvider != nil {
+		fmt.Fprintf(os.Stderr, "running kubeconfig credential plugin: %s\n", cfg.AuthProvider.Name)
+		tok, err := tokenViaTransport(cfg)
+		if err != nil {
+			return "", fmt.Errorf(
+				"could not run your kubeconfig credential plugin: %w\n"+
+					"Pass a token explicitly:\n"+
+					"  dencer --token \"$(kubectl create token %s -n %s)\" ...\n"+
+					"or set DENCER_TOKEN.", err, defaultOperatorSA, ns)
+		}
+		return tok, nil
+	}
+	return "", errors.New(
+		"your kubeconfig authenticates with a client certificate, and the backend verifies\n" +
+			"identity with TokenReview, which only accepts bearer tokens. A certificate proves who\n" +
+			"you are to the API server but cannot be reviewed as a token.\n\n" +
+			"Mint one:\n" +
+			"  dencer --token \"$(kubectl create token dencer-operator -n k8s-dencer)\" plan\n" +
+			"or set DENCER_TOKEN once for the session.")
 }
 
 type roundTripperFunc func(*http.Request) (*http.Response, error)
@@ -215,35 +236,6 @@ func tokenViaTransport(cfg *rest.Config) (string, error) {
 		return "", errors.New("credential plugin produced no bearer token")
 	}
 	return tok, nil
-}
-
-func mintOperatorToken(ctx context.Context, cs kubernetes.Interface, ns, release string) (string, error) {
-	expiration := int64((8 * time.Hour).Seconds())
-	tr := &authenticationv1.TokenRequest{
-		Spec: authenticationv1.TokenRequestSpec{
-			ExpirationSeconds: &expiration,
-		},
-	}
-	resp, err := cs.CoreV1().ServiceAccounts(ns).CreateToken(ctx, defaultOperatorSA, tr, metav1.CreateOptions{})
-	if err != nil {
-		return "", fmt.Errorf(
-			"could not mint a token for ServiceAccount %s/%s: %w\n\n"+
-				"Your kubeconfig authenticates with a client certificate. The backend verifies\n"+
-				"identity with TokenReview, which only accepts bearer tokens — so the CLI mints\n"+
-				"one for the operator ServiceAccount through the API.\n\n"+
-				"Set that account up once:\n"+
-				"  kubectl create serviceaccount %s -n %s\n"+
-				"  kubectl create rolebinding %s -n %s \\\n"+
-				"    --clusterrole=%s-consolidation-operator \\\n"+
-				"    --serviceaccount=%s:%s\n\n"+
-				"Or pass a token explicitly:\n"+
-				"  dencer --token \"$(kubectl create token %s -n %s)\" plan",
-			ns, defaultOperatorSA, err,
-			defaultOperatorSA, ns,
-			defaultOperatorSA, ns, release, ns, defaultOperatorSA,
-			defaultOperatorSA, ns)
-	}
-	return resp.Status.Token, nil
 }
 
 // forward opens a port-forward to the ui-backend Service.

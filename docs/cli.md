@@ -39,18 +39,14 @@ dencer plan -n platform --release dencer      # a differently-named release
 
 The backend verifies identity with `TokenReview`, which only understands
 **bearer tokens**. With no `--token` or `DENCER_TOKEN`, the CLI obtains one
-automatically:
+automatically when your kubeconfig uses a **credential plugin** (GKE/gcloud,
+EKS/aws, AKS, OIDC): the plugin is run once through client-go, the same way
+`kubectl` does, and a line naming the plugin is printed to stderr before it
+runs.
 
-- **Credential plugins** (GKE/gcloud, EKS, AKS, OIDC): the plugin is run once
-  through client-go, the same way `kubectl` does, and its bearer token is sent
-  to the backend.
-- **Client certificates** (k3d, kind, OrbStack): the CLI mints a token for the
-  `dencer-operator` ServiceAccount through the API. That account must exist and
-  be bound to the operator ClusterRole — `make token` sets it up on a local
-  install.
-
-You only need to pass a token yourself when auto-resolution fails or you want a
-specific identity:
+If your kubeconfig authenticates with a **client certificate** — the default
+on k3d, kind and OrbStack — there is no bearer token to send. Mint one
+explicitly:
 
 ```bash
 export DENCER_TOKEN="$(kubectl create token dencer-operator -n k8s-dencer)"

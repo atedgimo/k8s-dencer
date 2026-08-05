@@ -11,6 +11,8 @@ import (
 
 	"github.com/atedgimo/k8s-dencer/internal/model"
 	"github.com/atedgimo/k8s-dencer/internal/store"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd/api"
 )
 
 func TestParseSteps(t *testing.T) {
@@ -184,3 +186,29 @@ func TestRatingSurvivesWithoutColour(t *testing.T) {
 }
 
 func ratingFor(s string) model.ImpactRating { return model.ImpactRating(s) }
+
+// tokenViaTransport must capture a bearer token from client-go's exec-plugin
+// transport without sending a request to the API server — the stub RoundTripper
+// in client.go is the whole trick.
+func TestTokenViaTransportCapturesExecPluginToken(t *testing.T) {
+	cfg := &rest.Config{
+		Host: "https://cluster.example",
+		TLSClientConfig: rest.TLSClientConfig{
+			Insecure: true,
+		},
+		ExecProvider: &api.ExecConfig{
+			APIVersion:      "client.authentication.k8s.io/v1",
+			Command:         "sh",
+			Args:            []string{"-c", `printf '{"apiVersion":"client.authentication.k8s.io/v1","kind":"ExecCredential","status":{"token":"plugin-token-abc"}}'`},
+			InteractiveMode: api.NeverExecInteractiveMode,
+		},
+	}
+
+	got, err := tokenViaTransport(cfg)
+	if err != nil {
+		t.Fatalf("tokenViaTransport: %v", err)
+	}
+	if got != "plugin-token-abc" {
+		t.Errorf("token = %q, want plugin-token-abc", got)
+	}
+}
