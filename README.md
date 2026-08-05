@@ -177,6 +177,10 @@ helm install k8s-dencer oci://ghcr.io/atedgimo/charts/k8s-dencer \
   --set auth.enabled=true
 ```
 
+The chart installs one CRD (`maintenancewindows.dencer.io`); the `dencer.io`
+resources in its RBAC are SubjectAccessReview permission names, not CRDs — see
+[docs/install.md](docs/install.md#crds).
+
 Execution stays off unless you ask for it, and the chart refuses to enable it
 without authentication and persistence:
 

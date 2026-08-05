@@ -270,6 +270,7 @@
         {
           "type": "object",
           "properties": {
+            "enabled": { "type": "boolean" },
             "replicaCount": {
               "type": "integer",
               "minimum": 1

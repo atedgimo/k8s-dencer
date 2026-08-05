@@ -107,6 +107,42 @@ infrastructure with its own owner, address and TLS story. `parentRefs` names
 the Gateway this route attaches to, and the schema refuses an enabled route
 with no parent, so it cannot dangle.
 
+## Installing without the web UI
+
+`--set uiFrontend.enabled=false` keeps planner + API and drops the frontend —
+the install for teams using only the [`dencer` CLI](cli.md#cli-only-install-no-web-ui).
+
+## CRDs
+
+The chart ships **exactly one** CRD: `maintenancewindows.dencer.io` — the
+object that says *when* execution is allowed (see
+[execution.md](execution.md)). Helm installs it automatically on first
+install; nothing else to do.
+
+Two things users reasonably look for and should not:
+
+- **Helm never touches CRDs on upgrade.** That is Helm's design, kept
+  deliberately: a bad CRD change can orphan existing objects. If a chart
+  upgrade changes the CRD, apply it yourself:
+
+  ```bash
+  kubectl apply -f https://raw.githubusercontent.com/atedgimo/k8s-dencer/main/charts/k8s-dencer/crds/dencer.io_maintenancewindows.yaml
+  ```
+
+  (From a repo checkout, `make crd-upgrade` does the same.)
+
+- **`dencer.io/plans` and `dencer.io/consolidations` are not CRDs and never
+  will be.** They appear in the chart's RBAC because the API authorizes with
+  SubjectAccessReview, and SAR permissions do not require the resource to
+  exist as an API type — they are named permissions, nothing more. Plans
+  live in the product's own store, not in etcd (the reasoning is in
+  [architecture.md](architecture.md)), so `kubectl get plans.dencer.io`
+  will never work: the UI, the `dencer` CLI, or `GET /api/v1/plans` is how
+  plans are read.
+
+The demo fabric additionally needs KWOK's `Stage` CRDs, but only for the
+demo — `make demo` installs them; a product install does not.
+
 ## Known constraints
 
 - **SQLite is single-writer.** `uiBackend.replicaCount` is pinned to 1 and enforced by the schema; the planner is co-scheduled with ui-backend via a `requiredDuringScheduling` podAffinity, because a ReadWriteOnce claim only permits multiple pods on the same node. Both constraints disappear when the Postgres store lands.

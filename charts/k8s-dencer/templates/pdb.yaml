@@ -7,12 +7,15 @@ k8s-dencer exists to detect — shipping one would be indefensible. maxUnavailab
 always leaves a node drain a way through.
 */}}
 {{- $components := list
-  (dict "name" "planner"     "cfg" .Values.planner)
-  (dict "name" "ui-backend"  "cfg" .Values.uiBackend)
-  (dict "name" "ui-frontend" "cfg" .Values.uiFrontend)
+  (dict "name" "planner"     "cfg" .Values.planner "on" true)
+  (dict "name" "ui-backend"  "cfg" .Values.uiBackend "on" true)
+  (dict "name" "ui-frontend" "cfg" .Values.uiFrontend "on" .Values.uiFrontend.enabled)
 -}}
 {{- range $c := $components }}
-{{- if $c.cfg.podDisruptionBudget.enabled }}
+{{/* A PDB whose selector matches nothing is noise — and this product's own
+     audit would flag it, which would be embarrassing. Skip disabled
+     components entirely. */}}
+{{- if and $c.on $c.cfg.podDisruptionBudget.enabled }}
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
