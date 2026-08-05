@@ -51,7 +51,9 @@ GIT_DIRTY   := $(shell test -n "$$(git status --porcelain 2>/dev/null)" \
 IMAGE_TAG   ?= $(GIT_SHA)$(GIT_DIRTY)
 
 IMAGE_PREFIX ?= k8s-dencer
-PLATFORMS    ?= linux/amd64,linux/arm64
+PLATFORMS      ?= linux/amd64,linux/arm64
+CLI_PLATFORMS  ?= linux/amd64 linux/arm64 darwin/amd64 darwin/arm64
+CLI_DIST       ?= dist
 
 # Pinned tool versions, installed into ./bin so a workstation without brew
 # still gets a reproducible lint.
@@ -183,6 +185,21 @@ cli-install: cli ## Install dencer and kubectl-dencer into $(GOBIN) or ~/go/bin
 	install -m 0755 bin/dencer "$$dest/dencer"; \
 	ln -sf "$$dest/dencer" "$$dest/kubectl-dencer"; \
 	echo "installed $$dest/dencer and kubectl-dencer (so 'kubectl dencer plan' works)"
+
+.PHONY: cli-release
+cli-release: ## Build static dencer binaries for linux and darwin (amd64, arm64)
+	@mkdir -p $(CLI_DIST)
+	@for p in $(CLI_PLATFORMS); do \
+	  os=$${p%/*}; arch=$${p#*/}; \
+	  out=$(CLI_DIST)/dencer-$${os}-$${arch}; \
+	  echo "==> $$out"; \
+	  CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build \
+	    -trimpath \
+	    -ldflags="-s -w -X main.version=$(IMAGE_TAG)" \
+	    -o $$out ./cmd/dencer; \
+	done
+	@cd $(CLI_DIST) && shasum -a 256 dencer-* > SHA256SUMS
+	@echo "==> $(CLI_DIST)/ (binaries + SHA256SUMS)"
 
 .PHONY: e2e
 e2e: ## Install on a throwaway multi-node k3d cluster and drain a real node
@@ -476,4 +493,4 @@ down: undeploy demo-down kwok-down ## Remove every release this repo installs
 
 .PHONY: clean
 clean: ## Remove build artifacts
-	rm -rf $(LOCALBIN) ui/dist
+	rm -rf $(LOCALBIN) $(CLI_DIST) ui/dist

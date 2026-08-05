@@ -56,17 +56,20 @@ dencer plan -n platform --release dencer      # a differently-named release
 ### Authentication
 
 The backend verifies identity with `TokenReview`, which only understands
-**bearer tokens**. If your kubeconfig authenticates with a client certificate —
-the default on k3d, kind and OrbStack — there is no token to send, and the CLI
-says so rather than letting the server answer "unauthenticated":
+**bearer tokens**. With no `--token` or `DENCER_TOKEN`, the CLI obtains one
+automatically when your kubeconfig uses a **credential plugin** (GKE/gcloud,
+EKS/aws, AKS, OIDC): the plugin is run once through client-go, the same way
+`kubectl` does, and a line naming the plugin is printed to stderr before it
+runs.
+
+If your kubeconfig authenticates with a **client certificate** — the default
+on k3d, kind and OrbStack — there is no bearer token to send. Mint one
+explicitly:
 
 ```bash
 export DENCER_TOKEN="$(kubectl create token dencer-operator -n k8s-dencer)"
 dencer plan
 ```
-
-With OIDC single sign-on the ID token in your kubeconfig is already a
-Kubernetes credential and is used directly.
 
 ## Commands
 

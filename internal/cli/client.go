@@ -29,7 +29,12 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
+
+	// Legacy OIDC kubeconfigs name an auth-provider rather than an exec plugin.
+	_ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
 )
+
+const defaultOperatorSA = "dencer-operator"
 
 // Client talks to a k8s-dencer ui-backend.
 type Client struct {
@@ -97,7 +102,7 @@ func Connect(ctx context.Context, cfg Config) (*Client, error) {
 		c.token = os.Getenv("DENCER_TOKEN")
 	}
 	if c.token == "" {
-		c.token, err = tokenFrom(restCfg)
+		c.token, err = resolveToken(restCfg, cfg.Namespace)
 		if err != nil {
 			return nil, err
 		}
@@ -140,15 +145,16 @@ func restConfig(cfg Config) (*rest.Config, error) {
 	return rc, nil
 }
 
-// tokenFrom digs a bearer token out of the kubeconfig.
+// resolveToken finds a bearer token the ui-backend can verify with TokenReview.
 //
-// This is where a client-certificate kubeconfig — the default on k3d, kind and
-// OrbStack — cannot help. The backend authenticates with TokenReview, which
-// only understands bearer tokens; a certificate authenticates to the API
-// server and means nothing to a TokenReview call. Rather than fail with
-// "unauthenticated" from the server and leave the user guessing, say so here
-// and name the fix.
-func tokenFrom(cfg *rest.Config) (string, error) {
+// A static token in the kubeconfig is used when present. Credential plugins
+// (gcloud, aws, az, OIDC) only materialise a token when client-go builds a
+// transport — the same path kubectl uses — so tokenViaTransport runs the
+// plugin once and captures the Authorization header. Client-certificate
+// kubeconfigs — the default on k3d, kind and OrbStack — have no bearer token;
+// rather than fail with "unauthenticated" from the server, say so here and
+// name the fix.
+func resolveToken(cfg *rest.Config, ns string) (string, error) {
 	if cfg.BearerToken != "" {
 		return cfg.BearerToken, nil
 	}
@@ -158,15 +164,29 @@ func tokenFrom(cfg *rest.Config) (string, error) {
 			return string(bytes.TrimSpace(b)), nil
 		}
 	}
-	if cfg.ExecProvider != nil || cfg.AuthProvider != nil {
-		// An exec or OIDC provider produces a token, but only through the
-		// transport. Round-tripping it here would mean reimplementing
-		// client-go's credential plumbing.
-		return "", errors.New(
-			"your kubeconfig authenticates through a credential plugin, which this client cannot read directly.\n" +
-				"Pass a token explicitly:\n" +
-				"  dencer --token \"$(kubectl create token <serviceaccount> -n <namespace>)\" ...\n" +
-				"or set DENCER_TOKEN.")
+	if cfg.ExecProvider != nil {
+		fmt.Fprintf(os.Stderr, "running kubeconfig credential plugin: %s\n", cfg.ExecProvider.Command)
+		tok, err := tokenViaTransport(cfg)
+		if err != nil {
+			return "", fmt.Errorf(
+				"could not run your kubeconfig credential plugin: %w\n"+
+					"Pass a token explicitly:\n"+
+					"  dencer --token \"$(kubectl create token %s -n %s)\" ...\n"+
+					"or set DENCER_TOKEN.", err, defaultOperatorSA, ns)
+		}
+		return tok, nil
+	}
+	if cfg.AuthProvider != nil {
+		fmt.Fprintf(os.Stderr, "running kubeconfig credential plugin: %s\n", cfg.AuthProvider.Name)
+		tok, err := tokenViaTransport(cfg)
+		if err != nil {
+			return "", fmt.Errorf(
+				"could not run your kubeconfig credential plugin: %w\n"+
+					"Pass a token explicitly:\n"+
+					"  dencer --token \"$(kubectl create token %s -n %s)\" ...\n"+
+					"or set DENCER_TOKEN.", err, defaultOperatorSA, ns)
+		}
+		return tok, nil
 	}
 	return "", errors.New(
 		"your kubeconfig authenticates with a client certificate, and the backend verifies\n" +
@@ -175,6 +195,47 @@ func tokenFrom(cfg *rest.Config) (string, error) {
 			"Mint one:\n" +
 			"  dencer --token \"$(kubectl create token dencer-operator -n k8s-dencer)\" plan\n" +
 			"or set DENCER_TOKEN once for the session.")
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+// tokenViaTransport invokes the kubeconfig credential plugin once and returns
+// the bearer token it attaches to requests.
+func tokenViaTransport(cfg *rest.Config) (string, error) {
+	var tok string
+	wrapped := *cfg
+	wrapped.WrapTransport = func(http.RoundTripper) http.RoundTripper {
+		return roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			if h := req.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
+				tok = strings.TrimPrefix(h, "Bearer ")
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader("{}")),
+				Header:     make(http.Header),
+				Request:    req,
+			}, nil
+		})
+	}
+	rt, err := rest.TransportFor(&wrapped)
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequest(http.MethodGet, strings.TrimRight(cfg.Host, "/")+"/version", nil)
+	if err != nil {
+		return "", err
+	}
+	if _, err := rt.RoundTrip(req); err != nil {
+		return "", err
+	}
+	if tok == "" {
+		return "", errors.New("credential plugin produced no bearer token")
+	}
+	return tok, nil
 }
 
 // forward opens a port-forward to the ui-backend Service.
