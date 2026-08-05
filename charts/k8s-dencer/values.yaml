@@ -206,6 +206,10 @@ uiBackend:
     maxUnavailable: 1
 
 uiFrontend:
+  # The web UI is optional: a CLI-only install sets this false and keeps
+  # planner + ui-backend (the API the CLI talks to). Ingress and httpRoute
+  # both point at the frontend, so leave them disabled when this is off.
+  enabled: true
   replicaCount: 2
   image:
     registry: ghcr.io
