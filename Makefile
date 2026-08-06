@@ -54,6 +54,13 @@ IMAGE_PREFIX ?= k8s-dencer
 PLATFORMS      ?= linux/amd64,linux/arm64
 CLI_PLATFORMS  ?= linux/amd64 linux/arm64 darwin/amd64 darwin/arm64
 CLI_DIST       ?= dist
+# The release workflow overrides this with the tag, so a published binary
+# reports the release it came from rather than the commit it was built at.
+CLI_VERSION    ?= $(IMAGE_TAG)
+# The release runs on Linux and development runs on macOS; only one of these
+# two exists on either. Both emit the same "<hash>  <file>" format.
+SHA256         := $(shell command -v sha256sum >/dev/null 2>&1 \
+                    && echo sha256sum || echo "shasum -a 256")
 
 # Pinned tool versions, installed into ./bin so a workstation without brew
 # still gets a reproducible lint.
@@ -195,11 +202,11 @@ cli-release: ## Build static dencer binaries for linux and darwin (amd64, arm64)
 	  echo "==> $$out"; \
 	  CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build \
 	    -trimpath \
-	    -ldflags="-s -w -X main.version=$(IMAGE_TAG)" \
+	    -ldflags="-s -w -X main.version=$(CLI_VERSION)" \
 	    -o $$out ./cmd/dencer; \
 	done
-	@cd $(CLI_DIST) && shasum -a 256 dencer-* > SHA256SUMS
-	@echo "==> $(CLI_DIST)/ (binaries + SHA256SUMS)"
+	@cd $(CLI_DIST) && $(SHA256) dencer-* > checksums.txt
+	@echo "==> $(CLI_DIST)/ (binaries + checksums.txt)"
 
 .PHONY: e2e
 e2e: ## Install on a throwaway multi-node k3d cluster and drain a real node

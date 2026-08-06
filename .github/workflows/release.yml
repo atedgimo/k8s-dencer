@@ -101,18 +101,15 @@ jobs:
       # Static, cross-compiled, no cgo — the same properties the server images
       # rely on, for the same reason: a CLI that can drain nodes should not
       # depend on the libc of whatever machine it lands on.
+      #
+      # This calls the same target a contributor runs locally rather than
+      # keeping a second copy of the build here. The two had already drifted
+      # apart on the checksum filename once.
       - name: build
-        env:
-          VERSION: ${{ steps.v.outputs.version }}
-        run: |
-          mkdir -p dist
-          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
-            os="${target%/*}"; arch="${target#*/}"
-            CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build \
-              -trimpath -ldflags="-s -w -X main.version=${VERSION}" \
-              -o "dist/dencer-${os}-${arch}" ./cmd/dencer
-          done
-          cd dist && sha256sum dencer-* > checksums.txt && cat checksums.txt
+        run: make cli-release CLI_VERSION=${{ steps.v.outputs.version }}
+
+      - name: checksums
+        run: cat dist/checksums.txt
 
       - name: attach to the release
         env:
