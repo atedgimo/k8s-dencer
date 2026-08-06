@@ -274,9 +274,12 @@ until the next snapshot says where they truly landed.
 execution, and maintenance windows. Phase 4 — hardening toward 1000 nodes and
 50,000 pods — is in progress, with metrics, CI and the release pipeline landed.
 
-**v0.3.0 is published** — images and chart on `ghcr.io`, installable by the
-command above. It carries the redesigned UI, the packing ceiling, and per-node
-measured usage.
+**v0.4.0 is published** — images, chart and CLI binaries on `ghcr.io` and the
+[releases page](https://github.com/atedgimo/k8s-dencer/releases), installable by
+the command above. It carries the redesigned UI, the packing ceiling, per-node
+measured usage, a CLI that authenticates against cloud kubeconfigs without being
+handed a token, and an install that can leave the web UI out entirely
+(`uiFrontend.enabled=false`).
 
 **The UI has been rebuilt against a full design handoff** (2026-08-01): twelve
 mockup frames, a dual-theme token system with computed-contrast guards, and
