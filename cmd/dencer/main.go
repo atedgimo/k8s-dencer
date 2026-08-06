@@ -45,7 +45,7 @@ Commands:
   rightsizing           requests vs observed usage, per workload
   whatif                simulate losing nodes or a zone: does everything still fit?
   drain <node>          guarded drain of one node: the rails, not bare kubectl
-  version
+  version               the version of this binary (also --version)
 
 Global flags:
   --server URL          backend base URL. Default: port-forward via kubeconfig
@@ -94,7 +94,10 @@ func run() error {
 	case "-h", "--help", "help":
 		fmt.Print(usage)
 		return nil
-	case "version":
+	// --version is not kubectl's spelling, but it is the reflex of everyone
+	// who has ever met another CLI, and answering "unknown command" to it is
+	// a poor first impression from a tool that drains nodes.
+	case "version", "--version":
 		fmt.Printf("dencer %s\n", version)
 		return nil
 	}

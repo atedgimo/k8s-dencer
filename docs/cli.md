@@ -11,13 +11,26 @@ step is Red.
 
 ## Install
 
+Prebuilt binaries are attached to every release from v0.3.0 onward, static and
+cgo-free, for linux and darwin on amd64 and arm64:
+
 ```bash
-make cli-install    # installs dencer and kubectl-dencer into $GOBIN
+# pick your platform: dencer-{linux,darwin}-{amd64,arm64}
+curl -fsSLO https://github.com/atedgimo/k8s-dencer/releases/latest/download/dencer-darwin-arm64
+curl -fsSLO https://github.com/atedgimo/k8s-dencer/releases/latest/download/checksums.txt
+shasum -a 256 -c checksums.txt --ignore-missing
+chmod +x dencer-darwin-arm64 && sudo mv dencer-darwin-arm64 /usr/local/bin/dencer
 ```
 
-Prebuilt binaries are attached to GitHub releases from the first tag after
-v0.1.0 — that release published the images and the chart but predates the CLI,
-so building from a checkout is the only route until then.
+`dencer version` prints what you installed. Verify the checksum before you make
+it executable — this is a binary that can drain nodes.
+
+From a checkout instead:
+
+```bash
+make cli-install    # installs dencer and kubectl-dencer into $GOBIN
+make cli-release    # cross-compiles all four platforms into dist/, as CI does
+```
 
 The symlink is what makes `kubectl dencer plan` work — kubectl treats any
 `kubectl-*` binary on PATH as a plugin. Every global flag is spelled the way
