@@ -143,9 +143,39 @@ Two things users reasonably look for and should not:
 The demo fabric additionally needs KWOK's `Stage` CRDs, but only for the
 demo — `make demo` installs them; a product install does not.
 
+## Showing savings in money
+
+The ledger measures capacity — cores and bytes actually returned, summed from
+what each node was worth at drain time. To see that in currency, tell the
+chart what your machines cost:
+
+```yaml
+uiBackend:
+  pricing:
+    currency: USD
+    perHour:
+      e2-medium: 0.0335
+      e2-medium/spot: 0.0100
+      n2-standard-4: 0.1942
+```
+
+Keys match most specific first, so spot and on-demand of the same shape can
+differ. There is no built-in price table and there will not be one: list
+prices vary by region, change without notice, and are wrong for anyone with a
+committed-use discount, so a shipped default would be a guess wearing the
+clothes of a measurement. Machine types you have not priced are reported as
+unpriced rather than as free, and the capacity figure is shown either way.
+
+The ledger also counts nodes that left the cluster without k8s-dencer draining
+them — an autoscaler, or someone with kubectl — and reports them separately.
+The cluster saved that money whoever caused it, and the ledger's job is to be
+accurate about what happened rather than flattering about who did it.
+
 ## Known constraints
 
 - **SQLite is single-writer.** `uiBackend.replicaCount` is pinned to 1 and enforced by the schema; the planner is co-scheduled with ui-backend via a `requiredDuringScheduling` podAffinity, because a ReadWriteOnce claim only permits multiple pods on the same node. Both constraints disappear when the Postgres store lands.
+
+  That affinity leaves the planner exactly one node it may occupy, so on a packed cluster it can lose the scheduling race and sit `Pending`. The chart creates a `PriorityClass` for the pair to stop that happening — only when the co-location applies, so a Postgres install gets no cluster-scoped object it has no use for. It is `preemptionPolicy: Never`: winning a queue is worth having, evicting someone else's workload to get there is not. Set `priorityClass.create=false` to opt out, or `planner.priorityClassName` to use your own.
 - **PDBs use `maxUnavailable`, never `minAvailable`.** A `minAvailable` PDB on a single-replica Deployment makes its own pod undrainable — the exact pathology this product exists to detect.
 
 ---

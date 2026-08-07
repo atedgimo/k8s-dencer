@@ -143,6 +143,30 @@ deciding what to build next and telling users what they get.
   `restricted` enforcing, real ingress, real drains, reclamation observed
 - **Zero-cost demo** — KWOK fake-node fabric, no real workloads needed
 
+### Managed clusters, and the surfaces that were built and never shown (2026-08-07)
+- **It plans on managed clusters at all** — a static pod owned by the node
+  (GKE runs kube-proxy this way) is recognised as pinned. Before this the
+  analyzer tried to reschedule a pod nothing can move, failed, and marked
+  every node undrainable: converge reported nothing to do while the cloud's
+  own autoscaler reclaimed two nodes from the same cluster
+- **Pinned is not blocking** — a DaemonSet pod cannot move but does not hold
+  a drain up, so preflight and audit stopped reporting the worst possible
+  answer on every real cluster
+- **A GKE-shaped fixture** — the whole class of bug reproduced in CI, because
+  KWOK nodes run no system pods at all and never could catch it
+- **The ledger in money** — operator-supplied prices, no built-in table, a
+  rate rather than a total, and nodes reclaimed by something else counted
+  separately rather than claimed
+- **Rightsizing, maintenance windows, what-if and preflight** — four
+  capabilities the backend already had and the UI never called
+- **An empty plan explains itself** — the state a healthy cluster spends most
+  of its life in used to render blank
+- **Per-node history** — a node stably idle for a fortnight told apart from
+  one that peaks nightly
+- **Stop a run in flight** — one control, not the designed two: a pod already
+  evicted cannot be un-evicted, so abort and pause are the same capability
+  and offering both would promise an undo that does not exist
+
 ## Next
 
 Ordered by intent; items move up when a user need pulls them.

@@ -148,6 +148,30 @@ for an autoscaler that is about to act.
 ### `dencer status`
 
 The run in flight, or a specific one with `--run <id>`, plus its audit trail.
+With nothing running it shows the most recent run and says that is what you
+are looking at.
+
+### `dencer stop`
+
+Asks the run in flight to end after its current step.
+
+```bash
+dencer stop            # the run in flight
+dencer stop --run <id>
+```
+
+Deliberately not called abort. A pod that has been evicted cannot be
+un-evicted, so there is no interrupting a step in progress — only declining to
+start the next one. Evictions already in flight complete; the executor stops
+at the next step boundary, where nothing is cordoned and nothing is
+half-drained.
+
+The run ends with status `Stopped`, which the audit ledger keeps distinct from
+`Succeeded` (it did not finish what it was approved for) and from `Failed`
+(nothing went wrong), and records who asked.
+
+Needs the same permission as starting a run: stopping something you were
+allowed to start is not a new power.
 
 ## Scripting
 
