@@ -274,12 +274,20 @@ until the next snapshot says where they truly landed.
 execution, and maintenance windows. Phase 4 — hardening toward 1000 nodes and
 50,000 pods — is in progress, with metrics, CI and the release pipeline landed.
 
-**v0.4.0 is published** — images, chart and CLI binaries on `ghcr.io` and the
+**v0.5.0 is published** — images, chart and CLI binaries on `ghcr.io` and the
 [releases page](https://github.com/atedgimo/k8s-dencer/releases), installable by
-the command above. It carries the redesigned UI, the packing ceiling, per-node
-measured usage, a CLI that authenticates against cloud kubeconfigs without being
-handed a token, and an install that can leave the web UI out entirely
-(`uiFrontend.enabled=false`).
+the command above.
+
+It is the release that made the product work on managed clusters. A real GKE
+run found that it could not plan at all there — see below — and fixing that
+brought the rest with it: the savings ledger in money when you say what your
+machines cost, rightsizing and maintenance windows and resilience simulation
+all given screens after being built and never surfaced, an empty plan that
+explains itself rather than rendering blank, per-node history so a node that
+is quietly idle can be told from one that spikes nightly, and a single Stop
+control on a run in flight — one rather than the designed two, because a pod
+that has been evicted cannot be un-evicted and two buttons would promise an
+undo that does not exist.
 
 **The UI has been rebuilt against a full design handoff** (2026-08-01): twelve
 mockup frames, a dual-theme token system with computed-contrast guards, and
