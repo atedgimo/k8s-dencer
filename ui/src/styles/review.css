@@ -897,3 +897,9 @@
   font-size: var(--text-xs);
   color: var(--text-5);
 }
+
+/* What would have to change. Deliberately quieter than the blocker it
+   follows: the reason is the fact, this is the suggestion. */
+.whynothing-unlock {
+  color: var(--accent-text);
+}
