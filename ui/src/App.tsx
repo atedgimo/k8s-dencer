@@ -452,12 +452,18 @@ export default function App() {
 
 /** The focused step's pool chip, joined from the graph's node metadata. */
 function poolOf(
-  graph: { elements: Array<{ data: { kind: string; label: string; instanceType?: string; capacityType?: string } }> },
+  graph: {
+    elements: Array<{
+      data: { kind: string; label: string; pool?: string; instanceType?: string; capacityType?: string };
+    }>;
+  },
   step?: PlanStep,
 ): string | undefined {
   if (!step?.targetNode) return undefined;
   const n = graph.elements.find((e) => e.data.kind === "node" && e.data.label === step.targetNode);
-  return n?.data.instanceType || n?.data.capacityType || undefined;
+  // The pool is the thing an operator recognises and the thing that scales;
+  // the machine shape is the fallback when the provider names no pool.
+  return n?.data.pool || n?.data.instanceType || n?.data.capacityType || undefined;
 }
 
 /**

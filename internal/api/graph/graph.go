@@ -73,8 +73,11 @@ type Data struct {
 	Label string `json:"label"`
 
 	// Node fields.
-	Zone           string `json:"zone,omitempty"`
-	InstanceType   string `json:"instanceType,omitempty"`
+	Zone         string `json:"zone,omitempty"`
+	InstanceType string `json:"instanceType,omitempty"`
+	// Pool is the node group, from the provider's own label. Distinct from
+	// InstanceType: a pool can hold mixed shapes, and two pools can share one.
+	Pool           string `json:"pool,omitempty"`
 	CapacityType   string `json:"capacityType,omitempty"`
 	Ready          bool   `json:"ready,omitempty"`
 	Cordoned       bool   `json:"cordoned,omitempty"`
@@ -198,6 +201,7 @@ func BuildWith(plan *model.Plan, snap *model.ClusterSnapshot, analysis *constrai
 				Label:          n.Name,
 				Zone:           n.Zone(),
 				InstanceType:   n.InstanceType(),
+				Pool:           n.Pool(),
 				CapacityType:   n.CapacityType(),
 				Ready:          n.Ready,
 				Cordoned:       n.Unschedulable,
