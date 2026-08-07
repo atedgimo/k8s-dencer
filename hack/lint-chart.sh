@@ -273,6 +273,23 @@ if helm template dencer "$CHART" \
 fi
 green "  rejected as expected"
 
+bold "==> contract: the co-scheduled pair outranks the workloads it competes with"
+# SQLite pins the planner to the ui-backend's node, so it has exactly one node
+# it may occupy and loses scheduling fights it cannot afford to lose. The
+# priority is the interim answer; the assertion is that it actually reaches
+# both halves of the pair, and only them.
+sqlite_prio="$(helm template dencer "$CHART" --set database.type=sqlite   | grep -c 'priorityClassName: dencer-k8s-dencer' || true)"
+if [ "$sqlite_prio" -ne 2 ]; then
+  fail "expected the planner and ui-backend to carry the priority class, found $sqlite_prio pod(s)"
+fi
+# Postgres removes the co-location, so the cluster-scoped object should not
+# exist at all: no install gets a PriorityClass it has no use for.
+if helm template dencer "$CHART" --set database.type=postgres \
+     | grep -q '^kind: PriorityClass'; then
+  fail "a Postgres install created a PriorityClass it does not need"
+fi
+green "  planner and ui-backend prioritised under SQLite, nothing created under Postgres"
+
 bold "==> contract: chart packages without the ci/ fixtures"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT

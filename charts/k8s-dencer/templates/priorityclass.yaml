@@ -1,0 +1,36 @@
+{{- /*
+A PriorityClass for the components that must be co-scheduled.
+
+SQLite is single-writer on a ReadWriteOnce claim, so the planner carries a
+required pod affinity to the ui-backend's node. That makes the planner
+schedulable on exactly one node, and on a packed cluster it loses to whatever
+got there first — observed twice in one day: a fresh install where the planner
+sat Pending until the helm wait died, and a rolling upgrade that left it
+unschedulable mid-session.
+
+Priority is the interim answer, not the real one. The real one is
+database.type=postgres, which removes the co-location entirely; this exists so
+that installs which have not made that move stop losing scheduling fights they
+cannot afford to lose.
+
+Created only when the constraint actually applies. An install on Postgres has
+no co-location, so it gets no cluster-scoped object it did not ask for.
+*/ -}}
+{{- $coLocated := and .Values.persistence.enabled (eq .Values.database.type "sqlite") -}}
+{{- if and .Values.priorityClass.create $coLocated }}
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: {{ include "k8s-dencer.fullname" . }}
+  labels:
+    {{- include "k8s-dencer.labels" . | nindent 4 }}
+value: {{ .Values.priorityClass.value }}
+# Never the default for the cluster: this is about one product's own pods, and
+# quietly raising the priority of every unannotated workload in the cluster
+# would be an extraordinary thing for a consolidation tool to do.
+globalDefault: false
+preemptionPolicy: {{ .Values.priorityClass.preemptionPolicy }}
+description: >-
+  k8s-dencer's planner and ui-backend share a ReadWriteOnce volume and must be
+  co-scheduled, so they cannot simply be placed elsewhere under pressure.
+{{- end }}

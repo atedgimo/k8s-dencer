@@ -35,8 +35,13 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.planner.priorityClassName }}
-      priorityClassName: {{ . }}
+      {{- if .Values.planner.priorityClassName }}
+      priorityClassName: {{ .Values.planner.priorityClassName }}
+      {{- else if and .Values.priorityClass.create .Values.persistence.enabled (eq .Values.database.type "sqlite") }}
+      # Co-scheduled with the other half of the SQLite volume, so it
+      # cannot be placed elsewhere under pressure. An explicit
+      # priorityClassName above always wins.
+      priorityClassName: {{ include "k8s-dencer.fullname" . }}
       {{- end }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
