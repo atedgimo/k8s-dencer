@@ -20,6 +20,7 @@ import { runtimeConfig } from "./runtime-config";
 import { useObserved } from "./useObserved";
 import { usePlan } from "./usePlan";
 import { useReclamations } from "./useReclamations";
+import WhyNothing from "./components/review/WhyNothing";
 import { useRecommendations } from "./useRecommendations";
 import { useRun } from "./useRun";
 import { useVersion } from "./useVersion";
@@ -323,6 +324,8 @@ export default function App() {
               />
 
               <RunTrail state={run.state} onDismiss={run.dismiss} />
+
+              {steps.length === 0 && <WhyNothing />}
 
               <main className="review-main">
                 <StepList
