@@ -10,7 +10,7 @@
  */
 
 import { useMemo, useState } from "react";
-import { GraphPayload, Impact, PlanStep, formatCPU } from "../../api";
+import { GraphPayload, Impact, PlanStep, WhatIf, api, formatCPU } from "../../api";
 import { FieldView, VIEW_LABELS } from "../../view";
 import { VERDICT } from "../Impact";
 import type { ObservedNode } from "../../useObserved";
@@ -228,11 +228,22 @@ function RackLens({
   // a cluster with no plan meant the pane was inert for the whole session. But
   // "what is running here" is answerable about every node, always.
   const [pickedNode, setPickedNode] = useState<string | null>(null);
+  const [whatif, setWhatif] = useState<{ node: string; result?: WhatIf; error?: string } | null>(null);
   const picked = nodes.find((n) => n.name === pickedNode) ?? focused;
   const pickedPods = picked ? (podsByNode.get(`node:${picked.name}`) ?? []) : [];
   const selectNode = (n: NodeModel) => {
     setPickedNode(n.name);
+    // A stale answer next to a new node would be worse than no answer.
+    setWhatif(null);
     onSelectStep(n.drainStep ?? null);
+  };
+
+  const simulate = (name: string) => {
+    setWhatif({ node: name });
+    api
+      .whatif({ removeNodes: [name] })
+      .then((r) => setWhatif({ node: name, result: r }))
+      .catch(() => setWhatif({ node: name, error: "Could not simulate just now." }));
   };
 
   return (
@@ -343,6 +354,43 @@ function RackLens({
                 </p>
               </div>
               <div className="clusterdetail-body">
+                <button
+                  type="button"
+                  className="btn whatif-run"
+                  onClick={() => simulate(picked.name)}
+                  disabled={whatif?.node === picked.name && !whatif.result && !whatif.error}
+                >
+                  {whatif?.node === picked.name && !whatif.result && !whatif.error
+                    ? "Simulating…"
+                    : "What if this node were gone?"}
+                </button>
+                {whatif?.node === picked.name && whatif.error && (
+                  <p className="whatif-note">{whatif.error}</p>
+                )}
+                {whatif?.node === picked.name && whatif.result && (
+                  <div className={"whatif" + (whatif.result.fits ? " is-fits" : " is-tight")}>
+                    <p className="whatif-verdict">
+                      {whatif.result.fits
+                        ? `Everything fits. ${whatif.result.displaced} pod${whatif.result.displaced === 1 ? "" : "s"} would move.`
+                        : `${whatif.result.homeless.length} pod${whatif.result.homeless.length === 1 ? "" : "s"} would have nowhere legal to go.`}
+                    </p>
+                    {whatif.result.homeless.slice(0, 5).map((h) => (
+                      <div key={h.pod} className="whatif-homeless">
+                        <span className="mono">{h.pod}</span>
+                        {h.why[0] ? <span className="whatif-why"> — {h.why[0]}</span> : null}
+                      </div>
+                    ))}
+                    {whatif.result.homeless.length > 5 && (
+                      <p className="whatif-note">
+                        and {whatif.result.homeless.length - 5} more — run{" "}
+                        <span className="mono">dencer whatif --without-nodes {picked.name}</span>
+                      </p>
+                    )}
+                    <p className="whatif-note">
+                      A simulation against the last snapshot. Nothing was touched.
+                    </p>
+                  </div>
+                )}
                 <span className="eyebrow mono">What is running here</span>
                 <ul className="podlist">
                   {pickedPods.length === 0 && (

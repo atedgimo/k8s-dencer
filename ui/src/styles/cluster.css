@@ -618,3 +618,53 @@
 .loadrow-req {
   color: var(--caution-text);
 }
+
+/* "What if this node were gone?" — a simulation, run from the pane that
+   already describes the node. Deliberately not a button that does anything:
+   the answer is information, and the copy says nothing was touched. */
+.whatif-run {
+  align-self: flex-start;
+  margin-bottom: 4px;
+}
+
+.whatif {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 11px;
+  margin-bottom: 6px;
+  border-radius: 7px;
+  background: var(--inset);
+  border: 1px solid var(--inset-border);
+}
+
+.whatif.is-fits {
+  border-color: var(--safe-border);
+}
+
+.whatif.is-tight {
+  border-color: var(--held-border);
+}
+
+.whatif-verdict {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-1);
+}
+
+.whatif-homeless {
+  font-size: var(--text-2xs);
+  color: var(--text-2);
+  line-height: 1.5;
+}
+
+.whatif-why {
+  color: var(--text-5);
+}
+
+.whatif-note {
+  margin: 0;
+  font-size: var(--text-2xs);
+  color: var(--text-5);
+  text-wrap: pretty;
+}
