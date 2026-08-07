@@ -487,6 +487,10 @@ scenario: ## Switch scenario: make scenario S=b-pdb-blocked
 demo-video: ## Record the scripted UI walkthrough (needs the demo running; output assets/demo/)
 	DENCER_URL=http://localhost:8090 DENCER_TOKEN=$$($(MAKE) -s token) node ui/e2e-demo/walkthrough.mjs
 
+.PHONY: social-preview
+social-preview: ## Re-render assets/brand/social-preview.png from its SVG (1280x640)
+	node ui/brand/render-social-preview.mjs
+
 .PHONY: demo-reclaim
 demo-reclaim: ## Fabric plays the autoscaler: remove drained kwok nodes (WATCH=1 to keep going)
 	@if [ "$(WATCH)" = "1" ]; then ./hack/demo-reclaim.sh --watch; else ./hack/demo-reclaim.sh; fi
