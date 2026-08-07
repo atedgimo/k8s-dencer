@@ -35,3 +35,15 @@
   padding: var(--space-2) 0;
   text-align: center;
 }
+
+/* Maintenance window state, beside plan freshness: both answer "can I act
+   right now". Quiet by default; the open state is the exceptional one. */
+.topbar-window {
+  font-size: var(--text-2xs);
+  color: var(--text-5);
+  white-space: nowrap;
+}
+
+.topbar-window.is-open {
+  color: var(--safe);
+}

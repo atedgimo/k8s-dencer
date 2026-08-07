@@ -30,6 +30,7 @@ import (
 	"github.com/atedgimo/k8s-dencer/internal/pricing"
 	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlite"
 	"github.com/atedgimo/k8s-dencer/internal/telemetry"
+	"github.com/atedgimo/k8s-dencer/internal/window"
 )
 
 // version is stamped at build time via -ldflags.
@@ -107,6 +108,18 @@ func run(ctx context.Context, log *slog.Logger) error {
 		api = api.WithClusterLabel(label)
 		log.Info("cluster label set", "label", label)
 	}
+	// Maintenance windows decide whether Red steps can run, and the UI has
+	// been naming that precondition without any way to check it. The read is
+	// already granted: the chart's -read ClusterRole covers maintenancewindows
+	// and is bound to ui-backend as well as the planner.
+	if cfg, err := ctrlconfig.GetConfig(); err != nil {
+		log.Warn("no cluster config; maintenance window state will be unavailable", "error", err)
+	} else if wr, err := window.NewReader(cfg, log); err != nil {
+		log.Warn("could not build the maintenance window reader", "error", err)
+	} else {
+		api = api.WithWindows(wr)
+	}
+
 	// Prices come from the operator or not at all. A malformed table is a
 	// configuration error worth saying out loud, but not worth refusing to
 	// serve over: the ledger falls back to capacity, which is still true.
