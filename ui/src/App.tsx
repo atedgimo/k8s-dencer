@@ -326,7 +326,7 @@ export default function App() {
 
               <RunTrail state={run.state} onDismiss={run.dismiss} />
 
-              {steps.length === 0 && <WhyNothing />}
+              {steps.length === 0 && <WhyNothing graph={state.graph} />}
 
               <main className="review-main">
                 <StepList

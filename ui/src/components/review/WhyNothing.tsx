@@ -17,16 +17,71 @@
  * cluster in existence.
  */
 
-import { useEffect, useState } from "react";
-import { Preflight, api } from "../../api";
+import { useEffect, useMemo, useState } from "react";
+import { GraphPayload, Preflight, api, formatCPU } from "../../api";
 
 /** This product targets a thousand nodes; a thousand rows is not an
  *  explanation, it is the same explanation a thousand times. */
 const MAX_ROWS = 8;
 
-export default function WhyNothing() {
+/** formatCPU drops the unit above a core, so "cores" is only right above it. */
+const cpu = (milli: number) => (milli >= 1000 ? `${formatCPU(milli)} cores` : formatCPU(milli));
+
+/**
+ * The constructive half: what would have to change for this node to drain.
+ *
+ * Only for capacity blockers. A PodDisruptionBudget at zero headroom is not
+ * unlocked by freeing CPU somewhere, and saying so would send someone to do
+ * work that changes nothing — worse than saying nothing at all.
+ */
+function unlock(
+  blocker: { pod: string; kind: string } | undefined,
+  requestOf: Map<string, number>,
+  room: { best: number; bestNode: string },
+) {
+  if (!blocker || blocker.kind !== "Resources") return null;
+  const need = requestOf.get(blocker.pod);
+  if (!need || need <= 0) return null;
+  const short = need - room.best;
+  if (short <= 0) return null; // it would fit; something else is in the way
+  return (
+    <span className="whynothing-unlock">
+      {" "}
+      Free {cpu(short)} more anywhere and this pod has somewhere to go
+      {room.bestNode ? ` — ${room.bestNode} has the most room today, ${cpu(room.best)}` : ""}.
+    </span>
+  );
+}
+
+export default function WhyNothing({ graph }: { graph: GraphPayload }) {
   const [data, setData] = useState<Preflight | null>(null);
   const [failed, setFailed] = useState(false);
+
+  // What the cluster could absorb right now: the largest single gap between a
+  // node's ceiling and what it already holds. A pod moves whole, so the
+  // biggest gap is the only one that decides whether it can move at all.
+  const room = useMemo(() => {
+    const ceiling = graph.stats.packCeiling && graph.stats.packCeiling > 0 ? graph.stats.packCeiling : 1;
+    let best = 0;
+    let bestNode = "";
+    for (const e of graph.elements) {
+      if (e.data.kind !== "node" || e.data.cordoned) continue;
+      const gap = (e.data.cpuAllocatable ?? 0) * ceiling - (e.data.cpuRequested ?? 0);
+      if (gap > best) {
+        best = gap;
+        bestNode = e.data.label;
+      }
+    }
+    return { best, bestNode };
+  }, [graph]);
+
+  const requestOf = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const e of graph.elements) {
+      if (e.data.kind === "pod") m.set(e.data.id.replace(/^pod:/, ""), e.data.cpuRequest ?? 0);
+    }
+    return m;
+  }, [graph]);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,6 +130,7 @@ export default function WhyNothing() {
                           and {more} other{more === 1 ? "" : "s"} on this node
                         </span>
                       )}
+                      {unlock(first, requestOf, room)}
                     </>
                   ) : n.cordoned ? (
                     "Cordoned, so nothing new can land here and it is already out of the pool."
