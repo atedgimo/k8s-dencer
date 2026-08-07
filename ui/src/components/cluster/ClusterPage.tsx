@@ -518,6 +518,10 @@ function WellsLens({
 
 function LoadLens({ nodes, short }: { nodes: NodeModel[]; short: (n: string) => string }) {
   const measured = nodes.filter((n) => n.used != null);
+  // Simulated nodes have no kubelet, so metrics-server reports nothing for
+  // them. Dropping them is right; dropping them silently is not — the header
+  // says "18 nodes" and this lens would show one row without explanation.
+  const unmeasured = nodes.length - measured.length;
   if (measured.length === 0) {
     return (
       <div className="loadempty">
@@ -543,9 +547,20 @@ function LoadLens({ nodes, short }: { nodes: NodeModel[]; short: (n: string) => 
           <span className="eyebrow mono">Requested vs actually used</span>
           <h2 className="clusterpage-headline">
             {ratio != null
-              ? `Pods reserve ${ratio}× the CPU they use`
+              ? unmeasured > 0
+                ? `On the ${measured.length} measured node${measured.length === 1 ? "" : "s"}, pods reserve ${ratio}× the CPU they use`
+                : `Pods reserve ${ratio}× the CPU they use`
               : "Usage is being measured"}
           </h2>
+          {unmeasured > 0 && (
+            // Filtering silently would make the ratio above read as a claim
+            // about the whole fleet when it describes a fraction of it.
+            <span className="clusterpage-hint mono">
+              {unmeasured} node{unmeasured === 1 ? "" : "s"} report no usage and{" "}
+              {unmeasured === 1 ? "is" : "are"} not counted here — metrics-server has nothing to
+              scrape on {unmeasured === 1 ? "it" : "them"}.
+            </span>
+          )}
         </div>
         <div className="wellslegend">
           <span className="wellslegend-item">
