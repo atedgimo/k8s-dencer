@@ -436,6 +436,9 @@ export const api = {
 
   run: (runId: string, signal?: AbortSignal) => get<RunDetail>(`/api/v1/runs/${runId}`, signal),
 
+  /** Per node: will it drain, and if not, what is in the way. */
+  preflight: (signal?: AbortSignal) => get<Preflight>(`/api/v1/preflight`, signal),
+
   /** The in-flight run, if any. Lets a page reload rejoin a consolidation
    *  already in progress rather than losing sight of it. */
   activeRun: (signal?: AbortSignal) => get<{ active: Run | null }>("/api/v1/runs", signal),
@@ -531,6 +534,29 @@ function dispatchFrame(frame: string, onEvent: (event: string, data: string) => 
     else if (field === "data") data.push(value);
   }
   if (data.length > 0) onEvent(event, data.join("\n"));
+}
+
+export interface PreflightBlocker {
+  pod: string;
+  kind: string;
+  explanation: string;
+}
+
+export interface PreflightNode {
+  node: string;
+  ready: boolean;
+  cordoned: boolean;
+  pods: number;
+  drainable: boolean;
+  blockers: PreflightBlocker[];
+}
+
+export interface Preflight {
+  takenAt: string;
+  planId: string;
+  nodes: PreflightNode[];
+  drainable: number;
+  total: number;
 }
 
 export function formatCPU(milli: number): string {
