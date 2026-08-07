@@ -196,6 +196,20 @@ function Ledger({ data }: { data: HistoryResponse }) {
       .map((r) => ({ ...r, reclaimed: byRun.get(r.id) }));
   }, [data]);
 
+  // Capacity that left without us. The ledger below is per-run and these have
+  // no run, so without this line a fleet can visibly halve while every row on
+  // screen says the product did nothing — which is what happened on GKE.
+  const elsewhere = useMemo(() => {
+    let nodes = 0;
+    let cpu = 0;
+    for (const r of data.reclamations) {
+      if (!r.external || r.outcome !== "reclaimed") continue;
+      nodes++;
+      cpu += r.cpuMilli ?? 0;
+    }
+    return { nodes, cpu };
+  }, [data]);
+
   return (
     <section className="auditledger">
       <div className="auditledger-head">
@@ -203,6 +217,13 @@ function Ledger({ data }: { data: HistoryResponse }) {
         <span className="auditledger-count">
           {rows.length} entr{rows.length === 1 ? "y" : "ies"}
         </span>
+        {elsewhere.nodes > 0 && (
+          <span className="auditledger-elsewhere">
+            {elsewhere.nodes} node{elsewhere.nodes === 1 ? "" : "s"} reclaimed by something else
+            {elsewhere.cpu > 0 ? ` (${formatCPU(elsewhere.cpu)} cores)` : ""} — not this tool's
+            doing, and not counted as it
+          </span>
+        )}
       </div>
       <div className="auditrow auditrow-head">
         <span className="eyebrow mono">when</span>

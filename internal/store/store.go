@@ -97,6 +97,20 @@ type Reclamation struct {
 	// ledger says so rather than guessing.
 	CPUMilli int64 `json:"cpuMilli,omitempty"`
 	MemBytes int64 `json:"memBytes,omitempty"`
+
+	// External marks a node this product did not drain.
+	//
+	// Every managed cluster runs an autoscaler with its own opinion, and on a
+	// real GKE cluster one reclaimed two nodes while converge was declining to
+	// touch them. The ledger reported "No nodes have been drained yet" while
+	// the fleet visibly shrank, which is the one number this mechanism exists
+	// to get right.
+	//
+	// Recorded, and kept separate. Counting someone else's work as a saving
+	// this product produced would be the same overstatement the ledger was
+	// built to remove — but pretending it did not happen understates what the
+	// cluster actually did.
+	External bool `json:"external,omitempty"`
 }
 
 // Pending reports whether this node is still drained and still present.
@@ -129,6 +143,12 @@ type ReclamationStats struct {
 	ReclaimedCPUMilli int64 `json:"reclaimedCpuMilli"`
 	ReclaimedMemBytes int64 `json:"reclaimedMemBytes"`
 	UncountedNodes    int   `json:"uncountedNodes"`
+
+	// ExternallyReclaimed counts nodes that left the cluster without this
+	// product draining them — an autoscaler, or a person with kubectl. Held
+	// apart from Reclaimed so the ledger can show what the cluster did without
+	// claiming credit for it.
+	ExternallyReclaimed int `json:"externallyReclaimed"`
 }
 
 // ReclamationStore tracks drained nodes until something removes them.

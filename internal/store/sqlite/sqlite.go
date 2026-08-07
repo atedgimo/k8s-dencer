@@ -56,7 +56,7 @@ func Open(path string) (*Store, error) {
 // Close releases the database handle.
 func (s *Store) Close() error { return s.db.Close() }
 
-const schemaVersion = 8
+const schemaVersion = 9
 
 // Migrate creates or upgrades the schema.
 func (s *Store) Migrate(ctx context.Context) error {
@@ -114,6 +114,11 @@ func (s *Store) Migrate(ctx context.Context) error {
 			return fmt.Errorf("apply schema v8: %w", err)
 		}
 	}
+	if current < 9 {
+		if _, err := tx.ExecContext(ctx, schemaV9); err != nil {
+			return fmt.Errorf("apply schema v9: %w", err)
+		}
+	}
 
 	// PRAGMA does not accept a bound parameter.
 	if _, err := tx.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", schemaVersion)); err != nil {
@@ -128,6 +133,12 @@ func (s *Store) Migrate(ctx context.Context) error {
 // different ceiling are the same actions.
 const schemaV8 = `
 ALTER TABLE plans ADD COLUMN pack_ceiling REAL NOT NULL DEFAULT 0;
+`
+
+// Schema v9 — nodes this product did not drain. Every existing row was
+// recorded by the executor, so the default is correct for all of them.
+const schemaV9 = `
+ALTER TABLE reclamations ADD COLUMN external INTEGER NOT NULL DEFAULT 0;
 `
 
 const schemaV1 = `

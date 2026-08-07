@@ -332,6 +332,9 @@ export interface Reclamation {
   /** Allocatable captured at drain time — the ledger's measured inputs. */
   cpuMilli?: number;
   memBytes?: number;
+  /** The node left without this product draining it: an autoscaler, or
+   *  someone with kubectl. Shown, never counted as ours. */
+  external?: boolean;
 }
 
 export interface ReclamationsResponse {
@@ -355,6 +358,9 @@ export interface ReclamationsResponse {
     reclaimedCpuMilli: number;
     reclaimedMemBytes: number;
     uncountedNodes: number;
+    /** Nodes that left without this product draining them. Reported, never
+     *  added to the ledger — the savings are real but not ours. */
+    externallyReclaimed?: number;
   };
 }
 

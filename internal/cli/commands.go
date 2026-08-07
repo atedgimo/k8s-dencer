@@ -219,6 +219,8 @@ type ReclamationStats struct {
 	ReclaimedCPUMilli int64 `json:"reclaimedCpuMilli"`
 	ReclaimedMemBytes int64 `json:"reclaimedMemBytes"`
 	UncountedNodes    int   `json:"uncountedNodes"`
+	// Nodes that left without this product draining them.
+	ExternallyReclaimed int `json:"externallyReclaimed"`
 }
 
 // Reclamations reports what became of drained nodes.

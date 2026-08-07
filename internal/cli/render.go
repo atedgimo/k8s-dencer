@@ -440,6 +440,14 @@ func PrintReclamations(w io.Writer, env *ReclamationsEnvelope) {
 				s.UncountedNodes)
 		}
 	}
+
+	// Someone else's work, reported without being claimed. Silence here once
+	// let a fleet shrink from six nodes to four while this command said "No
+	// nodes have been drained yet".
+	if s.ExternallyReclaimed > 0 {
+		fmt.Fprintf(w, "\n  %d node(s) left the cluster without k8s-dencer draining them —\n", s.ExternallyReclaimed)
+		fmt.Fprintf(w, "  an autoscaler, or someone with kubectl. Not counted as this tool's doing.\n")
+	}
 }
 
 func countOlderThan(rs []store.Reclamation, d time.Duration, now time.Time) int {
