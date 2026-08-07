@@ -62,6 +62,12 @@ type Publisher struct {
 	latest         atomic.Pointer[model.ClusterSnapshot]
 	latestAnalysis atomic.Pointer[constraints.Analysis]
 	latestPlan     atomic.Pointer[model.Plan]
+
+	// seenNodes is the previous cycle's fleet, kept so a node that leaves
+	// without this product draining it can be noticed at all. Only the
+	// planning loop touches it, and only from the one goroutine that runs
+	// Cycle, so it needs no lock.
+	seenNodes map[string]model.Node
 }
 
 // LatestSnapshot returns the last successfully collected snapshot, or nil.
@@ -256,6 +262,8 @@ func (p *Publisher) observeReclamations(ctx context.Context, snap *model.Cluster
 		return
 	}
 
+	p.recordExternalReclaims(ctx, tracker, snap)
+
 	pending, err := tracker.PendingReclamations(ctx)
 	if err != nil {
 		p.Log.Error("could not read pending reclamations", "error", err)
@@ -294,6 +302,74 @@ func (p *Publisher) observeReclamations(ctx context.Context, snap *model.Cluster
 	if remaining, err := tracker.PendingReclamations(ctx); err == nil {
 		p.Metrics.NodesAwaitingReclamation.Set(float64(len(remaining)))
 	}
+}
+
+// recordExternalReclaims notices nodes that left the cluster without this
+// product draining them.
+//
+// Every managed cluster runs an autoscaler with its own opinion. On a real GKE
+// cluster one marked two nodes for deletion and removed them in 64 seconds,
+// while converge had just declined to touch either — and `dencer
+// reclamations` went on reporting "No nodes have been drained yet" as the
+// fleet shrank from six nodes to four in front of the operator.
+//
+// The ledger's contract is that it never overstates. Silence about capacity
+// that genuinely left the cluster is the opposite failure, so these are
+// recorded and held apart: what the cluster did, without claiming it.
+func (p *Publisher) recordExternalReclaims(ctx context.Context, tracker store.ReclamationStore, snap *model.ClusterSnapshot) {
+	current := make(map[string]model.Node, len(snap.Nodes))
+	for _, n := range snap.Nodes {
+		current[n.Name] = n
+	}
+
+	// The first cycle after a restart has no previous fleet to compare
+	// against. Treating every node as newly absent would invent a reclamation
+	// for the entire cluster, so the first cycle only observes.
+	if p.seenNodes == nil {
+		p.seenNodes = current
+		return
+	}
+
+	// Ours are already tracked; a node the executor drained resolves through
+	// the normal path and must not be counted twice.
+	ours := map[string]bool{}
+	if pending, err := tracker.PendingReclamations(ctx); err == nil {
+		for _, r := range pending {
+			ours[r.Node] = true
+		}
+	}
+
+	now := time.Now().UTC()
+	for name, was := range p.seenNodes {
+		if _, still := current[name]; still || ours[name] {
+			continue
+		}
+		// Capacity from the last snapshot that still had the node — the same
+		// reason the executor captures it at drain time, for the same reason:
+		// a departed node takes its capacity record with it.
+		rec := store.Reclamation{
+			Node:       name,
+			DrainedAt:  now,
+			ResolvedAt: &now,
+			Outcome:    store.ReclaimedGone,
+			CPUMilli:   was.Allocatable.MilliCPU,
+			MemBytes:   was.Allocatable.MemoryBytes,
+			External:   true,
+		}
+		if err := tracker.RecordDrain(ctx, rec); err != nil {
+			p.Log.Error("could not record externally reclaimed node", "node", name, "error", err)
+			continue
+		}
+		if err := tracker.ResolveReclamation(ctx, name, rec.DrainedAt, store.ReclaimedGone, now); err != nil &&
+			!errors.Is(err, store.ErrNotFound) {
+			p.Log.Error("could not resolve externally reclaimed node", "node", name, "error", err)
+		}
+		p.Log.Info("node reclaimed by something else",
+			"node", name, "cpuMilli", rec.CPUMilli,
+			"note", "not drained by k8s-dencer; recorded separately")
+	}
+
+	p.seenNodes = current
 }
 
 func pct(f float64) string {

@@ -83,6 +83,9 @@ func (s *Server) handleReclamations(w http.ResponseWriter, r *http.Request) {
 			"reclaimedCpuMilli": stats.ReclaimedCPUMilli,
 			"reclaimedMemBytes": stats.ReclaimedMemBytes,
 			"uncountedNodes":    stats.UncountedNodes,
+			// Capacity that left the cluster without this product draining
+			// it. Reported, never added to the ledger above.
+			"externallyReclaimed": stats.ExternallyReclaimed,
 		},
 	})
 }
