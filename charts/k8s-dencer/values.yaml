@@ -159,6 +159,26 @@ planner:
     enabled: false
     maxUnavailable: 1
 
+# Scheduling priority for the co-scheduled pair.
+#
+# SQLite pins the planner to the ui-backend's node (one RWO volume, one
+# writer), so the planner has exactly one node it may occupy. On a packed
+# cluster it loses to whatever got there first, and a planner that cannot
+# schedule is a product that cannot plan.
+#
+# Created only when that constraint applies — an install on Postgres has no
+# co-location and gets no cluster-scoped object it did not ask for.
+#
+# preemptionPolicy is Never by default: winning a scheduling queue is worth
+# having, evicting somebody else's workload to do it is not. Set it to
+# PreemptLowerPriority only if you mean it.
+priorityClass:
+  create: true
+  # Deliberately below the 2000000000 of system-cluster-critical: this is
+  # important to the product, not to the cluster.
+  value: 1000000
+  preemptionPolicy: Never
+
 uiBackend:
   # Pinned to 1 while database.type is sqlite. Enforced by values.schema.json.
   replicaCount: 1
