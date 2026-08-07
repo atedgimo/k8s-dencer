@@ -15,7 +15,8 @@
  * working.
  */
 
-import { GraphPayload, PlanStep, Reclamation, Run, RunEvent, formatBytes, formatCPU } from "../../api";
+import { useState } from "react";
+import { GraphPayload, PlanStep, Reclamation, Run, RunEvent, api, formatBytes, formatCPU } from "../../api";
 
 export type RunPhase = "pending" | "live" | "done" | "refused";
 
@@ -346,6 +347,51 @@ function phaseStates(
   };
 }
 
+/**
+ * One control, not two.
+ *
+ * The design called for an Abort in the top bar and a "Pause after this step"
+ * in the footer. Building both would imply a distinction that does not exist:
+ * a pod already evicted cannot be un-evicted, so there is no aborting
+ * mid-step, only declining to start the next one. An "Abort" that quietly
+ * behaved like a pause would be this product promising an undo it does not
+ * have — the one thing it must never do.
+ *
+ * So the label says exactly what happens, and the confirmation says what it
+ * will not do.
+ */
+function StopButton({ runId, stopping }: { runId: string; stopping?: boolean }) {
+  const [asked, setAsked] = useState(stopping ?? false);
+  const [failed, setFailed] = useState(false);
+
+  if (asked) {
+    return (
+      <span className="runhead-stopping" role="status">
+        Stopping after this step — evictions already in flight will finish
+      </span>
+    );
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        className="btn runhead-stop"
+        onClick={() => {
+          setAsked(true);
+          api.stopRun(runId).catch(() => {
+            setAsked(false);
+            setFailed(true);
+          });
+        }}
+      >
+        Stop after this step
+      </button>
+      {failed && <span className="runhead-stopfailed">Could not reach the backend — not stopped.</span>}
+    </>
+  );
+}
+
 function Execution({ run, events, active, graph, steps, planMatches, reclaimed, onDismiss }: Props) {
   const mine = runSteps(run, events, steps, planMatches);
   const done = mine.filter((m) => drained(events, m.seq));
@@ -382,6 +428,7 @@ function Execution({ run, events, active, graph, steps, planMatches, reclaimed, 
           plan {run.planId.slice(0, 7)} · started {fmtTime(run.startedAt ?? run.requestedAt)} by{" "}
           {run.actor}
         </span>
+        {active && <StopButton runId={run.id} stopping={run.stopRequested} />}
       </div>
 
       <div className="runhero runhero-col">

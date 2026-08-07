@@ -21,6 +21,11 @@ const (
 	// failure: the rails worked. Kept distinct from Failed so an operator can
 	// tell "we protected you" from "something broke".
 	RunBlocked RunStatus = "Blocked"
+	// RunStopped ended early because a human asked it to. Distinct from
+	// Succeeded (it did not finish what it was approved for) and from Failed
+	// (nothing went wrong) — the ledger has to be able to tell the difference
+	// between a run that ran out of work and one that was called off.
+	RunStopped RunStatus = "Stopped"
 	// RunFailed stopped on an error.
 	RunFailed RunStatus = "Failed"
 )
@@ -41,6 +46,16 @@ type Run struct {
 	Steps  []int     `json:"steps"`
 	DryRun bool      `json:"dryRun"`
 	Status RunStatus `json:"status"`
+
+	// StopRequested is set when a human asked this run to end early. The
+	// executor honours it at step boundaries, which is the only place it
+	// honestly can: a pod already evicted cannot be un-evicted, so "abort"
+	// and "pause" are the same capability wearing different urgency, and
+	// offering both would imply an undo that does not exist.
+	StopRequested bool `json:"stopRequested,omitempty"`
+	// StopRequestedBy records who asked, so the audit trail says who called
+	// it off as well as who started it.
+	StopRequestedBy string `json:"stopRequestedBy,omitempty"`
 
 	// Mode selects what the executor does with this run. Empty means steps:
 	// perform the listed steps of the referenced plan, the shape the product
@@ -160,6 +175,14 @@ type ExecutionStore interface {
 
 	// RunByID returns one run.
 	RunByID(ctx context.Context, runID string) (Run, error)
+
+	// RequestStop asks a run to end at its next safe point. Idempotent, and a
+	// no-op on a run that has already finished.
+	//
+	// A request rather than a kill: an eviction in flight cannot be recalled,
+	// so the only honest thing to offer is "stop before the next one". See
+	// Run.StopRequested.
+	RequestStop(ctx context.Context, runID, by string) error
 
 	// RecentRuns returns the newest runs regardless of plan, newest first —
 	// the History view's markers.

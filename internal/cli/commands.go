@@ -341,6 +341,17 @@ type WhatifHomeless struct {
 	Why []string `json:"why"`
 }
 
+// Stop asks a run to end at its next step boundary.
+func (c *Client) Stop(ctx context.Context, runID string) (string, error) {
+	var out struct {
+		Note string `json:"note"`
+	}
+	if err := c.do(ctx, "POST", "/api/v1/runs/"+runID+"/stop", map[string]any{}, &out); err != nil {
+		return "", err
+	}
+	return out.Note, nil
+}
+
 // Whatif simulates losing nodes or a zone against the latest snapshot.
 func (c *Client) Whatif(ctx context.Context, nodes []string, zone string) (*WhatifEnvelope, error) {
 	var out WhatifEnvelope

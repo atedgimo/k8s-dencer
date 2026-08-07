@@ -132,7 +132,7 @@ func (s *Store) Finish(ctx context.Context, runID string, status store.RunStatus
 func (s *Store) RunByID(ctx context.Context, runID string) (store.Run, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT id, plan_id, steps, dry_run, status, actor, actor_groups,
-		       requested_at, started_at, finished_at, worker, summary, mode, envelope, node
+		       requested_at, started_at, finished_at, worker, summary, mode, envelope, node, stop_requested, stop_requested_by
 		FROM runs WHERE id = ?`, runID)
 	return scanRun(row)
 }
@@ -141,7 +141,7 @@ func (s *Store) RunByID(ctx context.Context, runID string) (store.Run, error) {
 func (s *Store) ActiveRun(ctx context.Context) (store.Run, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT id, plan_id, steps, dry_run, status, actor, actor_groups,
-		       requested_at, started_at, finished_at, worker, summary, mode, envelope, node
+		       requested_at, started_at, finished_at, worker, summary, mode, envelope, node, stop_requested, stop_requested_by
 		FROM runs WHERE status IN (?, ?)
 		ORDER BY requested_at LIMIT 1`,
 		string(store.RunPending), string(store.RunRunning))
@@ -155,7 +155,7 @@ func (s *Store) RecentRuns(ctx context.Context, limit int) ([]store.Run, error) 
 	}
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, plan_id, steps, dry_run, status, actor, actor_groups,
-		       requested_at, started_at, finished_at, worker, summary, mode, envelope, node
+		       requested_at, started_at, finished_at, worker, summary, mode, envelope, node, stop_requested, stop_requested_by
 		FROM runs ORDER BY requested_at DESC, rowid DESC LIMIT ?`, limit)
 	if err != nil {
 		return nil, err
@@ -179,7 +179,7 @@ func (s *Store) RunsForPlan(ctx context.Context, planID string, limit int) ([]st
 	}
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, plan_id, steps, dry_run, status, actor, actor_groups,
-		       requested_at, started_at, finished_at, worker, summary, mode, envelope, node
+		       requested_at, started_at, finished_at, worker, summary, mode, envelope, node, stop_requested, stop_requested_by
 		FROM runs WHERE plan_id = ? ORDER BY requested_at DESC, rowid DESC LIMIT ?`,
 		planID, limit)
 	if err != nil {
@@ -237,9 +237,11 @@ func scanRun(row scanner) (store.Run, error) {
 		status, requestedAt   string
 		startedAt, finishedAt sql.NullString
 		worker, summary       sql.NullString
+		stopRequested         int
 	)
 	err := row.Scan(&run.ID, &run.PlanID, &steps, &dryRun, &status, &run.Actor, &groups,
-		&requestedAt, &startedAt, &finishedAt, &worker, &summary, &run.Mode, &envelope, &run.Node)
+		&requestedAt, &startedAt, &finishedAt, &worker, &summary, &run.Mode, &envelope, &run.Node,
+		&stopRequested, &run.StopRequestedBy)
 	if errors.Is(err, sql.ErrNoRows) {
 		return store.Run{}, store.ErrNotFound
 	}
@@ -263,6 +265,7 @@ func scanRun(row scanner) (store.Run, error) {
 		run.Envelope = &env
 	}
 	run.DryRun = dryRun != 0
+	run.StopRequested = stopRequested != 0
 	run.Status = store.RunStatus(status)
 	run.RequestedAt = parseTime(requestedAt)
 	run.Worker, run.Summary = worker.String, summary.String
@@ -292,4 +295,24 @@ func newRunID() string {
 		panic("crypto/rand unavailable: " + err.Error())
 	}
 	return hex.EncodeToString(b[:])
+}
+
+// RequestStop asks a run to end at its next safe point.
+//
+// Scoped to runs that have not finished: asking a completed run to stop is a
+// slow click, not an error, and reporting it as one would be pedantry in a
+// place where people are already anxious.
+//
+// A request rather than a kill. The executor honours it at step boundaries,
+// which is the only place it honestly can — a pod already evicted cannot be
+// un-evicted.
+func (s *Store) RequestStop(ctx context.Context, runID, by string) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE runs SET stop_requested = 1, stop_requested_by = ?
+		WHERE id = ? AND status IN (?, ?)`,
+		by, runID, string(store.RunPending), string(store.RunRunning))
+	if err != nil {
+		return fmt.Errorf("request stop of run %s: %w", runID, err)
+	}
+	return nil
 }

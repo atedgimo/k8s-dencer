@@ -75,6 +75,16 @@ func (e *Executor) converge(ctx context.Context, run store.Run) {
 	drained := map[string]bool{}
 
 	for round := 1; round <= rounds; round++ {
+		// Asked to stop. Honoured here, between rounds, because this is where
+		// it can be honoured honestly: nothing is cordoned, nothing is
+		// half-evicted, and the cluster is in a state somebody chose.
+		if by, asked := e.stopRequested(ctx, run.ID); asked {
+			e.finish(ctx, run, store.RunStopped, fmt.Sprintf(
+				"stopped by %s after %d node(s); the cluster is left as this round found it",
+				by, state.NodesDrainedSoFar))
+			return
+		}
+
 		live, err := e.cluster.Snapshot(ctx)
 		if err != nil {
 			e.fail(ctx, run, fmt.Sprintf("round %d: read cluster state: %v", round, err))

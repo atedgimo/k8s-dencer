@@ -56,7 +56,7 @@ func Open(path string) (*Store, error) {
 // Close releases the database handle.
 func (s *Store) Close() error { return s.db.Close() }
 
-const schemaVersion = 12
+const schemaVersion = 13
 
 // Migrate creates or upgrades the schema.
 func (s *Store) Migrate(ctx context.Context) error {
@@ -134,6 +134,11 @@ func (s *Store) Migrate(ctx context.Context) error {
 			return fmt.Errorf("apply schema v12: %w", err)
 		}
 	}
+	if current < 13 {
+		if _, err := tx.ExecContext(ctx, schemaV13); err != nil {
+			return fmt.Errorf("apply schema v13: %w", err)
+		}
+	}
 
 	// PRAGMA does not accept a bound parameter.
 	if _, err := tx.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", schemaVersion)); err != nil {
@@ -154,6 +159,12 @@ ALTER TABLE plans ADD COLUMN pack_ceiling REAL NOT NULL DEFAULT 0;
 // recorded by the executor, so the default is correct for all of them.
 const schemaV9 = `
 ALTER TABLE reclamations ADD COLUMN external INTEGER NOT NULL DEFAULT 0;
+`
+
+// Schema v13 — a run can be asked to stop. Existing rows were never asked.
+const schemaV13 = `
+ALTER TABLE runs ADD COLUMN stop_requested INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE runs ADD COLUMN stop_requested_by TEXT NOT NULL DEFAULT '';
 `
 
 // Schema v12 — how long each workload took to come back after an eviction.

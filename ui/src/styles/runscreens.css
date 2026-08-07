@@ -681,3 +681,20 @@
   font-size: var(--text-xs);
   color: var(--text-2);
 }
+
+/* Stop after this step. Not styled as a danger action: stopping is the safe
+   choice, and the risky thing on this screen is letting it continue. */
+.runhead-stop {
+  margin-left: auto;
+}
+
+.runhead-stopping {
+  margin-left: auto;
+  font-size: var(--text-2xs);
+  color: var(--caution-text);
+}
+
+.runhead-stopfailed {
+  font-size: var(--text-2xs);
+  color: var(--held-text);
+}
