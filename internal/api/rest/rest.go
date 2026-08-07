@@ -189,6 +189,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	// A named drain is the same grant again: the ability to have nodes
 	// drained, in its third shape.
 	route("POST /api/v1/drain", auth.ExecuteConsolidations, s.handleDrain)
+	route("POST /api/v1/runs/{runId}/stop", auth.ExecuteConsolidations, s.handleStopRun)
 }
 
 func (s *Server) handleAuthInfo(w http.ResponseWriter, _ *http.Request) {

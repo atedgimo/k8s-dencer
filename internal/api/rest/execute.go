@@ -425,3 +425,48 @@ func (s *Server) handleDrain(w http.ResponseWriter, r *http.Request) {
 		"dryRun": req.DryRun, "status": store.RunPending,
 	})
 }
+
+// handleStopRun asks a run to end at its next safe point.
+//
+// One control, not two. The design called for an Abort and a "Pause after
+// this step", and building both would have implied a distinction that does
+// not exist: a pod already evicted cannot be un-evicted, so there is no
+// aborting mid-step — only declining to start the next one. Offering an
+// "Abort" that quietly behaves like a pause would be the product promising an
+// undo it does not have, which is the one thing it must never do.
+//
+// Guarded by ExecuteConsolidations, the same grant that starts a run.
+// Stopping something you were permitted to start is not a new power, and
+// requiring a second one would mean an operator could begin a drain they
+// could not call off.
+func (s *Server) handleStopRun(w http.ResponseWriter, r *http.Request) {
+	if s.runs == nil {
+		writeError(w, http.StatusNotImplemented, "this deployment has no executor")
+		return
+	}
+	run, err := s.runs.RunByID(r.Context(), r.PathValue("runId"))
+	if err != nil {
+		s.failRun(w, err)
+		return
+	}
+
+	actor := "auth-disabled"
+	if id, ok := auth.IdentityFrom(r.Context()); ok {
+		actor = id.Username
+	}
+	if err := s.runs.RequestStop(r.Context(), run.ID, actor); err != nil {
+		s.fail(w, err)
+		return
+	}
+	s.log.Info("stop requested", "run", run.ID, "actor", actor, "status", run.Status)
+
+	// Deliberately not an error when the run has already finished: that is a
+	// slow click, not a mistake, and scolding somebody for it in a moment
+	// they are already anxious would be poor manners.
+	writeJSON(w, http.StatusAccepted, map[string]any{
+		"runId":  run.ID,
+		"status": run.Status,
+		"note": "The run will stop before its next step. Evictions already in " +
+			"flight complete — a pod that has been evicted cannot be recalled.",
+	})
+}

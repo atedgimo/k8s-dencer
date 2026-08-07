@@ -284,6 +284,9 @@ export function isTerminal(status: RunStatus): boolean {
 }
 
 export interface Run {
+  /** A human asked this run to stop; it ends at the next step boundary. */
+  stopRequested?: boolean;
+  stopRequestedBy?: string;
   id: string;
   planId: string;
   steps: number[];
@@ -467,6 +470,13 @@ export const api = {
     get<HistoryResponse>(`/api/v1/history?hours=${hours}`, signal),
 
   run: (runId: string, signal?: AbortSignal) => get<RunDetail>(`/api/v1/runs/${runId}`, signal),
+
+  /** Ask a run to end at its next step boundary. Not an abort: evictions
+   *  already in flight complete, because a pod cannot be un-evicted. */
+  stopRun: (runId: string) => post<{ runId: string; status: string; note: string }>(
+    `/api/v1/runs/${encodeURIComponent(runId)}/stop`,
+    {},
+  ),
 
   /** What each node usually does, not just what it is doing now. */
   stability: (signal?: AbortSignal) => get<Stability>(`/api/v1/stability`, signal),

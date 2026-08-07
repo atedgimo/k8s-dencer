@@ -79,3 +79,18 @@ func ConfirmConverge(out io.Writer, in io.Reader, plan *PlanEnvelope, maxNodes i
 	answer = strings.ToLower(strings.TrimSpace(answer))
 	return answer == "y" || answer == "yes", nil
 }
+
+// Ask is a plain yes/no prompt for actions that need no envelope explaining.
+//
+// Same doctrine as the two above: anything that is not an explicit yes is a
+// no, and EOF — a closed stdin, a pipeline that forgot --yes — is a no rather
+// than an error. Refusing to act on silence is the safe direction.
+func Ask(out io.Writer, in io.Reader, question string) (bool, error) {
+	fmt.Fprintf(out, "%s [y/N] ", question)
+	answer, err := bufio.NewReader(in).ReadString('\n')
+	if err != nil && answer == "" {
+		return false, nil
+	}
+	answer = strings.ToLower(strings.TrimSpace(answer))
+	return answer == "y" || answer == "yes", nil
+}

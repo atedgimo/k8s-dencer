@@ -232,6 +232,14 @@ func (e *Executor) perform(ctx context.Context, run store.Run) {
 
 	state := safety.RunState{}
 	for _, seq := range run.Steps {
+		// Between steps: the previous one has verified and this one has not
+		// cordoned. See stopRequested for why there is no earlier point.
+		if by, asked := e.stopRequested(ctx, run.ID); asked {
+			e.finish(ctx, run, store.RunStopped, fmt.Sprintf(
+				"stopped by %s; the steps already completed are done and the rest were not started", by))
+			return
+		}
+
 		step, ok := findStep(rec.Plan, seq)
 		if !ok {
 			e.fail(ctx, run, fmt.Sprintf("plan %s has no step %d", run.PlanID, seq))
@@ -552,6 +560,33 @@ func (e *Executor) verifyRecovered(ctx context.Context, run store.Run, step mode
 			return err
 		}
 	}
+}
+
+// stopRequested reports whether a human has asked this run to end.
+//
+// Checked at step boundaries and nowhere else, because nowhere else can
+// honour it truthfully. A pod already evicted cannot be un-evicted, so there
+// is no such thing as aborting mid-step — only declining to start the next
+// one. That is why the product offers a single control rather than an Abort
+// and a Pause: two buttons would imply an undo that does not exist, and the
+// one thing this product must never do is imply a capability it lacks.
+//
+// A read failure is treated as "not asked". Losing the ability to check must
+// not silently halt a consolidation somebody approved.
+func (e *Executor) stopRequested(ctx context.Context, runID string) (string, bool) {
+	cur, err := e.runs.RunByID(ctx, runID)
+	if err != nil {
+		e.log.Warn("could not check whether the run was asked to stop", "run", runID, "error", err)
+		return "", false
+	}
+	if !cur.StopRequested {
+		return "", false
+	}
+	by := cur.StopRequestedBy
+	if by == "" {
+		by = "an operator"
+	}
+	return by, true
 }
 
 // rememberRecovery persists what the verify loop just measured, so the next

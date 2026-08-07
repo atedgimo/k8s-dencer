@@ -38,6 +38,7 @@ Commands:
   run --steps 1,3-5     execute selected steps and watch them
   converge              closed loop: re-plan after every drain, inside bounds
   status                the run in flight, or the last one
+  stop                  ask the run in flight to end after its current step
   reclamations          what actually became of the nodes you drained
   preflight             will every node drain? run before a node-pool rotation
   audit                 what cannot survive a node loss, and why
@@ -179,6 +180,8 @@ func run() error {
 		return cmdRun(ctx, args)
 	case "status":
 		return cmdStatus(ctx, args)
+	case "stop":
+		return cmdStop(ctx, args)
 	case "preflight":
 		return cmdPreflight(ctx, os.Args[2:])
 	case "audit", "resilience":
@@ -679,6 +682,59 @@ func cmdRun(ctx context.Context, args []string) error {
 	default:
 		return fmt.Errorf("run %s: %s", final.Status, final.Summary)
 	}
+}
+
+// cmdStop asks the run in flight to end at its next step boundary.
+//
+// Deliberately not called "abort". A pod already evicted cannot be
+// un-evicted, so there is no interrupting a step in progress — only declining
+// to start the next one. Naming it abort would promise an undo that does not
+// exist.
+func cmdStop(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("stop", flag.ExitOnError)
+	g := bind(fs)
+	runID := fs.String("run", "", "a specific run id; defaults to the one in flight")
+	yes := fs.Bool("yes", false, "skip the confirmation prompt")
+	if err := fs.Parse(reorderArgs(fs, args)); err != nil {
+		return err
+	}
+	c, err := connect(ctx, g)
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+
+	if *runID == "" {
+		active, _, err := c.RunStatus(ctx)
+		if err != nil {
+			return err
+		}
+		if active == nil {
+			fmt.Println("No run in flight; nothing to stop.")
+			return nil
+		}
+		*runID = active.ID
+	}
+
+	if !*yes {
+		ok, err := cli.Ask(os.Stdout, os.Stdin, fmt.Sprintf(
+			"Stop run %s after its current step? Evictions already in flight will finish — "+
+				"a pod that has been evicted cannot be recalled.", *runID))
+		if err != nil {
+			return err
+		}
+		if !ok {
+			fmt.Println("Nothing was stopped.")
+			return nil
+		}
+	}
+
+	note, err := c.Stop(ctx, *runID)
+	if err != nil {
+		return err
+	}
+	fmt.Println(note)
+	return nil
 }
 
 func cmdStatus(ctx context.Context, args []string) error {
