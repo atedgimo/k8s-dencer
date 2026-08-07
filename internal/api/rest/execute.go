@@ -209,21 +209,32 @@ func (s *Server) handleRunsForPlan(w http.ResponseWriter, r *http.Request) {
 
 // handleActiveRun lets the UI discover an in-flight run on load, so refreshing
 // the page during a consolidation does not lose sight of it.
+// handleActiveRun answers "is anything running, and if not, what happened
+// last".
+//
+// The second half matters: "no run in flight" is a true but useless answer to
+// someone who just watched a drain get halted by the Safety Guard and wants to
+// know why. latest is nil only when nothing has ever run.
 func (s *Server) handleActiveRun(w http.ResponseWriter, r *http.Request) {
 	if s.runs == nil {
-		writeJSON(w, http.StatusOK, map[string]any{"active": nil})
+		writeJSON(w, http.StatusOK, map[string]any{"active": nil, "latest": nil})
 		return
 	}
+	body := map[string]any{"active": nil, "latest": nil}
+
 	run, err := s.runs.ActiveRun(r.Context())
-	if errors.Is(err, store.ErrNotFound) {
-		writeJSON(w, http.StatusOK, map[string]any{"active": nil})
-		return
-	}
-	if err != nil {
+	switch {
+	case err == nil:
+		body["active"] = run
+	case !errors.Is(err, store.ErrNotFound):
 		s.fail(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"active": run})
+
+	if recent, err := s.runs.RecentRuns(r.Context(), 1); err == nil && len(recent) > 0 {
+		body["latest"] = recent[0]
+	}
+	writeJSON(w, http.StatusOK, body)
 }
 
 func (s *Server) failRun(w http.ResponseWriter, err error) {

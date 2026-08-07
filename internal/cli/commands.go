@@ -91,11 +91,21 @@ func (c *Client) Run(ctx context.Context, id string) (*RunEnvelope, error) {
 
 // ActiveRun returns the run in flight, or nil.
 func (c *Client) ActiveRun(ctx context.Context) (*store.Run, error) {
+	active, _, err := c.RunStatus(ctx)
+	return active, err
+}
+
+// RunStatus returns the run in flight and the most recent run, either of which
+// may be nil. `status` promises "the run in flight, or the last one", and
+// answering only the first half tells someone whose drain was just halted by
+// the Safety Guard precisely nothing.
+func (c *Client) RunStatus(ctx context.Context) (active, latest *store.Run, err error) {
 	var out struct {
 		Active *store.Run `json:"active"`
+		Latest *store.Run `json:"latest"`
 	}
-	err := c.get(ctx, "/api/v1/runs", &out)
-	return out.Active, err
+	err = c.get(ctx, "/api/v1/runs", &out)
+	return out.Active, out.Latest, err
 }
 
 // Wait polls a run until it reaches a terminal state, reporting events as they
