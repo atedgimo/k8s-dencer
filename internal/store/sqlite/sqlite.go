@@ -56,7 +56,7 @@ func Open(path string) (*Store, error) {
 // Close releases the database handle.
 func (s *Store) Close() error { return s.db.Close() }
 
-const schemaVersion = 10
+const schemaVersion = 11
 
 // Migrate creates or upgrades the schema.
 func (s *Store) Migrate(ctx context.Context) error {
@@ -124,6 +124,11 @@ func (s *Store) Migrate(ctx context.Context) error {
 			return fmt.Errorf("apply schema v10: %w", err)
 		}
 	}
+	if current < 11 {
+		if _, err := tx.ExecContext(ctx, schemaV11); err != nil {
+			return fmt.Errorf("apply schema v11: %w", err)
+		}
+	}
 
 	// PRAGMA does not accept a bound parameter.
 	if _, err := tx.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", schemaVersion)); err != nil {
@@ -144,6 +149,24 @@ ALTER TABLE plans ADD COLUMN pack_ceiling REAL NOT NULL DEFAULT 0;
 // recorded by the executor, so the default is correct for all of them.
 const schemaV9 = `
 ALTER TABLE reclamations ADD COLUMN external INTEGER NOT NULL DEFAULT 0;
+`
+
+// Schema v11 — utilisation per node over time, so the UI can distinguish a
+// node that has been idle for a fortnight from one that spikes nightly.
+//
+// One row per node per resync. At a thousand nodes and a thirty-second cycle
+// that is 2.9M rows a day, which is why retention here is days rather than the
+// month the fleet-level timeline keeps, and why the read path aggregates in
+// SQL rather than shipping points.
+const schemaV11 = `
+CREATE TABLE IF NOT EXISTS node_samples (
+    node            TEXT NOT NULL,
+    taken_at        TEXT NOT NULL,
+    cpu_used_milli  INTEGER NOT NULL,
+    cpu_alloc_milli INTEGER NOT NULL,
+    PRIMARY KEY (node, taken_at)
+) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS node_samples_taken_at ON node_samples (taken_at);
 `
 
 // Schema v10 — what the reclaimed node was, so the ledger can be priced.

@@ -244,6 +244,37 @@ type Sample struct {
 	Reclaimable int `json:"reclaimable"`
 }
 
+// NodeSample is one node's utilisation at one moment.
+//
+// Separate from Sample because the questions differ: Sample answers "how big
+// was the fleet", NodeSample answers "is this node stably idle or does it
+// spike". A step rated Green on a Tuesday afternoon can be the worst possible
+// drain at 02:00, and until this existed the product had no way to say so.
+type NodeSample struct {
+	Node    string    `json:"node"`
+	TakenAt time.Time `json:"takenAt"`
+	// CPUUsedMilli is written only when a usage source is configured; rows
+	// without one are not written at all, so a zero here always means zero
+	// and never "unmeasured".
+	CPUUsedMilli  int64 `json:"cpuUsedMilli"`
+	CPUAllocMilli int64 `json:"cpuAllocMilli"`
+}
+
+// NodeStability is what a UI can say in a sentence, computed in SQL so a
+// thousand nodes times a fortnight of points never crosses the wire.
+type NodeStability struct {
+	Node string `json:"node"`
+	// Samples is how many points back the numbers below, so a claim made from
+	// three readings can be told apart from one made from three thousand.
+	Samples int `json:"samples"`
+	// Since is the oldest point considered; a node added yesterday cannot
+	// honestly be described as "stable for a fortnight".
+	Since time.Time `json:"since"`
+	// Percentages of allocatable, 0-100.
+	MedianPct int `json:"medianPct"`
+	PeakPct   int `json:"peakPct"`
+}
+
 // SampleStore persists the timeline. Implemented by the SQLite store;
 // optional the same way ReclamationStore is.
 type SampleStore interface {
@@ -252,4 +283,17 @@ type SampleStore interface {
 	Samples(ctx context.Context, since time.Time) ([]Sample, error)
 	// PruneSamples removes points older than before, returning how many.
 	PruneSamples(ctx context.Context, before time.Time) (int, error)
+
+	// SaveNodeSamples writes one point per node. Batched because it is one
+	// row per node per resync, and a thousand separate statements every
+	// thirty seconds is a different kind of product.
+	SaveNodeSamples(ctx context.Context, samples []NodeSample) error
+
+	// NodeStabilitySince summarises each node's utilisation over a window.
+	// Aggregated in the database on purpose: the browser needs a sentence,
+	// not a fortnight of points for every node in the fleet.
+	NodeStabilitySince(ctx context.Context, since time.Time) ([]NodeStability, error)
+
+	// PruneNodeSamples removes per-node points older than before.
+	PruneNodeSamples(ctx context.Context, before time.Time) (int, error)
 }
