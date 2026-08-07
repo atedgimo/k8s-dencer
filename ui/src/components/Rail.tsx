@@ -50,6 +50,12 @@ const ICONS: Record<Surface, React.ReactNode> = {
       <circle cx="8" cy="8" r="3" stroke="currentColor" strokeWidth="1.4" fill="none" />
     </svg>
   ),
+  rightsizing: (
+    <svg viewBox="0 0 16 16" className="rail-icon" aria-hidden="true">
+      <rect x="2.5" y="4" width="11" height="3.4" rx="1" stroke="currentColor" strokeWidth="1.4" fill="none" />
+      <rect x="2.5" y="9.2" width="4.6" height="3.4" rx="1" fill="currentColor" />
+    </svg>
+  ),
   history: (
     <svg viewBox="0 0 16 16" className="rail-icon" aria-hidden="true">
       <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4" fill="none" />
@@ -62,6 +68,7 @@ const LABELS: Record<Surface, string> = {
   review: "Review",
   cluster: "Cluster",
   recommendations: "Recommendations",
+  rightsizing: "Rightsizing",
   history: "History",
 };
 

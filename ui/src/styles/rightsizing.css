@@ -1,0 +1,173 @@
+/*
+ * Rightsizing — a dense table, so it borrows History's ledger rhythm rather
+ * than inventing a third one. The only graphic is the gap bar, because the
+ * gap is the finding.
+ */
+
+.rightsizing {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.rightsizing-head {
+  height: var(--topbar-h);
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 var(--space-6);
+  background: var(--surface);
+}
+
+.rightsizing-title {
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.rightsizing-taken {
+  font-size: var(--text-xs);
+  color: var(--text-5);
+}
+
+.rightsizing-hero {
+  padding: 20px var(--space-6) 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rightsizing-headline {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: var(--tracking-display);
+  text-wrap: balance;
+}
+
+.rightsizing-stats {
+  display: flex;
+  gap: 28px;
+}
+
+.rightsizing-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rightsizing-stat-value {
+  font-size: var(--text-lg);
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.rightsizing-stat.is-accent .rightsizing-stat-value {
+  color: var(--caution);
+}
+
+.rightsizing-stat-label {
+  font-size: var(--text-2xs);
+  color: var(--text-5);
+}
+
+.rightsizing-note {
+  margin: 0;
+  max-width: 76ch;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--text-3);
+  text-wrap: pretty;
+}
+
+.rightsizing-tablewrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 var(--space-6) 20px;
+}
+
+.rightsizing-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-xs);
+}
+
+.rightsizing-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--canvas);
+  text-align: left;
+  font-weight: 500;
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-5);
+  padding: 14px 12px 8px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.rightsizing-table td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--hairline);
+  color: var(--text-2);
+}
+
+.rightsizing-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.rightsizing-name {
+  color: var(--text-1);
+  max-width: 34ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rightsizing-barcol {
+  width: 190px;
+  white-space: nowrap;
+}
+
+.rightsizing-bar {
+  display: inline-block;
+  vertical-align: middle;
+  width: 110px;
+  height: 7px;
+  border-radius: 4px;
+  background: var(--fill-50);
+  overflow: hidden;
+}
+
+/* Filled portion is what is actually used; the rest of the track is the
+   request nobody is spending. */
+.rightsizing-bar-used {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent);
+}
+
+.rightsizing-gap {
+  margin-left: 9px;
+  font-size: var(--text-2xs);
+  color: var(--text-5);
+  font-variant-numeric: tabular-nums;
+}
+
+.rightsizing-empty {
+  padding: 22px var(--space-6);
+  max-width: 76ch;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--text-5);
+  text-wrap: pretty;
+}
