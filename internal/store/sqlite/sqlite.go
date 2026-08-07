@@ -56,7 +56,7 @@ func Open(path string) (*Store, error) {
 // Close releases the database handle.
 func (s *Store) Close() error { return s.db.Close() }
 
-const schemaVersion = 11
+const schemaVersion = 12
 
 // Migrate creates or upgrades the schema.
 func (s *Store) Migrate(ctx context.Context) error {
@@ -129,6 +129,11 @@ func (s *Store) Migrate(ctx context.Context) error {
 			return fmt.Errorf("apply schema v11: %w", err)
 		}
 	}
+	if current < 12 {
+		if _, err := tx.ExecContext(ctx, schemaV12); err != nil {
+			return fmt.Errorf("apply schema v12: %w", err)
+		}
+	}
 
 	// PRAGMA does not accept a bound parameter.
 	if _, err := tx.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", schemaVersion)); err != nil {
@@ -149,6 +154,20 @@ ALTER TABLE plans ADD COLUMN pack_ceiling REAL NOT NULL DEFAULT 0;
 // recorded by the executor, so the default is correct for all of them.
 const schemaV9 = `
 ALTER TABLE reclamations ADD COLUMN external INTEGER NOT NULL DEFAULT 0;
+`
+
+// Schema v12 — how long each workload took to come back after an eviction.
+//
+// Far smaller than node_samples: one row per workload per drain, not per
+// resync. A busy cluster produces a handful a day.
+const schemaV12 = `
+CREATE TABLE IF NOT EXISTS recoveries (
+    workload     TEXT NOT NULL,
+    observed_at  TEXT NOT NULL,
+    took_seconds INTEGER NOT NULL,
+    PRIMARY KEY (workload, observed_at)
+) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS recoveries_observed_at ON recoveries (observed_at);
 `
 
 // Schema v11 — utilisation per node over time, so the UI can distinguish a

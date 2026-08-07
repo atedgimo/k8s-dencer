@@ -275,6 +275,37 @@ type NodeStability struct {
 	PeakPct   int `json:"peakPct"`
 }
 
+// RecoveryStore remembers how long workloads took to come back.
+//
+// The executor observes this on every drain — it waits for Ready before
+// proceeding — and until now reported it once in an event and forgot it. The
+// question a step detail wants to answer is the next one: given these
+// workloads, how long is this likely to hurt.
+type RecoveryStore interface {
+	// RecordRecovery notes one workload's time to Ready after an eviction.
+	RecordRecovery(ctx context.Context, workload string, at time.Time, took time.Duration) error
+
+	// RecoveryFor returns what is known about these workloads. Absent from the
+	// map means never observed, which is different from fast.
+	RecoveryFor(ctx context.Context, workloads []string) (map[string]Recovery, error)
+
+	// PruneRecoveries removes observations older than before.
+	PruneRecoveries(ctx context.Context, before time.Time) (int, error)
+}
+
+// Recovery is what past drains say about one workload.
+type Recovery struct {
+	Workload string `json:"workload"`
+	// Observations is how many drains this rests on. One is an anecdote and
+	// the UI says so rather than presenting it as a rate.
+	Observations int `json:"observations"`
+	// Typical is the median; Worst is the slowest seen. Both matter: the
+	// median is what to expect, the worst is what to plan for.
+	TypicalSeconds int       `json:"typicalSeconds"`
+	WorstSeconds   int       `json:"worstSeconds"`
+	LastSeen       time.Time `json:"lastSeen"`
+}
+
 // SampleStore persists the timeline. Implemented by the SQLite store;
 // optional the same way ReclamationStore is.
 type SampleStore interface {
