@@ -220,3 +220,11 @@
   margin-left: auto;
   text-align: right;
 }
+
+/* The ledger in money. Only ever rendered when the operator supplied prices;
+   an absent price table produces no element at all, not a zero. */
+.auditledger-worth {
+  margin: 0 0 10px;
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}

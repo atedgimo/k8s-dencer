@@ -131,6 +131,10 @@ spec:
             - name: CLUSTER_LABEL
               value: {{ . | quote }}
             {{- end }}
+            {{- if .Values.uiBackend.pricing.perHour }}
+            - name: PRICING
+              value: {{ .Values.uiBackend.pricing | toJson | quote }}
+            {{- end }}
             {{- with .Values.uiBackend.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

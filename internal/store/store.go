@@ -98,6 +98,16 @@ type Reclamation struct {
 	CPUMilli int64 `json:"cpuMilli,omitempty"`
 	MemBytes int64 `json:"memBytes,omitempty"`
 
+	// InstanceType and CapacityType, captured at drain time for the same
+	// reason as the capacity above: a reclaimed node takes its labels with
+	// it, and without them the ledger has a size but no price.
+	//
+	// Both are empty when the platform does not say — a KWOK node is not
+	// "on-demand", it is unpriced, and inventing a word here would put a made
+	// up number in a cost report.
+	InstanceType string `json:"instanceType,omitempty"`
+	CapacityType string `json:"capacityType,omitempty"`
+
 	// External marks a node this product did not drain.
 	//
 	// Every managed cluster runs an autoscaler with its own opinion, and on a

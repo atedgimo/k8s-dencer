@@ -15,6 +15,16 @@ export interface ReclamationState {
     /** The ledger: measured capacity actually returned. */
     reclaimedCpuMilli: number;
     reclaimedMemBytes: number;
+    /** What that capacity was worth. Undefined when the operator has not
+     *  configured prices — no claim, rather than a claim of zero. */
+    pricing?: {
+      currency: string;
+      perMonth: number;
+      pricedNodes: number;
+      unpricedNodes: number;
+      externalPerMonth: number;
+      externalPriced: number;
+    };
   };
 }
 
@@ -54,6 +64,7 @@ export function useReclamations(): ReclamationState {
               reclaimed: r.stats.reclaimed,
               reclaimedCpuMilli: r.stats.reclaimedCpuMilli ?? 0,
               reclaimedMemBytes: r.stats.reclaimedMemBytes ?? 0,
+              pricing: r.stats.pricing,
             },
           });
         }

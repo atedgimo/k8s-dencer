@@ -221,6 +221,19 @@ type ReclamationStats struct {
 	UncountedNodes    int   `json:"uncountedNodes"`
 	// Nodes that left without this product draining them.
 	ExternallyReclaimed int `json:"externallyReclaimed"`
+	// Absent unless the operator configured a price table.
+	Pricing *ReclamationPricing `json:"pricing,omitempty"`
+}
+
+// ReclamationPricing is the ledger in money. Nil when nothing is priced.
+type ReclamationPricing struct {
+	Currency         string  `json:"currency"`
+	PerHour          float64 `json:"perHour"`
+	PerMonth         float64 `json:"perMonth"`
+	PricedNodes      int     `json:"pricedNodes"`
+	UnpricedNodes    int     `json:"unpricedNodes"`
+	ExternalPerMonth float64 `json:"externalPerMonth"`
+	ExternalPriced   int     `json:"externalPriced"`
 }
 
 // Reclamations reports what became of drained nodes.

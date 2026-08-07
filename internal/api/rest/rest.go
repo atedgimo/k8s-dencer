@@ -23,6 +23,7 @@ import (
 	"github.com/atedgimo/k8s-dencer/internal/auth"
 	"github.com/atedgimo/k8s-dencer/internal/constraints"
 	"github.com/atedgimo/k8s-dencer/internal/model"
+	"github.com/atedgimo/k8s-dencer/internal/pricing"
 	"github.com/atedgimo/k8s-dencer/internal/store"
 )
 
@@ -54,6 +55,18 @@ type Server struct {
 	// which cluster they are about to act on. Operator-set; empty means the
 	// header shows nothing rather than a guess.
 	clusterLabel string
+
+	// pricing is what the operator says their machines cost. Empty means the
+	// ledger reports capacity and no currency, which is the honest half of
+	// the answer rather than a missing one.
+	pricing pricing.Table
+}
+
+// WithPricing supplies the operator's price table. Nothing is priced without
+// one, by design: see internal/pricing.
+func (s *Server) WithPricing(t pricing.Table) *Server {
+	s.pricing = t
+	return s
 }
 
 // WithClusterLabel sets the human name shown in the UI header.

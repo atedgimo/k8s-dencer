@@ -8,6 +8,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -26,6 +27,7 @@ import (
 	"github.com/atedgimo/k8s-dencer/internal/api/rest"
 	"github.com/atedgimo/k8s-dencer/internal/auth"
 	"github.com/atedgimo/k8s-dencer/internal/httpserver"
+	"github.com/atedgimo/k8s-dencer/internal/pricing"
 	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlite"
 	"github.com/atedgimo/k8s-dencer/internal/telemetry"
 )
@@ -104,6 +106,18 @@ func run(ctx context.Context, log *slog.Logger) error {
 	if label := env("CLUSTER_LABEL", ""); label != "" {
 		api = api.WithClusterLabel(label)
 		log.Info("cluster label set", "label", label)
+	}
+	// Prices come from the operator or not at all. A malformed table is a
+	// configuration error worth saying out loud, but not worth refusing to
+	// serve over: the ledger falls back to capacity, which is still true.
+	if raw := env("PRICING", ""); raw != "" {
+		var t pricing.Table
+		if err := json.Unmarshal([]byte(raw), &t); err != nil {
+			log.Error("PRICING is not valid JSON; the ledger will show capacity only", "error", err)
+		} else {
+			api = api.WithPricing(t)
+			log.Info("pricing configured", "currency", t.Currency, "machineTypes", len(t.PerHour))
+		}
 	}
 	api.Routes(mux)
 

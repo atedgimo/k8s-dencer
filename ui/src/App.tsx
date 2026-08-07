@@ -409,7 +409,7 @@ export default function App() {
 
           {state.status === "ready" && surface === "rightsizing" && <RightsizingPage />}
 
-          {state.status === "ready" && surface === "history" && <History />}
+          {state.status === "ready" && surface === "history" && <History pricing={reclamations.stats.pricing} />}
         </div>
 
         {/* Review carries its own action footer; the plan-identity strip

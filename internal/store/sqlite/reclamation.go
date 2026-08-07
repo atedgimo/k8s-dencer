@@ -16,11 +16,12 @@ import (
 // RecordDrain notes that a node was drained and now awaits reclamation.
 func (s *Store) RecordDrain(ctx context.Context, r store.Reclamation) error {
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO reclamations (node, drained_at, run_id, plan_id, step, cpu_milli, mem_bytes, external)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO reclamations (node, drained_at, run_id, plan_id, step, cpu_milli, mem_bytes,
+		                          external, instance_type, capacity_type)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (node, drained_at) DO NOTHING`,
 		r.Node, r.DrainedAt.UTC().Format(time.RFC3339Nano), r.RunID, r.PlanID, r.Step,
-		r.CPUMilli, r.MemBytes, r.External)
+		r.CPUMilli, r.MemBytes, r.External, r.InstanceType, r.CapacityType)
 	if err != nil {
 		return fmt.Errorf("record drain of %s: %w", r.Node, err)
 	}
@@ -30,7 +31,7 @@ func (s *Store) RecordDrain(ctx context.Context, r store.Reclamation) error {
 // PendingReclamations returns every node still awaiting an outcome.
 func (s *Store) PendingReclamations(ctx context.Context) ([]store.Reclamation, error) {
 	return s.queryReclamations(ctx, `
-		SELECT node, drained_at, run_id, plan_id, step, resolved_at, outcome, cpu_milli, mem_bytes, external
+		SELECT node, drained_at, run_id, plan_id, step, resolved_at, outcome, cpu_milli, mem_bytes, external, instance_type, capacity_type
 		FROM reclamations WHERE resolved_at IS NULL
 		ORDER BY drained_at`)
 }
@@ -41,7 +42,7 @@ func (s *Store) Reclamations(ctx context.Context, limit int) ([]store.Reclamatio
 		limit = 50
 	}
 	return s.queryReclamations(ctx, `
-		SELECT node, drained_at, run_id, plan_id, step, resolved_at, outcome, cpu_milli, mem_bytes, external
+		SELECT node, drained_at, run_id, plan_id, step, resolved_at, outcome, cpu_milli, mem_bytes, external, instance_type, capacity_type
 		FROM reclamations ORDER BY drained_at DESC LIMIT ?`, limit)
 }
 
@@ -174,7 +175,7 @@ func (s *Store) queryReclamations(ctx context.Context, query string, args ...any
 			resolvedAt             sql.NullString
 		)
 		if err := rows.Scan(&r.Node, &drainedAt, &runID, &planID, &step, &resolvedAt, &outcome,
-			&r.CPUMilli, &r.MemBytes, &r.External); err != nil {
+			&r.CPUMilli, &r.MemBytes, &r.External, &r.InstanceType, &r.CapacityType); err != nil {
 			return nil, err
 		}
 		r.DrainedAt = parseTime(drainedAt)
