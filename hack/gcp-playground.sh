@@ -582,6 +582,44 @@ green  "  UI      http://localhost:${UI_PORT}"
 echo   "  token   (valid ${PLAY_MINUTES}m — paste into the sign-in field)"
 echo   "  ${TOKEN}"
 echo
+# Everything below was learned the hard way during a real session: the CLI is
+# not on anyone's PATH, `make` only works from the repo root, flags come after
+# the subcommand, and a positional argument has to be last or Go's flag package
+# swallows it. Printing the exact lines costs nothing and saves the window.
+bold "==> commands (copy-paste; the cluster is addressed by --context ${CTX})"
+cat <<COMMANDS
+  # what the product is doing
+  kubectl --context ${CTX} -n ${NS} get pods
+  kubectl --context ${CTX} -n ${NS} logs -l app.kubernetes.io/component=planner -f
+
+  # the workloads it is planning against
+  kubectl --context ${CTX} -n ${DEMO_NS} get pods -o wide
+  kubectl --context ${CTX} get nodes -o wide
+
+  # the CLI — build it once, from the repo root
+  make cli-install                       # installs dencer into \$GOBIN
+  go run ./cmd/dencer <command> [flags]  # or run it without installing
+
+  # dencer against this cluster (flags AFTER the subcommand)
+  dencer plan        --context ${CTX}
+  dencer preflight   --context ${CTX}
+  dencer audit       --context ${CTX}
+  dencer recommend   --context ${CTX}
+  dencer rightsizing --context ${CTX}
+  dencer status      --context ${CTX}
+
+  # commands taking an argument want it LAST, after every flag
+  dencer explain --context ${CTX} 1
+  dencer why     --context ${CTX} ${DEMO_NS}/<pod>
+  dencer drain   --context ${CTX} --dry-run <node>
+
+  # the closed loop, inside bounds you set
+  dencer converge --context ${CTX} --max-nodes 2 --max-impact Green --dry-run
+
+  # a fresh UI token whenever this one expires
+  kubectl --context ${CTX} -n ${NS} create token dencer-operator --duration=30m
+COMMANDS
+echo
 if [[ "$PLAY_FABRIC" == "real" ]]; then
   echo "  scenario ${SCENARIO}, on real machines: every drain is a real eviction,"
   echo "  and a node you free is Google's autoscaler's to remove — ~11 minutes,"
