@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 1120" width="1280" height="1120">
+  <defs>
+    <marker id="arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#4a5462"/>
+    </marker>
+    <marker id="arwA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#2A5FE0"/>
+    </marker>
+  </defs>
+
+  <rect width="1280" height="1120" fill="#0b0c0e"/>
+
+  <text x="90" y="92" font-family="IBM Plex Sans" font-size="42" font-weight="600" letter-spacing="-0.8" fill="#e9ecef">k8s-dencer</text>
+  <text x="90" y="134" font-family="IBM Plex Mono" font-size="19" fill="#8b939c">node consolidation for Kubernetes, with the decision left to you</text>
+
+  <!-- 1. cluster -->
+  <rect x="90" y="196" width="920" height="110" rx="14" fill="#111318" stroke="#262b33" stroke-width="1.5"/>
+  <text x="550" y="244" text-anchor="middle" font-family="IBM Plex Sans" font-size="27" font-weight="600" fill="#e9ecef">Kubernetes API server</text>
+  <text x="550" y="277" text-anchor="middle" font-family="IBM Plex Mono" font-size="17" fill="#8b939c">nodes · pods · PodDisruptionBudgets · topology spread · affinity · taints</text>
+
+  <line x1="550" y1="306" x2="550" y2="360" stroke="#4a5462" stroke-width="2" marker-end="url(#arw)"/>
+  <text x="576" y="339" font-family="IBM Plex Mono" font-size="17" fill="#8b939c">watch</text>
+
+  <!-- 2. planner -->
+  <rect x="90" y="366" width="920" height="110" rx="14" fill="#111318" stroke="#262b33" stroke-width="1.5"/>
+  <text x="550" y="414" text-anchor="middle" font-family="IBM Plex Sans" font-size="27" font-weight="600" fill="#e9ecef">planner</text>
+  <text x="550" y="447" text-anchor="middle" font-family="IBM Plex Mono" font-size="17" fill="#8b939c">analyse what the cluster allows → rate every step → explain the reasoning</text>
+
+  <line x1="550" y1="476" x2="550" y2="530" stroke="#4a5462" stroke-width="2" marker-end="url(#arw)"/>
+  <text x="576" y="509" font-family="IBM Plex Mono" font-size="17" fill="#8b939c">an immutable plan</text>
+
+  <!-- 3. the plan -->
+  <rect x="90" y="536" width="920" height="110" rx="14" fill="#111318" stroke="#262b33" stroke-width="1.5"/>
+  <text x="550" y="584" text-anchor="middle" font-family="IBM Plex Sans" font-size="27" font-weight="600" fill="#e9ecef">the plan</text>
+  <text x="550" y="617" text-anchor="middle" font-family="IBM Plex Mono" font-size="17" fill="#8b939c">versioned, stored, served read-only — nothing has happened yet</text>
+
+  <line x1="550" y1="646" x2="550" y2="700" stroke="#4a5462" stroke-width="2" marker-end="url(#arw)"/>
+  <text x="576" y="679" font-family="IBM Plex Mono" font-size="17" fill="#8b939c">you read it</text>
+
+  <!-- 4. the human gate -->
+  <rect x="90" y="706" width="920" height="110" rx="14" fill="#111f3d" stroke="#2A5FE0" stroke-width="2.5"/>
+  <text x="550" y="754" text-anchor="middle" font-family="IBM Plex Sans" font-size="27" font-weight="600" fill="#ffffff">you approve, step by step</text>
+  <text x="550" y="787" text-anchor="middle" font-family="IBM Plex Mono" font-size="17" fill="#9db6ff">there is no override button — a refusal is the product working</text>
+
+  <line x1="550" y1="816" x2="550" y2="870" stroke="#2A5FE0" stroke-width="2.5" marker-end="url(#arwA)"/>
+  <text x="576" y="849" font-family="IBM Plex Mono" font-size="17" fill="#7f9cf5">approved steps only</text>
+
+  <!-- 5. executor -->
+  <rect x="90" y="876" width="920" height="110" rx="14" fill="#111318" stroke="#262b33" stroke-width="1.5"/>
+  <text x="550" y="924" text-anchor="middle" font-family="IBM Plex Sans" font-size="27" font-weight="600" fill="#e9ecef">executor</text>
+  <text x="550" y="957" text-anchor="middle" font-family="IBM Plex Mono" font-size="17" fill="#8b939c">cordon → evict → verify the workload came back Ready</text>
+
+  <!-- return path: eviction goes back through the API server -->
+  <path d="M1010 931 H1140 V251 H1010" fill="none" stroke="#4a5462" stroke-width="2" marker-end="url(#arw)"/>
+  <text x="1178" y="591" text-anchor="middle" font-family="IBM Plex Mono" font-size="17" fill="#8b939c" transform="rotate(90 1178 591)">eviction API</text>
+
+  <text x="90" y="1040" font-family="IBM Plex Mono" font-size="17" fill="#6f7885">Evictions go through the API server, so your PodDisruptionBudgets are enforced by Kubernetes — not by dencer.</text>
+  <text x="90" y="1070" font-family="IBM Plex Mono" font-size="17" fill="#6f7885">Execution is off by default. The chart refuses to enable it without authentication and persistence configured.</text>
+</svg>

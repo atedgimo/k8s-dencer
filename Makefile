@@ -489,7 +489,11 @@ demo-video: ## Record the scripted UI walkthrough (needs the demo running; outpu
 
 .PHONY: social-preview
 social-preview: ## Re-render assets/brand/social-preview.png from its SVG (1280x640)
-	node ui/brand/render-social-preview.mjs
+	node ui/brand/render-svg.mjs assets/brand/social-preview.svg assets/brand/social-preview.png
+
+.PHONY: diagrams
+diagrams: ## Re-render the shareable diagrams in assets/diagrams from their SVGs
+	node ui/brand/render-svg.mjs assets/diagrams/architecture.svg assets/diagrams/architecture.png
 
 .PHONY: demo-reclaim
 demo-reclaim: ## Fabric plays the autoscaler: remove drained kwok nodes (WATCH=1 to keep going)
