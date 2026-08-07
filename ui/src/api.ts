@@ -456,6 +456,10 @@ export const api = {
 
   run: (runId: string, signal?: AbortSignal) => get<RunDetail>(`/api/v1/runs/${runId}`, signal),
 
+  /** Simulate losing nodes or a zone: does everything still fit? */
+  whatif: (body: { removeNodes?: string[]; removeZone?: string }) =>
+    post<WhatIf>(`/api/v1/whatif`, body),
+
   /** Requests against observed usage, per workload. Needs metrics-server. */
   rightsizing: (signal?: AbortSignal) => get<Rightsizing>(`/api/v1/rightsizing`, signal),
   /** Per node: will it drain, and if not, what is in the way. */
@@ -599,6 +603,21 @@ export interface Preflight {
   nodes: PreflightNode[];
   drainable: number;
   total: number;
+}
+
+export interface WhatIfHomeless {
+  pod: string;
+  why: string[];
+}
+
+export interface WhatIf {
+  removed: string[];
+  displaced: number;
+  /** False when at least one displaced pod has nowhere legal to go. */
+  fits: boolean;
+  homeless: WhatIfHomeless[];
+  basedOn: string;
+  takenAt: string;
 }
 
 export function formatCPU(milli: number): string {
