@@ -20,6 +20,7 @@ import { runtimeConfig } from "./runtime-config";
 import { useObserved } from "./useObserved";
 import { usePlan } from "./usePlan";
 import { useReclamations } from "./useReclamations";
+import RightsizingPage from "./components/rightsizing/RightsizingPage";
 import { useRecommendations } from "./useRecommendations";
 import { useRun } from "./useRun";
 import { useVersion } from "./useVersion";
@@ -402,6 +403,8 @@ export default function App() {
               }}
             />
           )}
+
+          {state.status === "ready" && surface === "rightsizing" && <RightsizingPage />}
 
           {state.status === "ready" && surface === "history" && <History />}
         </div>

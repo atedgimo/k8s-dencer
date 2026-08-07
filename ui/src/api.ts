@@ -436,6 +436,9 @@ export const api = {
 
   run: (runId: string, signal?: AbortSignal) => get<RunDetail>(`/api/v1/runs/${runId}`, signal),
 
+  /** Requests against observed usage, per workload. Needs metrics-server. */
+  rightsizing: (signal?: AbortSignal) => get<Rightsizing>(`/api/v1/rightsizing`, signal),
+
   /** The in-flight run, if any. Lets a page reload rejoin a consolidation
    *  already in progress rather than losing sight of it. */
   activeRun: (signal?: AbortSignal) => get<{ active: Run | null }>("/api/v1/runs", signal),
@@ -531,6 +534,26 @@ function dispatchFrame(frame: string, onEvent: (event: string, data: string) => 
     else if (field === "data") data.push(value);
   }
   if (data.length > 0) onEvent(event, data.join("\n"));
+}
+
+/** One workload's requests against what it actually uses. */
+export interface RightsizingRow {
+  workload: string;
+  pods: number;
+  requestedMilli: number;
+  usedMilli: number;
+  requestedBytes: number;
+  usedBytes: number;
+}
+
+export interface Rightsizing {
+  /** False when no usage source is configured — unmeasured, never idle. */
+  available: boolean;
+  reason?: string;
+  takenAt?: string;
+  workloads?: RightsizingRow[];
+  totalRequestedMilli?: number;
+  totalUsedMilli?: number;
 }
 
 export function formatCPU(milli: number): string {
