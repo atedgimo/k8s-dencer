@@ -618,6 +618,9 @@ pods:
 - createdAt: "2026-08-07T13:58:00Z"
   labels:
     app.kubernetes.io/component: planner
+    app.kubernetes.io/instance: k8s-dencer
+    app.kubernetes.io/name: k8s-dencer
+    app.kubernetes.io/part-of: k8s-dencer
   name: k8s-dencer-planner-a
   namespace: k8s-dencer
   nodeName: gke-dencer-play-default-pool-4ddb9382-0xk4
@@ -633,6 +636,9 @@ pods:
 - createdAt: "2026-08-07T13:58:00Z"
   labels:
     app.kubernetes.io/component: executor
+    app.kubernetes.io/instance: k8s-dencer
+    app.kubernetes.io/name: k8s-dencer
+    app.kubernetes.io/part-of: k8s-dencer
   name: k8s-dencer-executor-a
   namespace: k8s-dencer
   nodeName: gke-dencer-play-default-pool-4ddb9382-0xk4
@@ -648,6 +654,9 @@ pods:
 - createdAt: "2026-08-07T13:58:00Z"
   labels:
     app.kubernetes.io/component: ui-backend
+    app.kubernetes.io/instance: k8s-dencer
+    app.kubernetes.io/name: k8s-dencer
+    app.kubernetes.io/part-of: k8s-dencer
   name: k8s-dencer-ui-backend-a
   namespace: k8s-dencer
   nodeName: gke-dencer-play-default-pool-4ddb9382-0xk4
@@ -663,6 +672,9 @@ pods:
 - createdAt: "2026-08-07T13:58:00Z"
   labels:
     app.kubernetes.io/component: ui-frontend
+    app.kubernetes.io/instance: k8s-dencer
+    app.kubernetes.io/name: k8s-dencer
+    app.kubernetes.io/part-of: k8s-dencer
   name: k8s-dencer-ui-frontend-a
   namespace: k8s-dencer
   nodeName: gke-dencer-play-default-pool-4ddb9382-0xk4
@@ -678,6 +690,9 @@ pods:
 - createdAt: "2026-08-07T13:58:00Z"
   labels:
     app.kubernetes.io/component: ui-frontend
+    app.kubernetes.io/instance: k8s-dencer
+    app.kubernetes.io/name: k8s-dencer
+    app.kubernetes.io/part-of: k8s-dencer
   name: k8s-dencer-ui-frontend-b
   namespace: k8s-dencer
   nodeName: gke-dencer-play-default-pool-4ddb9382-0xk4

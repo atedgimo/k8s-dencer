@@ -14,6 +14,7 @@ package recommend
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/atedgimo/k8s-dencer/internal/model"
 )
@@ -161,6 +162,59 @@ type Recommendation struct {
 
 // Build derives recommendations from a snapshot and nothing else — same
 // purity contract as the analyzer, so it can run against any stored moment.
+// platformNamespaces are reconciled by the cluster's provider, not its
+// operator. Scaling kube-dns-autoscaler or adding a PDB to l7-default-backend
+// is not a change anyone can make: the platform controller reverts it.
+//
+// A real GKE cluster produced fifteen recommendations, eleven of them HIGH, of
+// which exactly one named a workload the operator owned. Advice nobody can act
+// on is not advice.
+var platformNamespaces = map[string]bool{
+	"kube-system":     true,
+	"kube-public":     true,
+	"kube-node-lease": true,
+	"gmp-system":      true,
+	"gmp-public":      true,
+}
+
+// notYours reports whether a workload belongs to the platform or to this
+// product, rather than to the operator reading the report.
+//
+// The prefix match covers the managed namespaces every provider invents —
+// gke-managed-cim, gke-managed-system and their equivalents — without
+// pretending to enumerate them.
+//
+// k8s-dencer's own components are excluded for a different reason: the chart
+// owns their replica counts deliberately. ui-backend is pinned to one replica
+// because SQLite has one writer, and the chart's contract test rejects a
+// second. Recommending one would be advising a change the product itself
+// refuses to install.
+func notYours(namespace string, sample *model.Pod) bool {
+	if platformNamespaces[namespace] {
+		return true
+	}
+	for _, prefix := range []string{"gke-managed-", "gke-system", "aks-", "eks-", "openshift-"} {
+		if strings.HasPrefix(namespace, prefix) {
+			return true
+		}
+	}
+	return sample != nil && sample.Labels["app.kubernetes.io/part-of"] == "k8s-dencer"
+}
+
+// selectorLabel picks a label that plausibly identifies a workload's pods, in
+// the order the ecosystem actually uses them.
+//
+// pod-template-hash is deliberately absent: it changes on every rollout, so a
+// PDB written against it silently stops matching the moment anyone deploys.
+func selectorLabel(p *model.Pod) (struct{ key, value string }, bool) {
+	for _, k := range []string{"app", "app.kubernetes.io/name", "k8s-app", "component", "name"} {
+		if v := p.Labels[k]; v != "" {
+			return struct{ key, value string }{k, v}, true
+		}
+	}
+	return struct{ key, value string }{}, false
+}
+
 func Build(snap *model.ClusterSnapshot) []Recommendation {
 	out := []Recommendation{}
 
@@ -196,6 +250,9 @@ func Build(snap *model.ClusterSnapshot) []Recommendation {
 		if w.kind == "DaemonSet" {
 			continue // pinned by design; a PDB or replicas advice is noise
 		}
+		if notYours(w.namespace, w.pods[0]) {
+			continue
+		}
 		replicas := len(w.pods)
 		sample := w.pods[0]
 
@@ -203,12 +260,18 @@ func Build(snap *model.ClusterSnapshot) []Recommendation {
 		// ungoverned, which makes every step touching it look riskier than
 		// its owner probably intends.
 		if replicas >= 2 && !covered(sample) {
-			out = append(out, Recommendation{
+			rec := Recommendation{
 				Kind: "MissingPDB", Severity: SeverityMedium, Workload: key,
 				Why: fmt.Sprintf(
 					"%d replicas and no PodDisruptionBudget: evictions are ungoverned, so the API server cannot pace a drain for this workload.",
 					replicas),
-				Fix: fmt.Sprintf(`apiVersion: policy/v1
+			}
+			// Only emit YAML when the selector is real. Guessing `app:` and
+			// finding nothing produced manifests reading `app: ` with no
+			// value — a PDB that matches no pods, which is worse than none
+			// because it looks like coverage.
+			if sel, ok := selectorLabel(sample); ok {
+				rec.Fix = fmt.Sprintf(`apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: %s
@@ -217,9 +280,12 @@ spec:
   maxUnavailable: 1
   selector:
     matchLabels:
-      # match your workload's pod labels
-      app: %s`, w.name, w.namespace, sample.Labels["app"]),
-			})
+      # check this matches every pod of this workload, and only those
+      %s: %s`, w.name, w.namespace, sel.key, sel.value)
+			} else {
+				rec.Why += " No single label identifies its pods, so write the selector by hand rather than trusting a generated one."
+			}
+			out = append(out, rec)
 		}
 
 		// Single replica: any eviction is downtime, and the impact
