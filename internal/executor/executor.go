@@ -495,6 +495,13 @@ func (e *Executor) verifyRecovered(ctx context.Context, run store.Run, step mode
 	if len(affected) == 0 {
 		return nil
 	}
+	// This loop already observes recovery on every drain and has never
+	// recorded how long it took. "3 pods move" is a count; how long the
+	// workload is degraded is the consequence, and two Green steps can differ
+	// by an order of magnitude in it while looking identical on screen.
+	started := time.Now()
+	recoveredAt := make(map[string]time.Duration, len(affected))
+
 	deadline := time.Now().Add(e.opts.SettleTimeout)
 	for {
 		live, err := e.cluster.Snapshot(ctx)
@@ -506,14 +513,22 @@ func (e *Executor) verifyRecovered(ctx context.Context, run store.Run, step mode
 		lagging := ""
 		for owner := range affected {
 			if now[owner] < before[owner] {
-				lagging = fmt.Sprintf("%s has %d/%d healthy pod(s)", owner, now[owner], before[owner])
-				break
+				if lagging == "" {
+					lagging = fmt.Sprintf("%s has %d/%d healthy pod(s)", owner, now[owner], before[owner])
+				}
+				continue
+			}
+			// First cycle in which this workload is whole again. Recorded once:
+			// a later flap is a different event, not a slower recovery.
+			if _, seen := recoveredAt[owner]; !seen {
+				recoveredAt[owner] = time.Since(started)
 			}
 		}
 		if lagging == "" {
 			e.event(ctx, run, store.RunEvent{
 				Step: step.SequenceNumber, Node: step.TargetNode, Action: "Verify",
-				Message: fmt.Sprintf("all %d affected workload(s) recovered elsewhere", len(affected)),
+				Message: fmt.Sprintf("all %d affected workload(s) recovered elsewhere%s",
+					len(affected), recoverySummary(recoveredAt)),
 			})
 			return nil
 		}
@@ -525,6 +540,34 @@ func (e *Executor) verifyRecovered(ctx context.Context, run store.Run, step mode
 			return err
 		}
 	}
+}
+
+// recoverySummary reports how long the workloads took to come back.
+//
+// The slowest one is the story: a two-minute recovery on a single-replica
+// workload is a two-minute outage, and it deserves to be visible in the audit
+// trail rather than inferred from timestamps afterwards. Named, because "the
+// slowest was 2m" is actionable only if you know which.
+func recoverySummary(took map[string]time.Duration) string {
+	if len(took) == 0 {
+		return ""
+	}
+	var slowest string
+	var worst time.Duration
+	for owner, d := range took {
+		if d > worst {
+			worst, slowest = d, owner
+		}
+	}
+	// Sub-second recoveries are the KWOK fabric or a pod that never left;
+	// reporting "0s" as a measurement would be noise dressed as precision.
+	if worst < time.Second {
+		return ", all within a second"
+	}
+	if len(took) == 1 {
+		return fmt.Sprintf(", in %s", worst.Round(time.Second))
+	}
+	return fmt.Sprintf(", slowest %s at %s", slowest, worst.Round(time.Second))
 }
 
 // abort restores schedulability and records why.
