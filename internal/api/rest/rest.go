@@ -25,6 +25,7 @@ import (
 	"github.com/atedgimo/k8s-dencer/internal/model"
 	"github.com/atedgimo/k8s-dencer/internal/pricing"
 	"github.com/atedgimo/k8s-dencer/internal/store"
+	"github.com/atedgimo/k8s-dencer/internal/window"
 )
 
 // Guard authorizes a request before it reaches a handler.
@@ -56,10 +57,27 @@ type Server struct {
 	// header shows nothing rather than a guess.
 	clusterLabel string
 
+	// windows evaluates maintenance windows live. Nil when the deployment
+	// cannot read them, which is reported as "cannot read" rather than as
+	// "none defined" — those are different answers.
+	windows WindowReader
+
 	// pricing is what the operator says their machines cost. Empty means the
 	// ledger reports capacity and no currency, which is the honest half of
 	// the answer rather than a missing one.
 	pricing pricing.Table
+}
+
+// WindowReader evaluates the cluster's maintenance windows at this instant.
+// An interface so the server does not depend on a Kubernetes client.
+type WindowReader interface {
+	Current(ctx context.Context) (*window.Set, error)
+}
+
+// WithWindows lets the API answer whether Red steps can run right now.
+func (s *Server) WithWindows(r WindowReader) *Server {
+	s.windows = r
+	return s
 }
 
 // WithPricing supplies the operator's price table. Nothing is priced without
@@ -131,6 +149,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 
 	read("/api/v1/version", s.handleVersion)
 	read("/api/v1/reclamations", s.handleReclamations)
+	read("/api/v1/windows", s.handleWindows)
 	read("/api/v1/preflight", s.handlePreflight)
 	read("/api/v1/resilience", s.handleResilience)
 	read("/api/v1/rightsizing", s.handleRightsizing)

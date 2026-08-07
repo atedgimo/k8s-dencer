@@ -15,6 +15,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { Windows, api } from "../api";
 import { Theme, applyTheme, storedTheme } from "../theme";
 
 interface Props {
@@ -28,6 +29,67 @@ interface Props {
   onRecompute?: () => void;
 }
 
+/** Maintenance window state, beside plan freshness because both answer the
+ *  same question: can I act right now. */
+function WindowChip() {
+  const [w, setW] = useState<Windows | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () =>
+      api
+        .windows()
+        .then((d) => !cancelled && setW(d))
+        .catch(() => {
+          // Window state is context, never the reason the bar fails to draw.
+        });
+    load();
+    // Evaluated live server-side; a minute is close enough for a schedule
+    // measured in hours, and the exact boundary is in closesAt either way.
+    const t = setInterval(load, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, []);
+
+  if (!w?.available || !w.windows?.length) return null;
+
+  const open = w.windows.filter((x) => x.open);
+  if (open.length > 0) {
+    const closes = open
+      .map((x) => x.closesAt)
+      .filter(Boolean)
+      .sort()[0];
+    return (
+      <span className="topbar-window is-open" title={open.map((x) => x.name).join(", ")}>
+        maintenance window open
+        {closes ? ` · until ${new Date(closes).toLocaleTimeString()}` : ""}
+      </span>
+    );
+  }
+
+  // Closed. The next opening is the useful half; a window that will never
+  // open is the other kind of useful, and the reason says which.
+  const next = w.windows
+    .map((x) => x.nextOpen)
+    .filter(Boolean)
+    .sort()[0];
+  const stuck = w.windows.filter((x) => !x.nextOpen);
+  return (
+    <span
+      className="topbar-window"
+      title={w.windows.map((x) => `${x.name}: ${x.reason || "closed"}`).join("\n")}
+    >
+      {next
+        ? `next maintenance window ${new Date(next).toLocaleString()}`
+        : stuck.length > 0
+          ? `no window will open — ${stuck[0].reason || "check the schedule"}`
+          : "maintenance window closed"}
+    </span>
+  );
+}
+
 export default function TopBar({ planId, strategy, confirmedAt, stale, onRecompute }: Props) {
   return (
     <header className="topbar">
@@ -39,6 +101,7 @@ export default function TopBar({ planId, strategy, confirmedAt, stale, onRecompu
           </div>
           <span className="topbar-sep" aria-hidden="true" />
           <Freshness confirmedAt={confirmedAt} stale={stale} />
+          <WindowChip />
           {strategy && <span className="topbar-strategy mono">{strategy}</span>}
         </>
       )}

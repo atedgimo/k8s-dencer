@@ -456,6 +456,9 @@ export const api = {
 
   run: (runId: string, signal?: AbortSignal) => get<RunDetail>(`/api/v1/runs/${runId}`, signal),
 
+  /** Whether Red steps can run right now, and if not, when they could. */
+  windows: (signal?: AbortSignal) => get<Windows>(`/api/v1/windows`, signal),
+
   /** Simulate losing nodes or a zone: does everything still fit? */
   whatif: (body: { removeNodes?: string[]; removeZone?: string }) =>
     post<WhatIf>(`/api/v1/whatif`, body),
@@ -603,6 +606,30 @@ export interface Preflight {
   nodes: PreflightNode[];
   drainable: number;
   total: number;
+}
+
+export interface WindowState {
+  name: string;
+  open: boolean;
+  allowsRed: boolean;
+  /** Why it is closed, in words. The window package writes one for every
+   *  failure — an unparseable cron, an unknown zone, a suspended window —
+   *  and until now nobody could read any of them. */
+  reason: string;
+  closesAt?: string;
+  nextOpen?: string;
+  selector?: Record<string, string>;
+  maxNodes?: number;
+}
+
+export interface Windows {
+  /** False when the deployment cannot read windows at all. Distinct from
+   *  "none are defined": only one of those means Red can never run. */
+  available: boolean;
+  reason?: string;
+  evaluatedAt?: string;
+  anyOpen?: boolean;
+  windows?: WindowState[];
 }
 
 export interface WhatIfHomeless {
