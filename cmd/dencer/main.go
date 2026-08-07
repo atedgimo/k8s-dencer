@@ -43,7 +43,8 @@ Commands:
   audit                 what cannot survive a node loss, and why
   recommend             what is missing — PDBs, replicas, requests — with fixes
   rightsizing           requests vs observed usage, per workload
-  whatif                simulate losing nodes or a zone: does everything still fit?
+  whatif --without-nodes a,b | --without-zone z
+                        simulate losing nodes or a zone: does everything still fit?
   drain <node>          guarded drain of one node: the rails, not bare kubectl
   version               the version of this binary (also --version)
 
@@ -63,9 +64,67 @@ Examples:
   dencer why shop/web-7d9f-abcde
   dencer run --steps 1,2 --dry-run
   dencer converge --max-nodes 5 --max-impact Green
+  dencer whatif --without-zone eu-west-1a
+  dencer drain worker-3 --dry-run
   dencer reclamations
   dencer plan -o json | jq '.plan.steps[] | select(.impact=="Red")'
 `
+
+// reorderArgs moves positional arguments after the flags, so that
+// `dencer drain node-3 --dry-run` parses the same as
+// `dencer drain --dry-run node-3`.
+//
+// Go's flag package stops parsing at the first non-flag argument, so the
+// obvious ordering — the one this tool's own error message demonstrates,
+// "e.g. dencer drain worker-3" — fails the moment any flag is added, and
+// --context is not optional for anyone with more than one cluster. It fails
+// with "which node?" while the node is right there in the command line.
+//
+// Which flags consume the next argument is a question only the FlagSet can
+// answer, so it is asked rather than guessed: boolean flags stand alone,
+// everything else takes a value.
+func reorderArgs(fs *flag.FlagSet, args []string) []string {
+	var flags, positional []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--":
+			// Everything after it is positional by definition.
+			positional = append(positional, args[i+1:]...)
+			return joinArgs(flags, positional)
+		case len(a) > 1 && a[0] == '-':
+			flags = append(flags, a)
+			name := strings.TrimLeft(a, "-")
+			if strings.ContainsRune(name, '=') {
+				continue // --flag=value carries its own value
+			}
+			f := fs.Lookup(name)
+			if f == nil {
+				continue // unknown flag: let Parse report it properly
+			}
+			if b, ok := f.Value.(interface{ IsBoolFlag() bool }); ok && b.IsBoolFlag() {
+				continue
+			}
+			if i+1 < len(args) {
+				i++
+				flags = append(flags, args[i])
+			}
+		default:
+			positional = append(positional, a)
+		}
+	}
+	return joinArgs(flags, positional)
+}
+
+// joinArgs puts the positionals behind an explicit `--`, so Parse treats them
+// as arguments whatever they look like — including a node someone has managed
+// to name with a leading dash.
+func joinArgs(flags, positional []string) []string {
+	if len(positional) == 0 {
+		return flags
+	}
+	return append(append(flags, "--"), positional...)
+}
 
 type globals struct {
 	cfg    cli.Config
@@ -207,7 +266,7 @@ func cmdPlan(ctx context.Context, args []string) error {
 func cmdExplain(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("explain", flag.ExitOnError)
 	g := bind(fs)
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(reorderArgs(fs, args)); err != nil {
 		return err
 	}
 	if fs.NArg() < 1 {
@@ -242,7 +301,7 @@ func cmdExplain(ctx context.Context, args []string) error {
 func cmdWhy(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("why", flag.ExitOnError)
 	g := bind(fs)
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(reorderArgs(fs, args)); err != nil {
 		return err
 	}
 	if fs.NArg() < 1 {
@@ -462,7 +521,7 @@ func cmdDrain(ctx context.Context, args []string) error {
 	dryRun := fs.Bool("dry-run", false, "run every guard check and emit the same events without touching the node")
 	watch := fs.Bool("watch", true, "follow the drain until it finishes")
 	yes := fs.Bool("yes", false, "skip the confirmation prompt")
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(reorderArgs(fs, args)); err != nil {
 		return err
 	}
 	if fs.NArg() != 1 {
@@ -636,18 +695,29 @@ func cmdStatus(ctx context.Context, args []string) error {
 	defer c.Close()
 
 	if *runID == "" {
-		active, err := c.ActiveRun(ctx)
+		active, latest, err := c.RunStatus(ctx)
 		if err != nil {
 			return err
 		}
-		if active == nil {
-			if g.format != cli.FormatText {
-				return cli.Encode(os.Stdout, g.format, map[string]any{"active": nil})
+		switch {
+		case active != nil:
+			*runID = active.ID
+		case latest != nil:
+			// Nothing in flight, so show the last one and say so. The
+			// alternative — "No run in flight." — is true and useless to
+			// someone whose drain was halted thirty seconds ago.
+			if g.format == cli.FormatText {
+				fmt.Println("No run in flight. The most recent one:")
+				fmt.Println()
 			}
-			fmt.Println("No run in flight.")
+			*runID = latest.ID
+		default:
+			if g.format != cli.FormatText {
+				return cli.Encode(os.Stdout, g.format, map[string]any{"active": nil, "latest": nil})
+			}
+			fmt.Println("No run in flight, and none has ever run.")
 			return nil
 		}
-		*runID = active.ID
 	}
 
 	env, err := c.Run(ctx, *runID)

@@ -438,6 +438,8 @@ export const api = {
 
   /** Requests against observed usage, per workload. Needs metrics-server. */
   rightsizing: (signal?: AbortSignal) => get<Rightsizing>(`/api/v1/rightsizing`, signal),
+  /** Per node: will it drain, and if not, what is in the way. */
+  preflight: (signal?: AbortSignal) => get<Preflight>(`/api/v1/preflight`, signal),
 
   /** The in-flight run, if any. Lets a page reload rejoin a consolidation
    *  already in progress rather than losing sight of it. */
@@ -554,6 +556,29 @@ export interface Rightsizing {
   workloads?: RightsizingRow[];
   totalRequestedMilli?: number;
   totalUsedMilli?: number;
+}
+
+export interface PreflightBlocker {
+  pod: string;
+  kind: string;
+  explanation: string;
+}
+
+export interface PreflightNode {
+  node: string;
+  ready: boolean;
+  cordoned: boolean;
+  pods: number;
+  drainable: boolean;
+  blockers: PreflightBlocker[];
+}
+
+export interface Preflight {
+  takenAt: string;
+  planId: string;
+  nodes: PreflightNode[];
+  drainable: number;
+  total: number;
 }
 
 export function formatCPU(milli: number): string {

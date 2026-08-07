@@ -21,6 +21,7 @@ import { useObserved } from "./useObserved";
 import { usePlan } from "./usePlan";
 import { useReclamations } from "./useReclamations";
 import RightsizingPage from "./components/rightsizing/RightsizingPage";
+import WhyNothing from "./components/review/WhyNothing";
 import { useRecommendations } from "./useRecommendations";
 import { useRun } from "./useRun";
 import { useVersion } from "./useVersion";
@@ -324,6 +325,8 @@ export default function App() {
               />
 
               <RunTrail state={run.state} onDismiss={run.dismiss} />
+
+              {steps.length === 0 && <WhyNothing />}
 
               <main className="review-main">
                 <StepList
