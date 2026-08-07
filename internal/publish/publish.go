@@ -354,7 +354,11 @@ func (p *Publisher) recordExternalReclaims(ctx context.Context, tracker store.Re
 			Outcome:    store.ReclaimedGone,
 			CPUMilli:   was.Allocatable.MilliCPU,
 			MemBytes:   was.Allocatable.MemoryBytes,
-			External:   true,
+			// The shape leaves with the machine, so it is taken from the last
+			// snapshot that still had it — same reason as the capacity.
+			InstanceType: was.InstanceType(),
+			CapacityType: was.CapacityType(),
+			External:     true,
 		}
 		if err := tracker.RecordDrain(ctx, rec); err != nil {
 			p.Log.Error("could not record externally reclaimed node", "node", name, "error", err)

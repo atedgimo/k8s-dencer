@@ -441,13 +441,39 @@ func PrintReclamations(w io.Writer, env *ReclamationsEnvelope) {
 		}
 	}
 
+	// The rate, not a total: reclaiming a node saves money every hour from
+	// now on, and the cumulative figure is small and unimpressive on day one
+	// while the rate is the actual result.
+	if p := s.Pricing; p != nil && p.PricedNodes > 0 {
+		fmt.Fprintf(w, "  %s %s/month no longer spent, across %d node(s)\n",
+			bold("Worth:"), money(p.Currency, p.PerMonth), p.PricedNodes)
+		if p.UnpricedNodes > 0 {
+			fmt.Fprintf(w, "  (%d node(s) unpriced — add their machine type to uiBackend.pricing)\n",
+				p.UnpricedNodes)
+		}
+	}
+
 	// Someone else's work, reported without being claimed. Silence here once
 	// let a fleet shrink from six nodes to four while this command said "No
 	// nodes have been drained yet".
 	if s.ExternallyReclaimed > 0 {
 		fmt.Fprintf(w, "\n  %d node(s) left the cluster without k8s-dencer draining them —\n", s.ExternallyReclaimed)
 		fmt.Fprintf(w, "  an autoscaler, or someone with kubectl. Not counted as this tool's doing.\n")
+		if p := s.Pricing; p != nil && p.ExternalPriced > 0 {
+			fmt.Fprintf(w, "  (worth %s/month, which the cluster saved and this tool did not)\n",
+				money(p.Currency, p.ExternalPerMonth))
+		}
 	}
+}
+
+// money formats a cost with the operator's own currency label. No symbol
+// lookup: they said "USD" or "EUR" and echoing it back is safer than guessing
+// which glyph they meant.
+func money(currency string, v float64) string {
+	if currency == "" {
+		return fmt.Sprintf("%.2f", v)
+	}
+	return fmt.Sprintf("%.2f %s", v, currency)
 }
 
 func countOlderThan(rs []store.Reclamation, d time.Duration, now time.Time) int {

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/atedgimo/k8s-dencer/internal/pricing"
 	"github.com/atedgimo/k8s-dencer/internal/reclaim"
 	"github.com/atedgimo/k8s-dencer/internal/store"
 )
@@ -86,6 +87,45 @@ func (s *Server) handleReclamations(w http.ResponseWriter, r *http.Request) {
 			// Capacity that left the cluster without this product draining
 			// it. Reported, never added to the ledger above.
 			"externallyReclaimed": stats.ExternallyReclaimed,
+			// What the reclaimed machines cost, when the operator has said.
+			// Absent entirely when they have not — the ledger shows capacity
+			// rather than a plausible number.
+			"pricing": s.priceOf(recent),
 		},
 	})
+}
+
+// priceOf values the nodes that genuinely left, in the operator's currency.
+//
+// Nil when no price table is configured, so the UI renders capacity and says
+// nothing about money rather than rendering a zero that looks measured. Nodes
+// this product did not drain are priced too, and counted separately: the
+// cluster saved that money whoever caused it, and the ledger's job is to be
+// accurate about what happened, not flattering about who did it.
+func (s *Server) priceOf(recent []store.Reclamation) map[string]any {
+	if s.pricing.Empty() {
+		return nil
+	}
+	var ours, theirs []pricing.Node
+	for _, r := range recent {
+		if r.Outcome != store.ReclaimedGone {
+			continue
+		}
+		n := pricing.Node{InstanceType: r.InstanceType, CapacityType: r.CapacityType}
+		if r.External {
+			theirs = append(theirs, n)
+		} else {
+			ours = append(ours, n)
+		}
+	}
+	mine, other := s.pricing.Value(ours), s.pricing.Value(theirs)
+	return map[string]any{
+		"currency":         s.pricing.Currency,
+		"perHour":          mine.PerHour,
+		"perMonth":         mine.PerMonth,
+		"pricedNodes":      mine.Priced,
+		"unpricedNodes":    mine.Unpriced,
+		"externalPerMonth": other.PerMonth,
+		"externalPriced":   other.Priced,
+	}
 }

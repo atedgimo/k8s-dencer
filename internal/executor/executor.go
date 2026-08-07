@@ -427,10 +427,14 @@ func (e *Executor) recordDrain(ctx context.Context, run store.Run, step model.Pl
 	// savings ledger would be left estimating the very number it exists to
 	// measure.
 	var cpuMilli, memBytes int64
+	var instanceType, capacityType string
 	if snap, err := e.cluster.Snapshot(writeCtx); err == nil {
 		for _, n := range snap.Nodes {
 			if n.Name == step.TargetNode {
 				cpuMilli, memBytes = n.Allocatable.MilliCPU, n.Allocatable.MemoryBytes
+				// What it was, not just how big: a price attaches to a machine
+				// shape, and the shape leaves with the machine.
+				instanceType, capacityType = n.InstanceType(), n.CapacityType()
 				break
 			}
 		}
@@ -444,6 +448,9 @@ func (e *Executor) recordDrain(ctx context.Context, run store.Run, step model.Pl
 		Step:      step.SequenceNumber,
 		CPUMilli:  cpuMilli,
 		MemBytes:  memBytes,
+
+		InstanceType: instanceType,
+		CapacityType: capacityType,
 	})
 	if err != nil {
 		e.log.Error("could not record the drain for reclamation tracking",

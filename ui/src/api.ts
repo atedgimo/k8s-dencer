@@ -361,6 +361,17 @@ export interface ReclamationsResponse {
     /** Nodes that left without this product draining them. Reported, never
      *  added to the ledger — the savings are real but not ours. */
     externallyReclaimed?: number;
+    /** Absent unless the operator configured uiBackend.pricing. Absent means
+     *  no claim about money, not a claim of zero. */
+    pricing?: {
+      currency: string;
+      perHour: number;
+      perMonth: number;
+      pricedNodes: number;
+      unpricedNodes: number;
+      externalPerMonth: number;
+      externalPriced: number;
+    };
   };
 }
 

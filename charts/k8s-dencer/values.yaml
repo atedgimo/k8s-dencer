@@ -170,6 +170,31 @@ uiBackend:
   #
   #   clusterLabel: prod-eu-west-1
   clusterLabel: ""
+
+  # What your machines cost, so the savings ledger can be shown in money.
+  #
+  # There is no built-in price table and there will not be one. List prices
+  # vary by region, change without notice, and are wrong for anyone with a
+  # committed-use discount or an enterprise agreement — so a shipped default
+  # would be a plausible guess wearing the clothes of a measurement, which is
+  # the one thing this ledger exists not to be.
+  #
+  # Unpriced machine types are reported as unpriced. The capacity is still
+  # measured and still shown; only the currency is withheld.
+  #
+  # Keys are matched most specific first, so a spot node and an on-demand node
+  # of the same shape can differ:
+  #
+  #   pricing:
+  #     currency: USD
+  #     perHour:
+  #       e2-medium: 0.0335
+  #       e2-medium/spot: 0.0100
+  #       n2-standard-4: 0.1942
+  pricing:
+    currency: ""
+    perHour: {}
+
   # How often to check the store for a new plan, to push over the event stream.
   # The planner is a separate process reached only through the shared volume,
   # so there is no event feed to subscribe to.

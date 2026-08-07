@@ -17,7 +17,7 @@ const RANGES = [
   { label: "30d", hours: 720 },
 ] as const;
 
-export default function History() {
+export default function History({ pricing }: { pricing?: Pricing }) {
   const [hours, setHours] = useState<number>(24);
   const [data, setData] = useState<HistoryResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +76,7 @@ export default function History() {
       {data && data.samples.length >= 2 && (
         <>
           <EstateBars data={data} />
-          <Ledger data={data} />
+          <Ledger data={data} pricing={pricing} />
         </>
       )}
     </div>
@@ -180,7 +180,21 @@ function EstateBars({ data }: { data: HistoryResponse }) {
 
 /* ---------------------------------------------------------------- ledger */
 
-function Ledger({ data }: { data: HistoryResponse }) {
+interface Pricing {
+  currency: string;
+  perMonth: number;
+  pricedNodes: number;
+  unpricedNodes: number;
+  externalPerMonth: number;
+  externalPriced: number;
+}
+
+/** No symbol lookup: the operator said "USD", so echo it rather than guess a
+ *  glyph. A wrong currency symbol on a cost figure is its own small lie. */
+const money = (currency: string, v: number) =>
+  `${v.toFixed(2)}${currency ? " " + currency : ""}`;
+
+function Ledger({ data, pricing }: { data: HistoryResponse; pricing?: Pricing }) {
   const rows = useMemo(() => {
     const byRun = new Map<string, { nodes: number; cpu: number }>();
     for (const r of data.reclamations) {
@@ -220,11 +234,27 @@ function Ledger({ data }: { data: HistoryResponse }) {
         {elsewhere.nodes > 0 && (
           <span className="auditledger-elsewhere">
             {elsewhere.nodes} node{elsewhere.nodes === 1 ? "" : "s"} reclaimed by something else
-            {elsewhere.cpu > 0 ? ` (${formatCPU(elsewhere.cpu)} cores)` : ""} — not this tool's
-            doing, and not counted as it
+            {elsewhere.cpu > 0 ? ` (${formatCPU(elsewhere.cpu)} cores)` : ""}
+            {pricing && pricing.externalPriced > 0
+              ? `, worth ${money(pricing.currency, pricing.externalPerMonth)}/month`
+              : ""}{" "}
+            — not this tool's doing, and not counted as it
           </span>
         )}
       </div>
+      {pricing && pricing.pricedNodes > 0 && (
+        // The rate, not a running total: a reclaimed node saves money every
+        // hour from now on, and a cumulative figure is small and unimpressive
+        // on day one while the rate is the actual result.
+        <p className="auditledger-worth">
+          <strong>{money(pricing.currency, pricing.perMonth)}/month</strong> no longer spent,
+          across {pricing.pricedNodes} reclaimed node
+          {pricing.pricedNodes === 1 ? "" : "s"}
+          {pricing.unpricedNodes > 0
+            ? ` · ${pricing.unpricedNodes} unpriced — add their machine type to uiBackend.pricing`
+            : ""}
+        </p>
+      )}
       <div className="auditrow auditrow-head">
         <span className="eyebrow mono">when</span>
         <span className="eyebrow mono">plan</span>

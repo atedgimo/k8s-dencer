@@ -56,7 +56,7 @@ func Open(path string) (*Store, error) {
 // Close releases the database handle.
 func (s *Store) Close() error { return s.db.Close() }
 
-const schemaVersion = 9
+const schemaVersion = 10
 
 // Migrate creates or upgrades the schema.
 func (s *Store) Migrate(ctx context.Context) error {
@@ -119,6 +119,11 @@ func (s *Store) Migrate(ctx context.Context) error {
 			return fmt.Errorf("apply schema v9: %w", err)
 		}
 	}
+	if current < 10 {
+		if _, err := tx.ExecContext(ctx, schemaV10); err != nil {
+			return fmt.Errorf("apply schema v10: %w", err)
+		}
+	}
 
 	// PRAGMA does not accept a bound parameter.
 	if _, err := tx.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", schemaVersion)); err != nil {
@@ -139,6 +144,13 @@ ALTER TABLE plans ADD COLUMN pack_ceiling REAL NOT NULL DEFAULT 0;
 // recorded by the executor, so the default is correct for all of them.
 const schemaV9 = `
 ALTER TABLE reclamations ADD COLUMN external INTEGER NOT NULL DEFAULT 0;
+`
+
+// Schema v10 — what the reclaimed node was, so the ledger can be priced.
+// Empty on existing rows, which is honest: nobody recorded it at the time.
+const schemaV10 = `
+ALTER TABLE reclamations ADD COLUMN instance_type TEXT NOT NULL DEFAULT '';
+ALTER TABLE reclamations ADD COLUMN capacity_type TEXT NOT NULL DEFAULT '';
 `
 
 const schemaV1 = `
