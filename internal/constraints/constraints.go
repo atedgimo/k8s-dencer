@@ -62,6 +62,15 @@ type PodConstraints struct {
 	Movable     bool         `json:"movable"`
 	Constraints []Constraint `json:"constraints"`
 
+	// PinnedToNode separates "cannot move" from "stops the node draining".
+	//
+	// A DaemonSet or static pod can never be relocated, but it does not hold a
+	// drain up: the eviction API and `kubectl drain --ignore-daemonsets` both
+	// pass straight over it, and it is recreated on the node afterwards.
+	// Conflating the two is why a managed cluster — five or more such pods on
+	// every node — reported that not one node could drain cleanly.
+	PinnedToNode bool `json:"pinnedToNode,omitempty"`
+
 	// CandidateNodes are the other nodes this pod could legally occupy given
 	// current cluster state. An empty list on a movable pod means the pod is
 	// effectively stuck: there is nowhere for it to go.
@@ -148,6 +157,13 @@ func (a *Analysis) NodeDrainable(nodeName string) (bool, []Constraint) {
 	var blockers []Constraint
 	drainable := true
 	for _, pc := range a.ForNode(nodeName) {
+		// Pinned to the node by design, and therefore not in the way: the
+		// drain evicts around it and the kubelet or its DaemonSet puts it
+		// back. Counting these is how every node on a managed cluster came
+		// to be reported undrainable.
+		if pc.PinnedToNode {
+			continue
+		}
 		if !pc.Movable {
 			drainable = false
 			blockers = append(blockers, pc.Blockers()...)
