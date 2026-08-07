@@ -9,7 +9,7 @@
  * vice versa.
  */
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { GraphPayload, Impact, PlanStep, formatCPU } from "../../api";
 import { FieldView, VIEW_LABELS } from "../../view";
 import { VERDICT } from "../Impact";
@@ -45,6 +45,30 @@ interface NodeModel {
   notReady?: boolean;
   awaiting?: boolean;
   gone?: boolean;
+}
+
+/**
+ * Cloud node names share a long prefix and differ only at the end:
+ * gke-<cluster>-<pool>-<hash>-0xk4. Truncating from the right — which is what
+ * text-overflow does — throws away the only part that identifies the node, so
+ * a real GKE fleet rendered as four cards all reading "gke-dencer-play-de…".
+ *
+ * Eliding the shared prefix instead adapts to whatever a cluster's convention
+ * happens to be, and does nothing at all when names have nothing in common.
+ */
+function shortener(names: string[]): (name: string) => string {
+  if (names.length < 2) return (n) => n;
+  let prefix = names[0];
+  for (const n of names) {
+    let i = 0;
+    while (i < prefix.length && i < n.length && prefix[i] === n[i]) i++;
+    prefix = prefix.slice(0, i);
+  }
+  // Cut back to a separator so the remainder starts at a meaningful boundary,
+  // and only bother when enough is shared to be worth hiding.
+  const cut = Math.max(prefix.lastIndexOf("-"), prefix.lastIndexOf("."));
+  if (cut < 8) return (n) => n;
+  return (n) => (n.length > cut + 1 ? "…" + n.slice(cut) : n);
 }
 
 function buildNodes(graph: GraphPayload, steps: PlanStep[], observed: Map<string, ObservedNode>): NodeModel[] {
@@ -102,6 +126,7 @@ export default function ClusterPage({
   const nodes = useMemo(() => buildNodes(graph, steps, observed), [graph, steps, observed]);
   const pools = new Set(nodes.map((n) => n.pool).filter(Boolean)).size;
   const pods = nodes.reduce((n, x) => n + x.pods, 0);
+  const short = useMemo(() => shortener(nodes.map((n) => n.name)), [nodes]);
 
   return (
     <div className="clusterpage">
@@ -133,12 +158,13 @@ export default function ClusterPage({
           selectedStep={selectedStep}
           onSelectStep={onSelectStep}
           evictedPods={evictedPods}
+          short={short}
         />
       )}
       {lens === "wells" && (
-        <WellsLens nodes={nodes} steps={steps} ceiling={graph.stats.packCeiling} onSelectStep={onSelectStep} />
+        <WellsLens nodes={nodes} steps={steps} ceiling={graph.stats.packCeiling} onSelectStep={onSelectStep} short={short} />
       )}
-      {lens === "load" && <LoadLens nodes={nodes} />}
+      {lens === "load" && <LoadLens nodes={nodes} short={short} />}
     </div>
   );
 }
@@ -165,6 +191,7 @@ function RackLens({
   selectedStep,
   onSelectStep,
   evictedPods,
+  short,
 }: {
   nodes: NodeModel[];
   steps: PlanStep[];
@@ -172,6 +199,7 @@ function RackLens({
   selectedStep: number | null;
   onSelectStep: (seq: number | null) => void;
   evictedPods: Set<string>;
+  short: (n: string) => string;
 }) {
   const moved = new Map<string, Impact>();
   for (const s of steps) for (const m of s.moves) moved.set(`${m.namespace}/${m.pod}`, s.impact);
@@ -188,6 +216,17 @@ function RackLens({
   const focused = nodes.find((n) => n.drainStep != null && n.drainStep === selectedStep);
   const focusedStep = steps.find((s) => s.sequenceNumber === selectedStep);
 
+  // A node with no plan step used to select nothing and say nothing, which on
+  // a cluster with no plan meant the pane was inert for the whole session. But
+  // "what is running here" is answerable about every node, always.
+  const [pickedNode, setPickedNode] = useState<string | null>(null);
+  const picked = nodes.find((n) => n.name === pickedNode) ?? focused;
+  const pickedPods = picked ? (podsByNode.get(`node:${picked.name}`) ?? []) : [];
+  const selectNode = (n: NodeModel) => {
+    setPickedNode(n.name);
+    onSelectStep(n.drainStep ?? null);
+  };
+
   return (
     <>
       <div className="clusterpage-hero">
@@ -195,7 +234,9 @@ function RackLens({
           <span className="eyebrow mono">The cluster as it stands, against the plan</span>
           <h2 className="clusterpage-headline">
             {safeCount > 0
-              ? `${safeCount} node${safeCount === 1 ? "" : "s"} are safe to drain today`
+              ? safeCount === 1
+                ? "1 node is safe to drain today"
+                : `${safeCount} nodes are safe to drain today`
               : "Nothing is safe to drain today"}
           </h2>
         </div>
@@ -212,15 +253,16 @@ function RackLens({
                 type="button"
                 key={n.name}
                 className={
-                  "racknode racknode-" +
-                  intent.cls +
-                  (n.drainStep != null && n.drainStep === selectedStep ? " is-on" : "")
+                  "racknode racknode-" + intent.cls + (picked?.name === n.name ? " is-on" : "")
                 }
-                onClick={() => onSelectStep(n.drainStep ?? null)}
+                aria-pressed={picked?.name === n.name}
+                onClick={() => selectNode(n)}
               >
                 <div className="racknode-head">
                   <span className={"racknode-dot racknode-dot-" + intent.cls} aria-hidden="true" />
-                  <span className="racknode-name mono">{n.name}</span>
+                  <span className="racknode-name mono" title={n.name}>
+                    {short(n.name)}
+                  </span>
                   <span className="racknode-util mono">{pct(n.req, n.alloc)}%</span>
                 </div>
                 <div className="racknode-pods" aria-hidden="true">
@@ -278,10 +320,42 @@ function RackLens({
                 ))}
               </div>
             </>
+          ) : picked ? (
+            <>
+              <div className="clusterdetail-head">
+                <span className="eyebrow mono">
+                  {picked.drainStep == null ? "Stays in this plan" : "On this node"}
+                </span>
+                <span className="clusterdetail-name mono">{picked.name}</span>
+                <p className="clusterdetail-why">
+                  {formatCPU(picked.req)} of {formatCPU(picked.alloc)} requested by{" "}
+                  {picked.pods} pod{picked.pods === 1 ? "" : "s"}
+                  {picked.cordoned ? " · cordoned" : ""}
+                  {picked.notReady ? " · NotReady" : ""}.
+                </p>
+              </div>
+              <div className="clusterdetail-body">
+                <span className="eyebrow mono">What is running here</span>
+                <ul className="podlist">
+                  {pickedPods.length === 0 && (
+                    <li className="podlist-empty">Nothing but the node's own daemons.</li>
+                  )}
+                  {[...pickedPods]
+                    .sort((a, b) => b.cpu - a.cpu)
+                    .map((p) => (
+                      <li key={p.id} className="podlist-row">
+                        <span className={"podlist-dot podlist-dot-" + intentOf(p.impact).cls} aria-hidden="true" />
+                        <span className="podlist-name mono">{p.id}</span>
+                        <span className="podlist-cpu mono">{formatCPU(p.cpu)}</span>
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            </>
           ) : (
             <p className="clusterdetail-empty">
-              Selecting a node here selects its step in the ledger — the two views share one
-              selection. Nodes without a step have nothing to explain.
+              Select a node to see what is running on it. Selection is shared with Review, so a
+              node with a step selects that step too.
             </p>
           )}
         </aside>
@@ -297,11 +371,13 @@ function WellsLens({
   steps,
   ceiling,
   onSelectStep,
+  short,
 }: {
   nodes: NodeModel[];
   steps: PlanStep[];
   ceiling?: number;
   onSelectStep: (seq: number | null) => void;
+  short: (n: string) => string;
 }) {
   const ceilPct = ceiling && ceiling > 0 && ceiling < 1 ? Math.round(ceiling * 100) : null;
 
@@ -389,7 +465,7 @@ function WellsLens({
                     <div className="well-inc" style={{ height: `${incPct}%` }} />
                     <div className={"well-req well-req-" + st} style={{ height: `${reqPct}%` }} />
                   </div>
-                  <span className="well-name mono">{n.name}</span>
+                  <span className="well-name mono" title={n.name}>{short(n.name)}</span>
                   <div className="well-line">
                     <span className="well-total mono">{reqPct + incPct}%</span>
                     <span className={"well-tag well-tag-" + st}>{TAG[st]}</span>
@@ -440,7 +516,7 @@ function WellsLens({
 
 /* ------------------------------------------------------------------ load */
 
-function LoadLens({ nodes }: { nodes: NodeModel[] }) {
+function LoadLens({ nodes, short }: { nodes: NodeModel[]; short: (n: string) => string }) {
   const measured = nodes.filter((n) => n.used != null);
   if (measured.length === 0) {
     return (
@@ -500,7 +576,7 @@ function LoadLens({ nodes }: { nodes: NodeModel[] }) {
           const intent = intentOf(n.impact);
           return (
             <div key={n.name} className="loadrow">
-              <span className="loadrow-name mono">{n.name}</span>
+              <span className="loadrow-name mono" title={n.name}>{short(n.name)}</span>
               <span className="loadrow-pool">{n.pool}</span>
               <div className="loadbar" aria-hidden="true">
                 <div className="loadbar-used" style={{ width: `${used}%` }} />

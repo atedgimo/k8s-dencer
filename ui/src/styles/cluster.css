@@ -286,6 +286,73 @@
   text-wrap: pretty;
 }
 
+/* What is running on the selected node. The pod strip in the rack card is a
+   picture; this is the list, and it is the only place a pod's name is
+   readable without hovering a nine-pixel sliver. */
+.podlist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.podlist-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  background: var(--inset);
+  border: 1px solid var(--inset-border);
+}
+
+.podlist-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.podlist-dot-safe {
+  background: var(--safe);
+}
+
+.podlist-dot-caution {
+  background: var(--caution);
+}
+
+.podlist-dot-held {
+  background: var(--held);
+}
+
+.podlist-dot-stays {
+  background: var(--text-faint);
+}
+
+.podlist-name {
+  font-size: var(--text-2xs);
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.podlist-cpu {
+  font-size: var(--text-2xs);
+  color: var(--text-5);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+
+.podlist-empty {
+  padding: 7px 10px;
+  font-size: var(--text-2xs);
+  color: var(--text-5);
+}
+
 /* ----------------------------------------------------------------- wells */
 
 .wellslegend {
