@@ -116,6 +116,7 @@ func run(ctx context.Context, log *slog.Logger) error {
 		Readiness:     executor.Readiness(env("EXECUTOR_READINESS", string(executor.ReadinessReady))),
 		Metrics:       metrics,
 		Reclamations:  db,
+		Recoveries:    db,
 	})
 
 	health := &httpserver.Health{}

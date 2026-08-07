@@ -148,6 +148,18 @@ export interface StepDetail {
    * review pane flags exactly these.
    */
   singletons?: string[];
+  /**
+   * What past drains say these workloads cost, keyed by namespace/Kind/name.
+   * A workload never drained is absent rather than zero — never observed and
+   * instantaneous are different claims.
+   */
+  recovery?: Record<string, {
+    workload: string;
+    observations: number;
+    typicalSeconds: number;
+    worstSeconds: number;
+    lastSeen: string;
+  }>;
 }
 
 /** One point on the planner's timeline. Mirrors store.Sample. */

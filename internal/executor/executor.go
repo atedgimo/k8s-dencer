@@ -52,6 +52,11 @@ type Options struct {
 	// whether anything removed them. Nil disables tracking.
 	Reclamations store.ReclamationStore
 
+	// Recoveries remembers how long workloads took to come back, so a step
+	// detail can say what a drain is likely to cost before it is approved.
+	// Optional: nil measures and reports without remembering.
+	Recoveries store.RecoveryStore
+
 	// StepTimeout bounds a single step end to end. Exceeding it aborts.
 	StepTimeout time.Duration
 
@@ -135,6 +140,11 @@ type Executor struct {
 	// reclamations is optional: nil disables tracking rather than failing, so
 	// a caller that has not wired a store still drains.
 	reclamations store.ReclamationStore
+
+	// recoveries is optional in the same way. The executor measures how long
+	// workloads take to come back on every drain; without a store it reports
+	// the number once and forgets it.
+	recoveries store.RecoveryStore
 }
 
 // New builds an executor.
@@ -153,6 +163,7 @@ func New(cluster Cluster, runs store.ExecutionStore, plans store.Store, log *slo
 		opts:         opts,
 		metrics:      opts.Metrics,
 		reclamations: opts.Reclamations,
+		recoveries:   opts.Recoveries,
 	}
 }
 
@@ -530,6 +541,7 @@ func (e *Executor) verifyRecovered(ctx context.Context, run store.Run, step mode
 				Message: fmt.Sprintf("all %d affected workload(s) recovered elsewhere%s",
 					len(affected), recoverySummary(recoveredAt)),
 			})
+			e.rememberRecovery(ctx, recoveredAt)
 			return nil
 		}
 		if time.Now().After(deadline) {
@@ -538,6 +550,26 @@ func (e *Executor) verifyRecovered(ctx context.Context, run store.Run, step mode
 		}
 		if err := sleep(ctx, e.opts.PollInterval); err != nil {
 			return err
+		}
+	}
+}
+
+// rememberRecovery persists what the verify loop just measured, so the next
+// plan can say what a drain is likely to cost before anyone approves it.
+//
+// Detached and best-effort: this is a note for later, and losing it must
+// never fail a drain that already succeeded.
+func (e *Executor) rememberRecovery(ctx context.Context, took map[string]time.Duration) {
+	if e.recoveries == nil || len(took) == 0 {
+		return
+	}
+	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+
+	now := time.Now().UTC()
+	for owner, d := range took {
+		if err := e.recoveries.RecordRecovery(writeCtx, owner, now, d); err != nil {
+			e.log.Warn("could not record recovery time", "workload", owner, "error", err)
 		}
 	}
 }

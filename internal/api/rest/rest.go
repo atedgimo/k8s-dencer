@@ -341,12 +341,46 @@ func (s *Server) handleStep(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	// What past drains say these workloads cost. "3 pods move" is a count;
+	// how long the service is degraded is the consequence, and the executor
+	// has been measuring it on every drain. Absent for a workload never
+	// observed — never observed and instantaneous are different claims.
+	body := map[string]any{
 		"planId":      rec.Plan.ID,
 		"step":        step,
 		"constraints": podConstraints,
 		"singletons":  singletons,
-	})
+	}
+	if rs, ok := s.store.(store.RecoveryStore); ok && rec.Snapshot != nil {
+		if known, err := rs.RecoveryFor(r.Context(), workloadsOf(step, rec.Snapshot)); err == nil && len(known) > 0 {
+			body["recovery"] = known
+		}
+	}
+	writeJSON(w, http.StatusOK, body)
+}
+
+// workloadsOf names the workloads a step's moves belong to, deduplicated.
+// Keyed the same way recommend keys them, so the two agree about what a
+// workload is.
+func workloadsOf(step *model.PlanStep, snap *model.ClusterSnapshot) []string {
+	byKey := make(map[string]*model.Pod, len(snap.Pods))
+	for i := range snap.Pods {
+		byKey[snap.Pods[i].Key()] = &snap.Pods[i]
+	}
+	seen := map[string]bool{}
+	out := []string{}
+	for _, m := range step.Moves {
+		p, ok := byKey[m.Namespace+"/"+m.Pod]
+		if !ok || p.Owner == nil {
+			continue
+		}
+		w := p.Namespace + "/" + p.Owner.Kind + "/" + p.Owner.Name
+		if !seen[w] {
+			seen[w] = true
+			out = append(out, w)
+		}
+	}
+	return out
 }
 
 func (s *Server) handleGraph(w http.ResponseWriter, r *http.Request) {

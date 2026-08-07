@@ -33,6 +33,14 @@ interface Check {
   detail?: string;
 }
 
+/** Seconds as something a person reads at a glance. */
+function fmtSeconds(s: number): string {
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return r === 0 ? `${m}m` : `${m}m ${r}s`;
+}
+
 export default function StepDetail({ planId, step, pool, checked, stale, onAdd, onSkip }: Props) {
   const [detail, setDetail] = useState<StepDetailData | null>(null);
 
@@ -180,6 +188,16 @@ function buildChecks(detail: StepDetailData): Check[] {
   const singles = detail.singletons?.length ?? 0;
   const placed = detail.step.moves.filter((m) => m.toNode).length;
 
+  // What this step is likely to cost in time, from drains that actually
+  // happened. The executor has always measured it; until now it reported the
+  // number once and forgot it, so the screen could only say how many pods
+  // move and never how long the service is degraded.
+  const recovery = Object.values(detail.recovery ?? {});
+  const slowest = recovery.reduce<(typeof recovery)[number] | undefined>(
+    (worst, r) => (!worst || r.worstSeconds > worst.worstSeconds ? r : worst),
+    undefined,
+  );
+
   const checks: Check[] = [
     category("PodDisruptionBudgets", ["PodDisruptionBudget"], "none applies"),
     category("Topology spread", ["TopologySpread"], "unaffected"),
@@ -189,6 +207,22 @@ function buildChecks(detail: StepDetailData): Check[] {
       "satisfied",
     ),
     category("Taints & tolerations", ["Taint"], "satisfied"),
+    ...(slowest
+      ? [
+          {
+            label: "Recovery, last time",
+            // The worst case is the one worth surfacing: a two-minute
+            // recovery on a single-replica workload is a two-minute outage,
+            // and the median would hide it behind the workloads that are fine.
+            value: `${fmtSeconds(slowest.worstSeconds)} worst`,
+            rating: (slowest.worstSeconds >= 60 ? "Yellow" : "Green") as Check["rating"],
+            detail:
+              slowest.observations === 1
+                ? `Seen once: ${slowest.workload} took ${fmtSeconds(slowest.worstSeconds)} to become Ready. One drain is an anecdote, not a rate.`
+                : `Across ${slowest.observations} drains, ${slowest.workload} typically took ${fmtSeconds(slowest.typicalSeconds)} and at worst ${fmtSeconds(slowest.worstSeconds)} to become Ready.`,
+          },
+        ]
+      : []),
     {
       label: "Single-replica workloads",
       value: singles > 0 ? `${singles} found` : "none",
