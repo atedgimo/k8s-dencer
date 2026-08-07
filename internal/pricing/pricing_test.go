@@ -51,7 +51,7 @@ func TestValueCountsWhatItCouldNotPrice(t *testing.T) {
 		{InstanceType: "e2-medium", CapacityType: "on-demand"},
 		{InstanceType: "e2-medium", CapacityType: "spot"},
 		{InstanceType: "m5.large", CapacityType: "on-demand"}, // not in the table
-		{},                                                   // kwok: unpriced, not free
+		{}, // kwok: unpriced, not free
 	})
 
 	if got.Priced != 2 {
