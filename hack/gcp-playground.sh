@@ -68,6 +68,13 @@ case "$GCP_MACHINE" in
   *)         MACHINE_CENTS_H=3.4 ;;
 esac
 
+# The same numbers as dollars, handed to the product so the savings ledger has
+# something to price with. The chart ships no price table and never will —
+# these are the operator supplying one for a cluster they are paying for,
+# which is exactly the intended use. Spot is roughly a third of on-demand.
+MACHINE_USD_H="$(awk -v c="$MACHINE_CENTS_H" 'BEGIN{printf "%.5f", c/100}')"
+MACHINE_USD_H_SPOT="$(awk -v c="$MACHINE_CENTS_H" 'BEGIN{printf "%.5f", c/300}')"
+
 bold()  { printf '\033[1m%s\033[0m\n' "$*"; }
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
 red()   { printf '\033[31m%s\033[0m\n' "$*"; }
@@ -526,6 +533,9 @@ helm --kube-context "$CTX" upgrade --install "$RELEASE" "$REPO/charts/k8s-dencer
   --set-string persistence.storageClass=standard-rwo \
   --set executor.enabled=true \
   --set planner.usageSource=metrics-server \
+  --set-string uiBackend.pricing.currency=USD \
+  --set-string "uiBackend.pricing.perHour.${GCP_MACHINE}=${MACHINE_USD_H}" \
+  --set-string "uiBackend.pricing.perHour.${GCP_MACHINE}/spot=${MACHINE_USD_H_SPOT}" \
   "${READINESS_SET[@]}" \
   "${SAFETY_SET[@]}" \
   --set planner.minNodeAge=30s \
