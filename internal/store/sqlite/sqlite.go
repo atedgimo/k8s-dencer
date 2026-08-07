@@ -381,18 +381,29 @@ func (s *Store) Save(ctx context.Context, rec store.Record) (bool, error) {
 			return false, fmt.Errorf("encode snapshot: %w", encErr)
 		}
 		touched, err = s.db.ExecContext(ctx,
-			`UPDATE plans SET stored_at = ?, pack_ceiling = ?, snapshot = ?
+			`UPDATE plans SET stored_at = ?, pack_ceiling = ?, nodes_before = ?, nodes_after = ?, snapshot = ?
 			 WHERE id = ? AND id = (SELECT id FROM plans ORDER BY stored_at DESC, rowid DESC LIMIT 1)`,
-			storedAt.UTC().Format(time.RFC3339Nano), rec.Plan.PackCeiling, snapshotJSON, rec.Plan.ID)
+			storedAt.UTC().Format(time.RFC3339Nano), rec.Plan.PackCeiling,
+			rec.Plan.NodesBefore, rec.Plan.NodesAfter, snapshotJSON, rec.Plan.ID)
 	} else {
 		// pack_ceiling rides the touch for the same reason stored_at does:
 		// an upgraded planner re-verifying an identical plan under a new
 		// ceiling must not leave the stored row describing the old policy —
 		// found live, the Wells lens drawing no ceiling after the upgrade.
+		//
+		// nodes_before and nodes_after ride it for a sharper version of the
+		// same problem. planID hashes the steps and nothing else, which is
+		// right — a plan is its steps — but it means an empty plan keeps its
+		// identity while the fleet changes size underneath it. On a real GKE
+		// cluster the CLI reported "6 nodes now, 6 after" for twelve minutes
+		// after two were removed, while the planner logged nodesBefore:4 on
+		// every cycle. Fresh by timestamp and stale by content is the worst
+		// of the available failures: the reader has no reason to doubt it.
 		touched, err = s.db.ExecContext(ctx,
-			`UPDATE plans SET stored_at = ?, pack_ceiling = ?
+			`UPDATE plans SET stored_at = ?, pack_ceiling = ?, nodes_before = ?, nodes_after = ?
 			 WHERE id = ? AND id = (SELECT id FROM plans ORDER BY stored_at DESC, rowid DESC LIMIT 1)`,
-			storedAt.UTC().Format(time.RFC3339Nano), rec.Plan.PackCeiling, rec.Plan.ID)
+			storedAt.UTC().Format(time.RFC3339Nano), rec.Plan.PackCeiling,
+			rec.Plan.NodesBefore, rec.Plan.NodesAfter, rec.Plan.ID)
 	}
 	if err != nil {
 		return false, fmt.Errorf("touch plan: %w", err)

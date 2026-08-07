@@ -47,3 +47,14 @@
 .topbar-window.is-open {
   color: var(--safe);
 }
+
+/* The planner has stopped confirming. Amber rather than red: the plan on
+   screen was true when it was made, and may still be — what is unknown is
+   whether anything has changed since. */
+.topbar-fresh.is-unconfirmed {
+  color: var(--caution-text);
+}
+
+.topbar-dot-unconfirmed {
+  background: var(--caution);
+}

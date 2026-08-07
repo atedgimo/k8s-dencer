@@ -144,6 +144,14 @@ export default function TopBar({ planId, strategy, confirmedAt, stale, onRecompu
  * stopped clock is the thing it is trying to replace. Re-renders on a
  * 10-second tick; the confirmation itself is polled by useVersion.
  */
+/**
+ * Three resyncs at the chart's default of 30s. Hard-coded rather than plumbed
+ * from config because the number only has to be roughly right: the claim is
+ * "nobody has looked at your cluster in minutes", and being wrong by one
+ * cycle either way does not change whether that is worth saying.
+ */
+const STALE_AFTER_MS = 90_000;
+
 function Freshness({ confirmedAt, stale }: { confirmedAt?: string | null; stale?: boolean }) {
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -162,6 +170,24 @@ function Freshness({ confirmedAt, stale }: { confirmedAt?: string | null; stale?
   if (!confirmedAt) return null;
 
   const age = Math.max(0, Date.now() - Date.parse(confirmedAt));
+
+  // The planner confirms the plan against the cluster on every resync. Past
+  // three of them it has stopped, and the screen is describing a cluster
+  // nobody has looked at since — which is the one state where "Fresh" is a
+  // lie rather than a reassurance.
+  //
+  // Three rather than one: a single missed cycle is a slow snapshot, not a
+  // dead planner, and crying wolf on every hiccup would train people to
+  // ignore the dot that matters.
+  if (age > STALE_AFTER_MS) {
+    return (
+      <span className="topbar-fresh is-unconfirmed" role="status">
+        <span className="topbar-dot topbar-dot-unconfirmed" aria-hidden="true" />
+        The planner has not confirmed this for {relative(age)} — it may be down
+      </span>
+    );
+  }
+
   return (
     <span className="topbar-fresh">
       <span className="topbar-dot" aria-hidden="true" />
