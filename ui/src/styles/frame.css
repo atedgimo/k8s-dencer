@@ -340,9 +340,3 @@
    The Cluster destination keeps the old field plus the lens switcher until
    its redesign lands. */
 
-.lensbar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-6) 0;
-}

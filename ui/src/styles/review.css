@@ -596,17 +596,8 @@
   font-size: var(--text-2xs);
 }
 
-.check-green {
-  color: var(--safe);
-}
 
-.check-yellow {
-  color: var(--caution);
-}
 
-.check-red {
-  color: var(--held);
-}
 
 .check-loading {
   color: var(--text-5);

@@ -181,10 +181,6 @@
   }
 }
 
-.tray-hint {
-  font-size: var(--text-2xs);
-  color: var(--text-5);
-}
 
 .verdict-flag {
   display: block;

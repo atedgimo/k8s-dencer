@@ -17,10 +17,12 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"k8s.io/client-go/kubernetes"
+	clientrest "k8s.io/client-go/rest"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	"github.com/atedgimo/k8s-dencer/internal/api/agenttools"
@@ -112,7 +114,7 @@ func run(ctx context.Context, log *slog.Logger) error {
 	// been naming that precondition without any way to check it. The read is
 	// already granted: the chart's -read ClusterRole covers maintenancewindows
 	// and is bound to ui-backend as well as the planner.
-	if cfg, err := ctrlconfig.GetConfig(); err != nil {
+	if cfg, err := clusterConfig(); err != nil {
 		log.Warn("no cluster config; maintenance window state will be unavailable", "error", err)
 	} else if wr, err := window.NewReader(cfg, log); err != nil {
 		log.Warn("could not build the maintenance window reader", "error", err)
@@ -163,6 +165,24 @@ func run(ctx context.Context, log *slog.Logger) error {
 	return httpserver.Run(ctx, log, env("HTTP_ADDR", ":8080"), mux)
 }
 
+// clusterConfig resolves the in-cluster REST config once.
+//
+// Two callers need it — the TokenReview client that answers "who is this?"
+// and the maintenance window reader — and resolving it twice means reading
+// the same service-account files twice to get the same answer. Memoised
+// rather than threaded through, because the alternative is reordering
+// startup around a value neither caller owns.
+var (
+	clusterCfgOnce sync.Once
+	clusterCfgVal  *clientrest.Config
+	clusterCfgErr  error
+)
+
+func clusterConfig() (*clientrest.Config, error) {
+	clusterCfgOnce.Do(func() { clusterCfgVal, clusterCfgErr = ctrlconfig.GetConfig() })
+	return clusterCfgVal, clusterCfgErr
+}
+
 // authConfig reads the authentication configuration the chart supplies.
 //
 // Enabled defaults to true: a component that answers questions about where a
@@ -198,7 +218,7 @@ func buildGuard(cfg auth.Config, log *slog.Logger) (*auth.Middleware, error) {
 		return auth.NewMiddleware(nil, nil, cfg, log), nil
 	}
 
-	restCfg, err := ctrlconfig.GetConfig()
+	restCfg, err := clusterConfig()
 	if err != nil {
 		return nil, err
 	}
