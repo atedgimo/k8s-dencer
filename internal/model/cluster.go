@@ -57,6 +57,33 @@ func (n Node) InstanceType() string { return n.Labels["node.kubernetes.io/instan
 // it is unpriced, and pretending otherwise would put a made-up word in a
 // cost report.
 
+// Pool returns the node group this machine belongs to, from whichever
+// provider label is present. Empty when nothing says.
+//
+// This is not the machine type, though the UI conflated the two for a while:
+// it reported "1 pool" while counting distinct instance types, so two pools of
+// one shape read as one and a single pool of mixed shapes read as two.
+//
+// A pool is the unit that scales, the unit that gets rotated, and the unit
+// that has a price — which makes it the unit an operator's question is
+// usually about ("which pool should shrink"), and worth reading properly.
+func (n Node) Pool() string {
+	for _, k := range []string{
+		"cloud.google.com/gke-nodepool",    // GKE
+		"eks.amazonaws.com/nodegroup",      // EKS managed node groups
+		"karpenter.sh/nodepool",            // Karpenter v1
+		"karpenter.sh/provisioner-name",    // Karpenter v1beta1 and earlier
+		"kubernetes.azure.com/agentpool",   // AKS
+		"agentpool",                        // AKS, older clusters
+		"node.kubernetes.io/instancegroup", // various self-managed setups
+	} {
+		if v := n.Labels[k]; v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
 // DoNotDisrupt reports the node-level hands-off marker
 // (karpenter.sh/do-not-disrupt: "true"). Such a node is not a drain
 // candidate, whatever its utilisation says.

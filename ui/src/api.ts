@@ -67,6 +67,9 @@ export interface GraphData {
   zone?: string;
   instanceType?: string;
   capacityType?: string;
+  /** The node group, from the provider's own label. Distinct from
+   *  instanceType: a pool can hold mixed shapes, and two pools can share one. */
+  pool?: string;
   ready?: boolean;
   cordoned?: boolean;
   cpuAllocatable?: number;

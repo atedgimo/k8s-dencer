@@ -30,7 +30,11 @@ interface Props {
 
 interface NodeModel {
   name: string;
+  /** The node group. Empty when the provider does not label one. */
   pool?: string;
+  /** The machine shape. Shown as an attribute of a node, not as its pool —
+   *  the two were conflated, so "1 pool" was really "1 instance type". */
+  shape?: string;
   alloc: number;
   req: number;
   used?: number;
@@ -92,7 +96,8 @@ function buildNodes(graph: GraphPayload, steps: PlanStep[], observed: Map<string
       const obs = observed.get(d.label);
       return {
         name: d.label,
-        pool: d.instanceType || d.capacityType,
+        pool: d.pool,
+        shape: d.instanceType || d.capacityType,
         alloc: d.cpuAllocatable ?? 0,
         req: d.cpuRequested ?? 0,
         used: d.cpuUsed || undefined,
@@ -125,6 +130,7 @@ export default function ClusterPage({
 }: Props) {
   const nodes = useMemo(() => buildNodes(graph, steps, observed), [graph, steps, observed]);
   const pools = new Set(nodes.map((n) => n.pool).filter(Boolean)).size;
+  const shapes = new Set(nodes.map((n) => n.shape).filter(Boolean)).size;
   const pods = nodes.reduce((n, x) => n + x.pods, 0);
   const short = useMemo(() => shortener(nodes.map((n) => n.name)), [nodes]);
 
@@ -133,7 +139,9 @@ export default function ClusterPage({
       <div className="clusterpage-head">
         <span className="clusterpage-title">Cluster</span>
         <span className="clusterpage-counts mono">
-          {nodes.length} nodes · {pods} pods · {pools} pool{pools === 1 ? "" : "s"}
+          {nodes.length} nodes · {pods} pods
+          {pools > 0 && ` · ${pools} pool${pools === 1 ? "" : "s"}`}
+          {pools === 0 && shapes > 0 && ` · ${shapes} machine type${shapes === 1 ? "" : "s"}`}
         </span>
         <div className="viewswitch clusterpage-lenses" role="group" aria-label="Cluster lens">
           {(Object.keys(VIEW_LABELS) as FieldView[]).map((v) => (
@@ -592,7 +600,9 @@ function LoadLens({ nodes, short }: { nodes: NodeModel[]; short: (n: string) => 
           return (
             <div key={n.name} className="loadrow">
               <span className="loadrow-name mono" title={n.name}>{short(n.name)}</span>
-              <span className="loadrow-pool">{n.pool}</span>
+              <span className="loadrow-pool" title={n.pool && n.shape ? `${n.pool} · ${n.shape}` : undefined}>
+                {n.pool || n.shape}
+              </span>
               <div className="loadbar" aria-hidden="true">
                 <div className="loadbar-used" style={{ width: `${used}%` }} />
                 <div className="loadbar-gap" style={{ width: `${Math.max(0, req - used)}%` }} />
