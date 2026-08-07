@@ -216,6 +216,37 @@ func (p *Publisher) Cycle(ctx context.Context) {
 		if pruned, err := ts.PruneSamples(ctx, time.Now().Add(-30*24*time.Hour)); err == nil && pruned > 0 {
 			p.Log.Info("pruned timeline", "removed", pruned)
 		}
+
+		// Per-node utilisation, so the UI can tell a node that has been idle
+		// for a fortnight from one that spikes nightly — the distinction the
+		// operator is actually being asked to judge.
+		//
+		// Only when usage is measured. Writing zeroes from a requests-only
+		// snapshot would build a fortnight of evidence that every node is
+		// idle, which is worse than having no evidence at all.
+		if snap.HasUsageData {
+			nodeSamples := make([]store.NodeSample, 0, len(snap.Nodes))
+			for _, n := range snap.Nodes {
+				if n.Usage == nil {
+					continue // this node is unmeasured; a zero would be a lie
+				}
+				nodeSamples = append(nodeSamples, store.NodeSample{
+					Node: n.Name, TakenAt: at,
+					CPUUsedMilli:  n.Usage.MilliCPU,
+					CPUAllocMilli: n.Allocatable.MilliCPU,
+				})
+			}
+			if err := ts.SaveNodeSamples(ctx, nodeSamples); err != nil {
+				p.Log.Warn("saving per-node samples failed", "error", err)
+			}
+			// Days, not the month the fleet timeline keeps: this is one row
+			// per node per cycle, so a thousand nodes on a thirty-second
+			// resync is millions of rows a day. A fortnight is long enough to
+			// say "stably idle" and short enough to stay a database.
+			if pruned, err := ts.PruneNodeSamples(ctx, time.Now().Add(-14*24*time.Hour)); err == nil && pruned > 0 {
+				p.Log.Info("pruned per-node timeline", "removed", pruned)
+			}
+		}
 	}
 
 	// The planner is the only component watching nodes continuously, so it is

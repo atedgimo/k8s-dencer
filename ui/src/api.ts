@@ -456,6 +456,9 @@ export const api = {
 
   run: (runId: string, signal?: AbortSignal) => get<RunDetail>(`/api/v1/runs/${runId}`, signal),
 
+  /** What each node usually does, not just what it is doing now. */
+  stability: (signal?: AbortSignal) => get<Stability>(`/api/v1/stability`, signal),
+
   /** Whether Red steps can run right now, and if not, when they could. */
   windows: (signal?: AbortSignal) => get<Windows>(`/api/v1/windows`, signal),
 
@@ -606,6 +609,22 @@ export interface Preflight {
   nodes: PreflightNode[];
   drainable: number;
   total: number;
+}
+
+export interface NodeStability {
+  node: string;
+  /** How many readings back the numbers, so a claim from three points can be
+   *  told apart from one made from three thousand. */
+  samples: number;
+  since: string;
+  medianPct: number;
+  peakPct: number;
+}
+
+export interface Stability {
+  available: boolean;
+  windowDays?: number;
+  nodes?: NodeStability[];
 }
 
 export interface WindowState {

@@ -9,8 +9,8 @@
  * vice versa.
  */
 
-import { useMemo, useState } from "react";
-import { GraphPayload, Impact, PlanStep, WhatIf, api, formatCPU } from "../../api";
+import { useEffect, useMemo, useState } from "react";
+import { GraphPayload, Impact, NodeStability, PlanStep, WhatIf, api, formatCPU } from "../../api";
 import { FieldView, VIEW_LABELS } from "../../view";
 import { VERDICT } from "../Impact";
 import type { ObservedNode } from "../../useObserved";
@@ -177,6 +177,36 @@ export default function ClusterPage({
   );
 }
 
+/**
+ * What a node usually does, in one sentence.
+ *
+ * Every other surface here describes a single instant and then asks for a
+ * decision about a system that varies. A node at 30% on a Tuesday afternoon
+ * and a node that peaks at 92% every night look identical on this page, and
+ * draining them are very different decisions.
+ *
+ * Silent when there is nothing to say. A handful of readings cannot support
+ * "usually", and inventing a trend from six points would be the confident
+ * wrongness this product exists to avoid.
+ */
+function stabilityLine(s?: NodeStability) {
+  if (!s || s.samples < 30) return null;
+
+  const days = Math.max(1, Math.round((Date.now() - Date.parse(s.since)) / 86_400_000));
+  const span = days === 1 ? "the last day" : `${days} days`;
+  // A peak well above the median is the whole point: it means the quiet
+  // number on screen is not the number that matters.
+  const spiky = s.peakPct >= s.medianPct + 25;
+
+  return (
+    <p className={"nodetrend" + (spiky ? " is-spiky" : "")}>
+      {spiky
+        ? `Usually ${s.medianPct}%, but peaks at ${s.peakPct}% over ${span} — quiet now is not quiet always.`
+        : `Steady around ${s.medianPct}% over ${span}, peaking at ${s.peakPct}%.`}
+    </p>
+  );
+}
+
 /* ------------------------------------------------------------------ rack */
 
 function intentOf(impact?: Impact): { cls: string; label: string } {
@@ -229,6 +259,25 @@ function RackLens({
   // "what is running here" is answerable about every node, always.
   const [pickedNode, setPickedNode] = useState<string | null>(null);
   const [whatif, setWhatif] = useState<{ node: string; result?: WhatIf; error?: string } | null>(null);
+
+  // What each node usually does. Fetched once for the lens rather than per
+  // selection: it changes on the sampler's cadence, not on a click.
+  const [stability, setStability] = useState<Map<string, NodeStability>>(new Map());
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .stability()
+      .then((d) => {
+        if (cancelled || !d.available) return;
+        setStability(new Map((d.nodes ?? []).map((n) => [n.node, n])));
+      })
+      .catch(() => {
+        // History is context. Its absence must never blank the lens.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const picked = nodes.find((n) => n.name === pickedNode) ?? focused;
   const pickedPods = picked ? (podsByNode.get(`node:${picked.name}`) ?? []) : [];
   const selectNode = (n: NodeModel) => {
@@ -346,6 +395,7 @@ function RackLens({
                   {picked.drainStep == null ? "Stays in this plan" : "On this node"}
                 </span>
                 <span className="clusterdetail-name mono">{picked.name}</span>
+                {stabilityLine(stability.get(picked.name))}
                 <p className="clusterdetail-why">
                   {formatCPU(picked.req)} of {formatCPU(picked.alloc)} requested by{" "}
                   {picked.pods} pod{picked.pods === 1 ? "" : "s"}

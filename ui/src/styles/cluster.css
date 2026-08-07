@@ -668,3 +668,17 @@
   color: var(--text-5);
   text-wrap: pretty;
 }
+
+/* What a node usually does. Quieter than the headline it follows, louder
+   when the peak says the quiet number is misleading. */
+.nodetrend {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--text-3);
+  text-wrap: pretty;
+}
+
+.nodetrend.is-spiky {
+  color: var(--caution-text);
+}

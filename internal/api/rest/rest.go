@@ -150,6 +150,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	read("/api/v1/version", s.handleVersion)
 	read("/api/v1/reclamations", s.handleReclamations)
 	read("/api/v1/windows", s.handleWindows)
+	read("/api/v1/stability", s.handleStability)
 	read("/api/v1/preflight", s.handlePreflight)
 	read("/api/v1/resilience", s.handleResilience)
 	read("/api/v1/rightsizing", s.handleRightsizing)
