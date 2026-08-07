@@ -66,6 +66,7 @@ func analyzePod(pod model.Pod, snap *model.ClusterSnapshot, placement *Placement
 	// Controller pinning comes first: if the pod cannot move at all, the rest
 	// of the constraint set is context rather than explanation.
 	if pod.Owner != nil && pod.Owner.Kind == "DaemonSet" {
+		pc.PinnedToNode = true
 		pc.Constraints = append(pc.Constraints, Constraint{
 			Kind:     KindControllerPinned,
 			Subject:  pod.Owner.Kind + "/" + pod.Owner.Name,
@@ -74,6 +75,21 @@ func analyzePod(pod model.Pod, snap *model.ClusterSnapshot, placement *Placement
 			Explanation: fmt.Sprintf(
 				"Managed by DaemonSet %s, so it is pinned to node %s. Draining the node does not free this pod's capacity — it is recreated there.",
 				pod.Owner.Name, pod.NodeName),
+		})
+	}
+	// A static pod: defined by a file on the node, mirrored into the API with
+	// the Node as its controller. There is no controller that could place it
+	// anywhere else, which is exactly why an owner-kind allowlist misses it.
+	if pod.IsMirrorPod() {
+		pc.PinnedToNode = true
+		pc.Constraints = append(pc.Constraints, Constraint{
+			Kind:     KindControllerPinned,
+			Subject:  pod.Owner.Kind + "/" + pod.Owner.Name,
+			Hard:     true,
+			Blocking: true,
+			Explanation: fmt.Sprintf(
+				"A static pod, owned by node %s itself rather than by a controller. The kubelet recreates it here from a file on disk; nothing can move it, and draining the node does not free its capacity.",
+				pod.NodeName),
 		})
 	}
 	if pod.Terminating {

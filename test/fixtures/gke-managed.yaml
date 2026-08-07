@@ -1,0 +1,843 @@
+hasUsageData: false
+nodes:
+- allocatable:
+    memoryBytes: 2935664640
+    milliCPU: 940
+    pods: 110
+  capacity:
+    memoryBytes: 4294967296
+    milliCPU: 2000
+    pods: 110
+  createdAt: "2026-08-07T13:53:00Z"
+  labels:
+    cloud.google.com/gke-nodepool: default-pool
+    cloud.google.com/machine-family: e2
+    kubernetes.io/arch: amd64
+    kubernetes.io/hostname: gke-dencer-play-default-pool-4ddb9382-0xk4
+    kubernetes.io/os: linux
+    node.kubernetes.io/instance-type: e2-medium
+    topology.kubernetes.io/region: us-central1
+    topology.kubernetes.io/zone: us-central1-a
+  name: gke-dencer-play-default-pool-4ddb9382-0xk4
+  ready: true
+  unschedulable: false
+- allocatable:
+    memoryBytes: 2935664640
+    milliCPU: 940
+    pods: 110
+  capacity:
+    memoryBytes: 4294967296
+    milliCPU: 2000
+    pods: 110
+  createdAt: "2026-08-07T13:53:00Z"
+  labels:
+    cloud.google.com/gke-nodepool: default-pool
+    cloud.google.com/machine-family: e2
+    kubernetes.io/arch: amd64
+    kubernetes.io/hostname: gke-dencer-play-default-pool-4ddb9382-q58p
+    kubernetes.io/os: linux
+    node.kubernetes.io/instance-type: e2-medium
+    topology.kubernetes.io/region: us-central1
+    topology.kubernetes.io/zone: us-central1-a
+  name: gke-dencer-play-default-pool-4ddb9382-q58p
+  ready: true
+  unschedulable: false
+- allocatable:
+    memoryBytes: 2935664640
+    milliCPU: 940
+    pods: 110
+  capacity:
+    memoryBytes: 4294967296
+    milliCPU: 2000
+    pods: 110
+  createdAt: "2026-08-07T13:53:00Z"
+  labels:
+    cloud.google.com/gke-nodepool: default-pool
+    cloud.google.com/machine-family: e2
+    kubernetes.io/arch: amd64
+    kubernetes.io/hostname: gke-dencer-play-default-pool-4ddb9382-qvsk
+    kubernetes.io/os: linux
+    node.kubernetes.io/instance-type: e2-medium
+    topology.kubernetes.io/region: us-central1
+    topology.kubernetes.io/zone: us-central1-a
+  name: gke-dencer-play-default-pool-4ddb9382-qvsk
+  ready: true
+  unschedulable: false
+- allocatable:
+    memoryBytes: 2935664640
+    milliCPU: 940
+    pods: 110
+  capacity:
+    memoryBytes: 4294967296
+    milliCPU: 2000
+    pods: 110
+  createdAt: "2026-08-07T13:53:00Z"
+  labels:
+    cloud.google.com/gke-nodepool: default-pool
+    cloud.google.com/machine-family: e2
+    kubernetes.io/arch: amd64
+    kubernetes.io/hostname: gke-dencer-play-default-pool-4ddb9382-snln
+    kubernetes.io/os: linux
+    node.kubernetes.io/instance-type: e2-medium
+    topology.kubernetes.io/region: us-central1
+    topology.kubernetes.io/zone: us-central1-a
+  name: gke-dencer-play-default-pool-4ddb9382-snln
+  ready: true
+  unschedulable: false
+pdbs: null
+pods:
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    component: kube-proxy
+    tier: node
+  name: kube-proxy-gke-dencer-play-default-pool-4ddb9382-0xk4
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-0xk4
+  owner:
+    kind: Node
+    name: gke-dencer-play-default-pool-4ddb9382-0xk4
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 134217728
+    milliCPU: 100
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    k8s-app: fluentbit-gke
+  name: fluentbit-gke-0xk4
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-0xk4
+  owner:
+    kind: DaemonSet
+    name: fluentbit-gke
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 262144000
+    milliCPU: 105
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    k8s-app: node-local-dns
+  name: node-local-dns-0xk4
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-0xk4
+  owner:
+    kind: DaemonSet
+    name: node-local-dns
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 31457280
+    milliCPU: 30
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    component: gke-metrics-agent
+  name: gke-metrics-agent-0xk4
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-0xk4
+  owner:
+    kind: DaemonSet
+    name: gke-metrics-agent
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 104857600
+    milliCPU: 21
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    k8s-app: gcp-compute-persistent-disk-csi-driver
+  name: pdcsi-node-0xk4
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-0xk4
+  owner:
+    kind: DaemonSet
+    name: pdcsi-node
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 41943040
+    milliCPU: 15
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    app.kubernetes.io/name: collector
+  name: collector-0xk4
+  namespace: gmp-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-0xk4
+  owner:
+    kind: DaemonSet
+    name: collector
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 41943040
+    milliCPU: 5
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    component: kube-proxy
+    tier: node
+  name: kube-proxy-gke-dencer-play-default-pool-4ddb9382-q58p
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-q58p
+  owner:
+    kind: Node
+    name: gke-dencer-play-default-pool-4ddb9382-q58p
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 134217728
+    milliCPU: 100
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    k8s-app: fluentbit-gke
+  name: fluentbit-gke-q58p
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-q58p
+  owner:
+    kind: DaemonSet
+    name: fluentbit-gke
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 262144000
+    milliCPU: 105
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    k8s-app: node-local-dns
+  name: node-local-dns-q58p
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-q58p
+  owner:
+    kind: DaemonSet
+    name: node-local-dns
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 31457280
+    milliCPU: 30
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    component: gke-metrics-agent
+  name: gke-metrics-agent-q58p
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-q58p
+  owner:
+    kind: DaemonSet
+    name: gke-metrics-agent
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 104857600
+    milliCPU: 21
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    k8s-app: gcp-compute-persistent-disk-csi-driver
+  name: pdcsi-node-q58p
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-q58p
+  owner:
+    kind: DaemonSet
+    name: pdcsi-node
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 41943040
+    milliCPU: 15
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    app.kubernetes.io/name: collector
+  name: collector-q58p
+  namespace: gmp-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-q58p
+  owner:
+    kind: DaemonSet
+    name: collector
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 41943040
+    milliCPU: 5
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    component: kube-proxy
+    tier: node
+  name: kube-proxy-gke-dencer-play-default-pool-4ddb9382-qvsk
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-qvsk
+  owner:
+    kind: Node
+    name: gke-dencer-play-default-pool-4ddb9382-qvsk
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 134217728
+    milliCPU: 100
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    k8s-app: fluentbit-gke
+  name: fluentbit-gke-qvsk
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-qvsk
+  owner:
+    kind: DaemonSet
+    name: fluentbit-gke
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 262144000
+    milliCPU: 105
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    k8s-app: node-local-dns
+  name: node-local-dns-qvsk
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-qvsk
+  owner:
+    kind: DaemonSet
+    name: node-local-dns
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 31457280
+    milliCPU: 30
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    component: gke-metrics-agent
+  name: gke-metrics-agent-qvsk
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-qvsk
+  owner:
+    kind: DaemonSet
+    name: gke-metrics-agent
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 104857600
+    milliCPU: 21
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    k8s-app: gcp-compute-persistent-disk-csi-driver
+  name: pdcsi-node-qvsk
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-qvsk
+  owner:
+    kind: DaemonSet
+    name: pdcsi-node
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 41943040
+    milliCPU: 15
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    app.kubernetes.io/name: collector
+  name: collector-qvsk
+  namespace: gmp-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-qvsk
+  owner:
+    kind: DaemonSet
+    name: collector
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 41943040
+    milliCPU: 5
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    component: kube-proxy
+    tier: node
+  name: kube-proxy-gke-dencer-play-default-pool-4ddb9382-snln
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-snln
+  owner:
+    kind: Node
+    name: gke-dencer-play-default-pool-4ddb9382-snln
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 134217728
+    milliCPU: 100
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    k8s-app: fluentbit-gke
+  name: fluentbit-gke-snln
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-snln
+  owner:
+    kind: DaemonSet
+    name: fluentbit-gke
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 262144000
+    milliCPU: 105
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    k8s-app: node-local-dns
+  name: node-local-dns-snln
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-snln
+  owner:
+    kind: DaemonSet
+    name: node-local-dns
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 31457280
+    milliCPU: 30
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    component: gke-metrics-agent
+  name: gke-metrics-agent-snln
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-snln
+  owner:
+    kind: DaemonSet
+    name: gke-metrics-agent
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 104857600
+    milliCPU: 21
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    k8s-app: gcp-compute-persistent-disk-csi-driver
+  name: pdcsi-node-snln
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-snln
+  owner:
+    kind: DaemonSet
+    name: pdcsi-node
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 41943040
+    milliCPU: 15
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    app.kubernetes.io/name: collector
+  name: collector-snln
+  namespace: gmp-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-snln
+  owner:
+    kind: DaemonSet
+    name: collector
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 41943040
+    milliCPU: 5
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    k8s-app: kube-dns
+  name: kube-dns-7ddbc8bb55-a
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-0xk4
+  owner:
+    kind: Deployment
+    name: kube-dns
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 146800640
+    milliCPU: 270
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    app.kubernetes.io/name: kube-state-metrics
+  name: kube-state-metrics-0
+  namespace: gke-managed-cim
+  nodeName: gke-dencer-play-default-pool-4ddb9382-0xk4
+  owner:
+    kind: StatefulSet
+    name: kube-state-metrics
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 209715200
+    milliCPU: 105
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    k8s-app: metrics-server
+  name: metrics-server-v1-a
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-0xk4
+  owner:
+    kind: Deployment
+    name: metrics-server-v1.35.1
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 209715200
+    milliCPU: 44
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    k8s-app: kube-dns-autoscaler
+  name: kube-dns-autoscaler-7dc78dc96-a
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-0xk4
+  owner:
+    kind: Deployment
+    name: kube-dns-autoscaler
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 10485760
+    milliCPU: 20
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    k8s-app: konnectivity-agent
+  name: konnectivity-agent-a
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-0xk4
+  owner:
+    kind: Deployment
+    name: konnectivity-agent
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 31457280
+    milliCPU: 10
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    k8s-app: kube-dns
+  name: kube-dns-7ddbc8bb55-b
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-qvsk
+  owner:
+    kind: Deployment
+    name: kube-dns
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 146800640
+    milliCPU: 270
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    k8s-app: metrics-server
+  name: metrics-server-v1-b
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-qvsk
+  owner:
+    kind: Deployment
+    name: metrics-server-v1.35.1
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 209715200
+    milliCPU: 43
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    k8s-app: konnectivity-agent
+  name: konnectivity-agent-b
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-qvsk
+  owner:
+    kind: Deployment
+    name: konnectivity-agent
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 31457280
+    milliCPU: 15
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    k8s-app: glbc
+  name: l7-default-backend-7d8d77ff56-a
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-qvsk
+  owner:
+    kind: Deployment
+    name: l7-default-backend
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 20971520
+    milliCPU: 10
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    k8s-app: event-exporter
+  name: event-exporter-gke-7c667c5978-a
+  namespace: kube-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-qvsk
+  owner:
+    kind: Deployment
+    name: event-exporter-gke
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 104857600
+    milliCPU: 3
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    app.kubernetes.io/name: gmp-operator
+  name: gmp-operator-7db6db7879-a
+  namespace: gmp-system
+  nodeName: gke-dencer-play-default-pool-4ddb9382-qvsk
+  owner:
+    kind: Deployment
+    name: gmp-operator
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 31457280
+    milliCPU: 1
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    app.kubernetes.io/component: planner
+  name: k8s-dencer-planner-a
+  namespace: k8s-dencer
+  nodeName: gke-dencer-play-default-pool-4ddb9382-0xk4
+  owner:
+    kind: Deployment
+    name: k8s-dencer-planner
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 134217728
+    milliCPU: 50
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    app.kubernetes.io/component: executor
+  name: k8s-dencer-executor-a
+  namespace: k8s-dencer
+  nodeName: gke-dencer-play-default-pool-4ddb9382-0xk4
+  owner:
+    kind: Deployment
+    name: k8s-dencer-executor
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 134217728
+    milliCPU: 50
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    app.kubernetes.io/component: ui-backend
+  name: k8s-dencer-ui-backend-a
+  namespace: k8s-dencer
+  nodeName: gke-dencer-play-default-pool-4ddb9382-0xk4
+  owner:
+    kind: Deployment
+    name: k8s-dencer-ui-backend
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 134217728
+    milliCPU: 50
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    app.kubernetes.io/component: ui-frontend
+  name: k8s-dencer-ui-frontend-a
+  namespace: k8s-dencer
+  nodeName: gke-dencer-play-default-pool-4ddb9382-0xk4
+  owner:
+    kind: Deployment
+    name: k8s-dencer-ui-frontend
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 33554432
+    milliCPU: 10
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    app.kubernetes.io/component: ui-frontend
+  name: k8s-dencer-ui-frontend-b
+  namespace: k8s-dencer
+  nodeName: gke-dencer-play-default-pool-4ddb9382-0xk4
+  owner:
+    kind: Deployment
+    name: k8s-dencer-ui-frontend
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 33554432
+    milliCPU: 10
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    app: play-web
+  name: play-web-a
+  namespace: dencer-demo
+  nodeName: gke-dencer-play-default-pool-4ddb9382-q58p
+  owner:
+    kind: Deployment
+    name: play-web
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 67108864
+    milliCPU: 150
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    app: play-web
+  name: play-web-b
+  namespace: dencer-demo
+  nodeName: gke-dencer-play-default-pool-4ddb9382-q58p
+  owner:
+    kind: Deployment
+    name: play-web
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 67108864
+    milliCPU: 150
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    app: play-cache
+  name: play-cache-a
+  namespace: dencer-demo
+  nodeName: gke-dencer-play-default-pool-4ddb9382-q58p
+  owner:
+    kind: Deployment
+    name: play-cache
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 134217728
+    milliCPU: 100
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    app: play-filler
+  name: play-filler-a
+  namespace: dencer-demo
+  nodeName: gke-dencer-play-default-pool-4ddb9382-q58p
+  owner:
+    kind: Deployment
+    name: play-filler
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 67108864
+    milliCPU: 120
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    app: play-web
+  name: play-web-c
+  namespace: dencer-demo
+  nodeName: gke-dencer-play-default-pool-4ddb9382-qvsk
+  owner:
+    kind: Deployment
+    name: play-web
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 67108864
+    milliCPU: 150
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    app: play-cache
+  name: play-cache-b
+  namespace: dencer-demo
+  nodeName: gke-dencer-play-default-pool-4ddb9382-qvsk
+  owner:
+    kind: Deployment
+    name: play-cache
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 134217728
+    milliCPU: 120
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    app: play-web
+  name: play-web-d
+  namespace: dencer-demo
+  nodeName: gke-dencer-play-default-pool-4ddb9382-snln
+  owner:
+    kind: Deployment
+    name: play-web
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 67108864
+    milliCPU: 150
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    app: play-web
+  name: play-web-e
+  namespace: dencer-demo
+  nodeName: gke-dencer-play-default-pool-4ddb9382-snln
+  owner:
+    kind: Deployment
+    name: play-web
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 67108864
+    milliCPU: 150
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    app: play-cache
+  name: play-cache-c
+  namespace: dencer-demo
+  nodeName: gke-dencer-play-default-pool-4ddb9382-snln
+  owner:
+    kind: Deployment
+    name: play-cache
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 134217728
+    milliCPU: 120
+    pods: 0
+- createdAt: "2026-08-07T13:58:00Z"
+  labels:
+    app: play-filler
+  name: play-filler-b
+  namespace: dencer-demo
+  nodeName: gke-dencer-play-default-pool-4ddb9382-snln
+  owner:
+    kind: Deployment
+    name: play-filler
+  phase: Running
+  ready: true
+  requests:
+    memoryBytes: 67108864
+    milliCPU: 50
+    pods: 0
+takenAt: "2026-08-07T14:18:00Z"

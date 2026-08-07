@@ -148,6 +148,29 @@ type Pod struct {
 // Key is the namespace/name identifier.
 func (p Pod) Key() string { return p.Namespace + "/" + p.Name }
 
+// IsMirrorPod reports whether the kubelet, not a controller, owns this pod.
+//
+// A static pod is defined by a file on the node and mirrored into the API with
+// the Node itself as its controller. GKE ships kube-proxy this way, and every
+// managed platform ships something. Deleting the mirror object changes
+// nothing: the kubelet recreates it on the same node, immediately.
+func (p Pod) IsMirrorPod() bool { return p.Owner != nil && p.Owner.Kind == "Node" }
+
+// PinnedToNode reports whether the pod is bound to the node it is on by
+// design, so that no scheduler could place it anywhere else.
+//
+// This is deliberately not a list of owner kinds. The question is whether
+// anything is capable of moving the pod to a different node: a DaemonSet
+// recreates it here, and for a static pod there is no controller at all.
+// Treating a pinned pod as relocatable sends it to the placement search, which
+// then reports — correctly, and uselessly — that nowhere will take it.
+func (p Pod) PinnedToNode() bool {
+	if p.Owner == nil {
+		return false
+	}
+	return p.Owner.Kind == "DaemonSet" || p.Owner.Kind == "Node"
+}
+
 // IsMovable reports whether consolidation may relocate this pod at all.
 //
 // DaemonSet pods are excluded because they are pinned to their node by design:
@@ -157,7 +180,7 @@ func (p Pod) IsMovable() bool {
 	if p.Terminating || p.Phase == PodSucceeded || p.Phase == PodFailed {
 		return false
 	}
-	if p.Owner != nil && p.Owner.Kind == "DaemonSet" {
+	if p.PinnedToNode() {
 		return false
 	}
 	if p.DoNotDisrupt {
