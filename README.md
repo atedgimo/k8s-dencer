@@ -304,6 +304,21 @@ node is unneeded and removes it. Observed and timed at **11m9s** on
 2026-07-31. That is the reclamation loop confirmed against a reclaimer nobody
 here wrote, which is the one thing k3d structurally cannot prove.
 
+**A second cloud run, on 2026-08-07, found that the product could not plan at
+all on a managed cluster** — and that is the most useful twenty cents this
+project has spent. GKE runs kube-proxy as a static pod owned by the node
+itself; the analyser recognised only DaemonSets as pinned, so it tried to
+reschedule a pod nothing can move, failed, and marked every node undrainable.
+Converge reported nothing to do while Google's own autoscaler reclaimed two
+nodes from the same cluster three minutes later.
+
+None of it was reachable from CI, because kwok nodes run no system pods at
+all — 0m of system CPU locally against 276m minimum on GKE, where the daemons
+take between 29% and 82% of a node's allocatable before a workload is
+scheduled. [`test/fixtures/gke-managed.yaml`](test/fixtures/gke-managed.yaml)
+now reproduces that fleet to within 2m per node, so the whole class of bug is
+a millisecond test rather than a cloud bill.
+
 Still unproven, and worth saying: this has not run against anyone's
 *production* cluster, only a throwaway one. Workload Identity and IRSA remain
 half-tested — the chart's annotations render and are accepted, but k8s-dencer
