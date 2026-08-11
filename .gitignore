@@ -11,6 +11,10 @@ ui/dist/
 
 # Local state
 *.db
+# …except the upgrade fixtures. These are real databases written by the
+# version named in the filename, kept so the migration path an operator
+# actually takes is tested rather than assumed.
+!test/fixtures/stores/*.db
 *.sqlite
 .DS_Store
 
