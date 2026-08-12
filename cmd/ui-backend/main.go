@@ -30,7 +30,7 @@ import (
 	"github.com/atedgimo/k8s-dencer/internal/auth"
 	"github.com/atedgimo/k8s-dencer/internal/httpserver"
 	"github.com/atedgimo/k8s-dencer/internal/pricing"
-	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlite"
+	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlstore"
 	"github.com/atedgimo/k8s-dencer/internal/telemetry"
 	"github.com/atedgimo/k8s-dencer/internal/window"
 )

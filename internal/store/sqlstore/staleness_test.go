@@ -1,4 +1,4 @@
-package sqlite_test
+package sqlstore_test
 
 import (
 	"context"
@@ -8,12 +8,12 @@ import (
 
 	"github.com/atedgimo/k8s-dencer/internal/model"
 	"github.com/atedgimo/k8s-dencer/internal/store"
-	"github.com/atedgimo/k8s-dencer/internal/store/sqlite"
+	"github.com/atedgimo/k8s-dencer/internal/store/sqlstore"
 )
 
-func planStore(t *testing.T) *sqlite.Store {
+func planStore(t *testing.T) *sqlstore.Store {
 	t.Helper()
-	db, err := sqlite.Open(filepath.Join(t.TempDir(), "p.db"))
+	db, err := sqlstore.Open(filepath.Join(t.TempDir(), "p.db"))
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}

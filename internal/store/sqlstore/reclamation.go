@@ -1,4 +1,4 @@
-package sqlite
+package sqlstore
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 
 // RecordDrain notes that a node was drained and now awaits reclamation.
 func (s *Store) RecordDrain(ctx context.Context, r store.Reclamation) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.exec(ctx, `
 		INSERT INTO reclamations (node, drained_at, run_id, plan_id, step, cpu_milli, mem_bytes,
 		                          external, instance_type, capacity_type)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -54,7 +54,7 @@ func (s *Store) Reclamations(ctx context.Context, limit int) ([]store.Reclamatio
 // attributing a fresh event to a stale record.
 func (s *Store) ResolveReclamation(ctx context.Context, node string, drainedAt time.Time,
 	outcome store.ReclamationOutcome, at time.Time) error {
-	res, err := s.db.ExecContext(ctx, `
+	res, err := s.exec(ctx, `
 		UPDATE reclamations SET resolved_at = ?, outcome = ?
 		WHERE node = ? AND drained_at = ? AND resolved_at IS NULL`,
 		at.UTC().Format(time.RFC3339Nano), string(outcome),
@@ -79,13 +79,13 @@ func (s *Store) ReclamationSummary(ctx context.Context, since time.Time) (store.
 	// months ago and still sitting there is the single most interesting row in
 	// this table, and windowing it out would hide exactly the failure this
 	// mechanism exists to surface.
-	if err := s.db.QueryRowContext(ctx,
+	if err := s.queryRow(ctx,
 		`SELECT COUNT(*) FROM reclamations WHERE resolved_at IS NULL`).Scan(&out.Awaiting); err != nil {
 		return out, fmt.Errorf("count pending reclamations: %w", err)
 	}
 
 	cutoff := since.UTC().Format(time.RFC3339Nano)
-	rows, err := s.db.QueryContext(ctx, `
+	rows, err := s.query(ctx, `
 		SELECT outcome, drained_at, resolved_at, cpu_milli, mem_bytes, external FROM reclamations
 		WHERE resolved_at IS NOT NULL AND resolved_at >= ?`, cutoff)
 	if err != nil {
@@ -157,7 +157,7 @@ func median(d []time.Duration) time.Duration {
 }
 
 func (s *Store) queryReclamations(ctx context.Context, query string, args ...any) ([]store.Reclamation, error) {
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

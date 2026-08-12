@@ -10,14 +10,14 @@ import (
 
 	"github.com/atedgimo/k8s-dencer/internal/model"
 	"github.com/atedgimo/k8s-dencer/internal/store"
-	"github.com/atedgimo/k8s-dencer/internal/store/sqlite"
+	"github.com/atedgimo/k8s-dencer/internal/store/sqlstore"
 )
 
 // A real store, so the schema migration this needs is exercised too — a fake
 // would have happily accepted a column that does not exist.
-func newStore(t *testing.T) *sqlite.Store {
+func newStore(t *testing.T) *sqlstore.Store {
 	t.Helper()
-	db, err := sqlite.Open(filepath.Join(t.TempDir(), "test.db"))
+	db, err := sqlstore.Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatalf("open store: %v", err)
 	}

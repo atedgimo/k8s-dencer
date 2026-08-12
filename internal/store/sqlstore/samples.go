@@ -1,4 +1,4 @@
-package sqlite
+package sqlstore
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 )
 
 func (s *Store) SaveSample(ctx context.Context, sm store.Sample) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.exec(ctx, `
 		INSERT INTO samples (taken_at, nodes, pods,
 			cpu_req_milli, cpu_alloc_milli, mem_req_bytes, mem_alloc_bytes,
 			cpu_used_milli, mem_used_bytes, has_usage, reclaimable)
@@ -24,7 +24,7 @@ func (s *Store) SaveSample(ctx context.Context, sm store.Sample) error {
 }
 
 func (s *Store) Samples(ctx context.Context, since time.Time) ([]store.Sample, error) {
-	rows, err := s.db.QueryContext(ctx, `
+	rows, err := s.query(ctx, `
 		SELECT taken_at, nodes, pods,
 		       cpu_req_milli, cpu_alloc_milli, mem_req_bytes, mem_alloc_bytes,
 		       cpu_used_milli, mem_used_bytes, has_usage, reclaimable
@@ -53,7 +53,7 @@ func (s *Store) Samples(ctx context.Context, since time.Time) ([]store.Sample, e
 }
 
 func (s *Store) PruneSamples(ctx context.Context, before time.Time) (int, error) {
-	res, err := s.db.ExecContext(ctx, `DELETE FROM samples WHERE taken_at < ?`,
+	res, err := s.exec(ctx, `DELETE FROM samples WHERE taken_at < ?`,
 		before.UTC().Format(time.RFC3339Nano))
 	if err != nil {
 		return 0, fmt.Errorf("prune samples: %w", err)

@@ -1,4 +1,4 @@
-package sqlite
+package sqlstore
 
 import (
 	"context"
@@ -55,7 +55,7 @@ func (s *Store) SaveNodeSamples(ctx context.Context, samples []store.NodeSample)
 // capacity was not recorded produces no percentage, which is the honest
 // answer, instead of an infinity.
 func (s *Store) NodeStabilitySince(ctx context.Context, since time.Time) ([]store.NodeStability, error) {
-	rows, err := s.db.QueryContext(ctx, `
+	rows, err := s.query(ctx, `
 		WITH pct AS (
 			SELECT node, taken_at,
 			       (cpu_used_milli * 100.0) / cpu_alloc_milli AS p
@@ -99,7 +99,7 @@ func (s *Store) NodeStabilitySince(ctx context.Context, since time.Time) ([]stor
 
 // PruneNodeSamples removes per-node points older than before.
 func (s *Store) PruneNodeSamples(ctx context.Context, before time.Time) (int, error) {
-	res, err := s.db.ExecContext(ctx,
+	res, err := s.exec(ctx,
 		`DELETE FROM node_samples WHERE taken_at < ?`,
 		before.UTC().Format(time.RFC3339Nano))
 	if err != nil {

@@ -1,4 +1,4 @@
-package sqlite
+package sqlstore
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 
 // RecordRecovery notes one workload's time to Ready after an eviction.
 func (s *Store) RecordRecovery(ctx context.Context, workload string, at time.Time, took time.Duration) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.exec(ctx, `
 		INSERT INTO recoveries (workload, observed_at, took_seconds)
 		VALUES (?, ?, ?)
 		ON CONFLICT (workload, observed_at) DO NOTHING`,
@@ -45,7 +45,7 @@ func (s *Store) RecoveryFor(ctx context.Context, workloads []string) (map[string
 	// Median via window function, the same shape as node stability: the
 	// typical case is what to expect and the worst is what to plan for, and
 	// a mean would let one pathological restart speak for both.
-	rows, err := s.db.QueryContext(ctx, `
+	rows, err := s.query(ctx, `
 		WITH ranked AS (
 			SELECT workload, took_seconds,
 			       ROW_NUMBER()      OVER (PARTITION BY workload ORDER BY took_seconds) AS rn,
@@ -81,7 +81,7 @@ func (s *Store) RecoveryFor(ctx context.Context, workloads []string) (map[string
 // image and probes, which change on a release cadence rather than a daily
 // one, so old observations stay useful far longer than a utilisation point.
 func (s *Store) PruneRecoveries(ctx context.Context, before time.Time) (int, error) {
-	res, err := s.db.ExecContext(ctx,
+	res, err := s.exec(ctx,
 		`DELETE FROM recoveries WHERE observed_at < ?`,
 		before.UTC().Format(time.RFC3339Nano))
 	if err != nil {

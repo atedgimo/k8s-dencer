@@ -8,7 +8,7 @@
 // pinned to one replica, Recreate rollout strategy, planner co-scheduled onto
 // the same node as the ReadWriteOnce volume — and values.schema.json rejects a
 // configuration that would violate them.
-package sqlite
+package sqlstore
 
 import (
 	"bytes"
@@ -26,9 +26,10 @@ import (
 	"github.com/atedgimo/k8s-dencer/internal/store"
 )
 
-// Store is a SQLite-backed plan store.
+// Store is the plan store, over SQLite or Postgres.
 type Store struct {
 	db *sql.DB
+	d  dialect
 }
 
 // Open connects to the database at path, creating it if absent.
@@ -50,7 +51,7 @@ func Open(path string) (*Store, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("ping %s: %w", path, err)
 	}
-	return &Store{db: db}, nil
+	return &Store{db: db, d: sqliteDialect}, nil
 }
 
 // Close releases the database handle.
@@ -61,7 +62,7 @@ const schemaVersion = 13
 // Migrate creates or upgrades the schema.
 func (s *Store) Migrate(ctx context.Context) error {
 	var current int
-	if err := s.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&current); err != nil {
+	if err := s.queryRow(ctx, "PRAGMA user_version").Scan(&current); err != nil {
 		return fmt.Errorf("read schema version: %w", err)
 	}
 	if current >= schemaVersion {
@@ -391,7 +392,7 @@ func (s *Store) Save(ctx context.Context, rec store.Record) (bool, error) {
 		if encErr != nil {
 			return false, fmt.Errorf("encode snapshot: %w", encErr)
 		}
-		touched, err = s.db.ExecContext(ctx,
+		touched, err = s.exec(ctx,
 			`UPDATE plans SET stored_at = ?, pack_ceiling = ?, nodes_before = ?, nodes_after = ?, snapshot = ?
 			 WHERE id = ? AND id = (SELECT id FROM plans ORDER BY stored_at DESC, rowid DESC LIMIT 1)`,
 			storedAt.UTC().Format(time.RFC3339Nano), rec.Plan.PackCeiling,
@@ -410,7 +411,7 @@ func (s *Store) Save(ctx context.Context, rec store.Record) (bool, error) {
 		// after two were removed, while the planner logged nodesBefore:4 on
 		// every cycle. Fresh by timestamp and stale by content is the worst
 		// of the available failures: the reader has no reason to doubt it.
-		touched, err = s.db.ExecContext(ctx,
+		touched, err = s.exec(ctx,
 			`UPDATE plans SET stored_at = ?, pack_ceiling = ?, nodes_before = ?, nodes_after = ?
 			 WHERE id = ? AND id = (SELECT id FROM plans ORDER BY stored_at DESC, rowid DESC LIMIT 1)`,
 			storedAt.UTC().Format(time.RFC3339Nano), rec.Plan.PackCeiling,
@@ -505,7 +506,7 @@ func (s *Store) Save(ctx context.Context, rec store.Record) (bool, error) {
 // Latest returns the most recently stored record.
 func (s *Store) Latest(ctx context.Context) (store.Record, error) {
 	var id string
-	err := s.db.QueryRowContext(ctx,
+	err := s.queryRow(ctx,
 		`SELECT id FROM plans ORDER BY stored_at DESC, rowid DESC LIMIT 1`).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return store.Record{}, store.ErrNotFound
@@ -526,7 +527,7 @@ func (s *Store) ByID(ctx context.Context, id string) (store.Record, error) {
 		nodesBefore, nodesAfter      int
 		packCeiling                  float64
 	)
-	err := s.db.QueryRowContext(ctx, `
+	err := s.queryRow(ctx, `
 		SELECT generated_at, snapshot_taken_at, status, strategy,
 		       nodes_before, nodes_after, pack_ceiling, snapshot, analysis, stored_at
 		FROM plans WHERE id = ?`, id).
@@ -573,7 +574,7 @@ func (s *Store) stepsFor(ctx context.Context, planID string) ([]model.PlanStep, 
 	// consolidated cluster.
 	steps := []model.PlanStep{}
 
-	rows, err := s.db.QueryContext(ctx, `
+	rows, err := s.query(ctx, `
 		SELECT step_id, sequence_number, target_node, moves, impact, rationale, reasons,
 		       executed_at, executed_by, result
 		FROM plan_steps WHERE plan_id = ? ORDER BY sequence_number`, planID)
@@ -620,7 +621,7 @@ func (s *Store) List(ctx context.Context, limit int) ([]store.Summary, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	rows, err := s.db.QueryContext(ctx, `
+	rows, err := s.query(ctx, `
 		SELECT p.id, p.generated_at, p.snapshot_taken_at, p.status, p.strategy,
 		       p.nodes_before, p.nodes_after, p.stored_at,
 		       (SELECT COUNT(*) FROM plan_steps s WHERE s.plan_id = p.id),
@@ -666,7 +667,7 @@ func (s *Store) Prune(ctx context.Context, keep int) (int, error) {
 	// step IDs that authorized each action — so deleting the plan would leave
 	// the audit trail pointing at nothing, which is worse than keeping a few
 	// extra rows on the volume.
-	res, err := s.db.ExecContext(ctx, `
+	res, err := s.exec(ctx, `
 		DELETE FROM plans WHERE id NOT IN (
 			SELECT id FROM plans ORDER BY stored_at DESC, rowid DESC LIMIT ?
 		)
@@ -746,11 +747,11 @@ func decodeBlob(data []byte, into any) error {
 // ExecForTest runs a statement directly. Test-only: it exists so a test can
 // forge a pre-compression row and prove it is still readable.
 func (s *Store) ExecForTest(ctx context.Context, query string, args ...any) error {
-	_, err := s.db.ExecContext(ctx, query, args...)
+	_, err := s.exec(ctx, query, args...)
 	return err
 }
 
 // QueryRowForTest reads one row directly. Test-only.
 func (s *Store) QueryRowForTest(ctx context.Context, query string, args ...any) *sql.Row {
-	return s.db.QueryRowContext(ctx, query, args...)
+	return s.queryRow(ctx, query, args...)
 }

@@ -1,4 +1,4 @@
-package sqlite_test
+package sqlstore_test
 
 import (
 	"context"
@@ -7,12 +7,12 @@ import (
 	"time"
 
 	"github.com/atedgimo/k8s-dencer/internal/store"
-	"github.com/atedgimo/k8s-dencer/internal/store/sqlite"
+	"github.com/atedgimo/k8s-dencer/internal/store/sqlstore"
 )
 
-func nodeStore(t *testing.T) *sqlite.Store {
+func nodeStore(t *testing.T) *sqlstore.Store {
 	t.Helper()
-	db, err := sqlite.Open(filepath.Join(t.TempDir(), "n.db"))
+	db, err := sqlstore.Open(filepath.Join(t.TempDir(), "n.db"))
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}

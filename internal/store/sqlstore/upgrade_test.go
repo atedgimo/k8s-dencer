@@ -1,4 +1,4 @@
-package sqlite_test
+package sqlstore_test
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/atedgimo/k8s-dencer/internal/store"
-	"github.com/atedgimo/k8s-dencer/internal/store/sqlite"
+	"github.com/atedgimo/k8s-dencer/internal/store/sqlstore"
 )
 
 // Every other test in this package migrates an empty file, which exercises
@@ -33,7 +33,7 @@ func TestUpgradeFromV040(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	db, err := sqlite.Open(path)
+	db, err := sqlstore.Open(path)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
