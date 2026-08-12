@@ -56,7 +56,7 @@
 
 .recspage-headline {
   margin: 0;
-  font-size: 30px;
+  font-size: var(--text-display);
   font-weight: 600;
   letter-spacing: var(--tracking-display);
 }

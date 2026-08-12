@@ -27,10 +27,14 @@ func (s *Store) SaveNodeSamples(ctx context.Context, samples []store.NodeSample)
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	stmt, err := tx.PrepareContext(ctx, `
+	// Prepared through rebind like every other statement. Handing the `?`
+	// form straight to PrepareContext is what made this silently dead on
+	// Postgres in v0.6.0 — the prepare failed, publish only logged a warning,
+	// and node_samples stayed empty while the planner kept cycling.
+	stmt, err := tx.PrepareContext(ctx, rebind(s.d, `
 		INSERT INTO node_samples (node, taken_at, cpu_used_milli, cpu_alloc_milli)
 		VALUES (?, ?, ?, ?)
-		ON CONFLICT (node, taken_at) DO NOTHING`)
+		ON CONFLICT (node, taken_at) DO NOTHING`))
 	if err != nil {
 		return err
 	}

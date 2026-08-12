@@ -170,6 +170,10 @@ is read from a Secret the operator already has.
       name: {{ . }}
       key: {{ $.Values.database.postgres.existingSecretPasswordKey }}
 {{- end }}
+{{- if .Values.database.postgres.sslRootCert.existingSecret }}
+- name: POSTGRES_SSLROOTCERT
+  value: /etc/dencer/postgres-ca/{{ .Values.database.postgres.sslRootCert.key }}
+{{- end }}
 {{- end }}
 {{- end -}}
 
@@ -184,4 +188,32 @@ single-node constraint that choosing Postgres was meant to lift.
 */}}
 {{- define "k8s-dencer.mountsDataVolume" -}}
 {{- if eq .Values.database.type "sqlite" }}true{{ end -}}
+{{- end -}}
+
+{{/*
+Whether a CA bundle is mounted for verifying the Postgres server certificate.
+
+Without one, sslMode=require accepts any certificate the server presents: the
+channel is encrypted but the peer is not authenticated, so an attacker on the
+network path can impersonate the database and collect the credentials, the
+audit trail and the run queue the executor drains from.
+*/}}
+{{- define "k8s-dencer.mountsPostgresCA" -}}
+{{- if and (eq .Values.database.type "postgres") .Values.database.postgres.sslRootCert.existingSecret }}true{{ end -}}
+{{- end -}}
+
+{{- define "k8s-dencer.postgresCAVolume" -}}
+{{- if include "k8s-dencer.mountsPostgresCA" . }}
+- name: postgres-ca
+  secret:
+    secretName: {{ .Values.database.postgres.sslRootCert.existingSecret }}
+{{- end }}
+{{- end -}}
+
+{{- define "k8s-dencer.postgresCAMount" -}}
+{{- if include "k8s-dencer.mountsPostgresCA" . }}
+- name: postgres-ca
+  mountPath: /etc/dencer/postgres-ca
+  readOnly: true
+{{- end }}
 {{- end -}}

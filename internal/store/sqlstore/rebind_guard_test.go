@@ -36,7 +36,17 @@ func TestNoPlaceholderBypassesRebind(t *testing.T) {
 
 	// The driver-level methods. Reaching one of these means rebind was
 	// skipped, whatever the receiver is called.
-	raw := map[string]bool{"ExecContext": true, "QueryContext": true, "QueryRowContext": true}
+	// PrepareContext belongs here too, and its absence is not hypothetical:
+	// SaveNodeSamples prepared a `?`-bearing statement directly and this
+	// guard waved it through, so per-node history was silently dead on
+	// Postgres for the whole of v0.6.0. A guard is only worth the confidence
+	// it gives if it covers every way to reach the driver.
+	raw := map[string]bool{
+		"ExecContext":     true,
+		"QueryContext":    true,
+		"QueryRowContext": true,
+		"PrepareContext":  true,
+	}
 
 	var checked int
 	for _, pkg := range pkgs {
@@ -83,6 +93,10 @@ func containsPlaceholder(e ast.Expr) bool {
 		return v.Kind == token.STRING && strings.Contains(v.Value, "?")
 	case *ast.BinaryExpr:
 		return containsPlaceholder(v.X) || containsPlaceholder(v.Y)
+	case *ast.ParenExpr:
+		// `(\`…?…\`)` is the same literal wearing a hat, and a guard that a
+		// pair of brackets defeats is not a guard.
+		return containsPlaceholder(v.X)
 	case *ast.Ident:
 		// A constant holding a query. Resolve it if it is declared in this
 		// file, so schema constants and query constants are both covered.

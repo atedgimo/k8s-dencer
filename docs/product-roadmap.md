@@ -195,6 +195,27 @@ deciding what to build next and telling users what they get.
 There is no data path from an existing SQLite store (#181), and e2e still
 runs against SQLite only (#180). Both are recorded rather than implied.
 
+### The Postgres store, repaired (2026-08-12)
+- **v0.6.0's Postgres backend could not record a drain.** A bool bound into an
+  INTEGER column, a statement that skipped placeholder rewriting, and — the one
+  no review caught — SQLite's 64-bit `INTEGER` translated unchanged to
+  Postgres's 32-bit one, capping every memory column at 2 GiB. Schema v15
+  widens them for anyone who installed in that window
+- **The cause was a coverage claim that was not true.** Four test helpers
+  opened SQLite directly instead of going through the shared one, so node
+  samples, reclamations, recoveries and staleness never met Postgres. Pointing
+  them at the shared helper failed nine tests immediately
+- **Migration takes a cross-process lock** — planner and ui-backend both
+  migrate at startup and on a fresh install both pods start together
+- **`sslRootCert`** — `sslmode=require` encrypts but does not authenticate the
+  server; the docs now say so, and there is a way to fix it
+- **Every font size is back on the type scale**, and the scale is guarded by
+  membership rather than by a floor
+
+Two guards failed the same way on the same day: one checked three of the four
+ways a query reaches the driver, the other checked the type scale's floor but
+not the scale. A partial guard reads as coverage, which is worse than none.
+
 ## Next
 
 Ordered by intent; items move up when a user need pulls them.

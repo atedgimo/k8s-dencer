@@ -3,7 +3,6 @@ package sqlstore_test
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -11,17 +10,14 @@ import (
 	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlstore"
 )
 
+// Delegates to openTemp so DENCER_TEST_POSTGRES redirects these tests too.
+// They used to open SQLite directly, which meant the store suite only
+// *claimed* to run against both backends: node samples, reclamations,
+// recoveries and staleness never did. Two Postgres bugs shipped through
+// that gap in v0.6.0.
 func reclamationStore(t *testing.T) *sqlitestore.Store {
 	t.Helper()
-	db, err := sqlitestore.Open(filepath.Join(t.TempDir(), "r.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	if err := db.Migrate(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	return db
+	return openTemp(t)
 }
 
 func TestReclamationRoundTrip(t *testing.T) {

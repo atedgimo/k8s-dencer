@@ -66,20 +66,40 @@ func postgresDSN() (dsn, desc string, err error) {
 		Host:   net.JoinHostPort(host, port),
 		Path:   "/" + name,
 	}
-	if pw, ok := os.LookupEnv("POSTGRES_PASSWORD"); ok {
+	// An empty value means "no password", the same rule env() applies three
+	// lines up. LookupEnv would call "" set, and a Secret key that exists but
+	// is empty — a routine partially-populated state — would then send an
+	// explicit empty password to a server that would otherwise have accepted
+	// trust, peer or certificate authentication.
+	if pw := env("POSTGRES_PASSWORD", ""); pw != "" {
 		u.User = url.UserPassword(user, pw)
 	} else {
 		u.User = url.User(user)
 	}
 
 	q := url.Values{}
-	// Defaulting to require rather than to the driver's default: an operator
-	// who says nothing should get an encrypted connection, not a plaintext
-	// one, and the chart's default matches.
-	q.Set("sslmode", env("POSTGRES_SSLMODE", "require"))
+	// Defaulting to require rather than to the driver's default, so an
+	// operator who says nothing gets an encrypted connection rather than a
+	// plaintext one.
+	//
+	// Worth being precise about what that does not buy: with no root
+	// certificate, pgx sets InsecureSkipVerify for sslmode=require, so the
+	// channel is encrypted but the server is never authenticated — anything
+	// on the network path can present a certificate and be believed.
+	// POSTGRES_SSLROOTCERT is what closes that, and with a root cert present
+	// pgx upgrades require to verify-ca behaviour on its own.
+	mode := env("POSTGRES_SSLMODE", "require")
+	q.Set("sslmode", mode)
+	if ca := env("POSTGRES_SSLROOTCERT", ""); ca != "" {
+		q.Set("sslrootcert", ca)
+	}
 	u.RawQuery = q.Encode()
 
-	return u.String(), fmt.Sprintf("postgres at %s/%s (sslmode=%s)", u.Host, name, q.Get("sslmode")), nil
+	verified := "server certificate NOT verified"
+	if q.Get("sslrootcert") != "" || mode == "verify-full" || mode == "verify-ca" {
+		verified = "server certificate verified"
+	}
+	return u.String(), fmt.Sprintf("postgres at %s/%s (sslmode=%s, %s)", u.Host, name, mode, verified), nil
 }
 
 func env(key, def string) string {

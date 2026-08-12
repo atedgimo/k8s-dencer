@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -101,18 +102,26 @@ func TestPostgresMigrationSkipsWhenCurrent(t *testing.T) {
 // state an interrupted or older install would have.
 func applyThrough(ctx context.Context, t *testing.T, s *Store, v int) int {
 	t.Helper()
-	if _, err := s.schemaVersionOf(ctx); err != nil {
-		t.Fatalf("prepare version table: %v", err)
-	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	for i, ddl := range migrations() {
+	// Inside this transaction, because schemaVersionTx creates the version
+	// table as a side effect and it has to be committed with the rest. The
+	// standalone schemaVersionOf rolls back, which makes it a safe reader and
+	// useless for setup.
+	if _, err := s.schemaVersionTx(ctx, tx); err != nil {
+		t.Fatalf("prepare version table: %v", err)
+	}
+
+	for i, ddl := range s.migrations() {
 		if i+1 > v {
 			break
+		}
+		if strings.TrimSpace(ddl) == "" {
+			continue
 		}
 		if _, err := tx.ExecContext(ctx, translateDDL(s.d, ddl)); err != nil {
 			t.Fatalf("apply schema v%d: %v", i+1, err)
@@ -187,4 +196,90 @@ func openPostgresSchema(t *testing.T, name string) (*Store, string) {
 		}
 	})
 	return s, schema
+}
+
+// The planner and the ui-backend both migrate at startup, and on a fresh
+// install both pods start together. Before the advisory lock this raced: one
+// pod created schema_version while the other was doing the same and the loser
+// died on `duplicate key value violates unique constraint
+// "pg_type_typname_nsp_index"`, then CrashLoopBackOffed until the winner
+// committed. It self-healed, which is precisely why it would have been
+// diagnosed as something else.
+//
+// Postgres exists here to let uiBackend.replicaCount rise, so the number of
+// simultaneous migrators is a value an operator sets. This runs eight.
+func TestPostgresMigrationIsSafeWhenPodsStartTogether(t *testing.T) {
+	dsn := os.Getenv("DENCER_TEST_POSTGRES")
+	if dsn == "" {
+		t.Skip("set DENCER_TEST_POSTGRES to run against a real Postgres")
+	}
+	ctx := context.Background()
+	schema := "m_concurrent"
+
+	admin, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = admin.Close() }()
+	for _, q := range []string{`DROP SCHEMA IF EXISTS ` + schema + ` CASCADE`, `CREATE SCHEMA ` + schema} {
+		if _, err := admin.ExecContext(ctx, q); err != nil {
+			t.Fatalf("prepare schema: %v", err)
+		}
+	}
+	t.Cleanup(func() {
+		_, _ = admin.ExecContext(context.Background(), `DROP SCHEMA IF EXISTS `+schema+` CASCADE`)
+	})
+
+	sep := "?"
+	if strings.Contains(dsn, "?") {
+		sep = "&"
+	}
+
+	const migrators = 8
+	errs := make(chan error, migrators)
+	var wg sync.WaitGroup
+	for range migrators {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			// A separate connection each, because separate pods are what this
+			// is simulating — sharing one pool would hide the race.
+			s, err := OpenPostgres(ctx, dsn+sep+"search_path="+schema)
+			if err != nil {
+				errs <- err
+				return
+			}
+			defer func() { _ = s.Close() }()
+			errs <- s.Migrate(ctx)
+		}()
+	}
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		if err != nil {
+			t.Errorf("a pod failed to start because another was migrating: %v", err)
+		}
+	}
+
+	// One row, and the schema actually built — a lock that serialised the
+	// migrations into doing nothing would also produce no errors.
+	s, err := OpenPostgres(ctx, dsn+sep+"search_path="+schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = s.Close() }()
+	if got := versionOf(ctx, t, s); got != schemaVersion {
+		t.Errorf("version = %d, want %d", got, schemaVersion)
+	}
+	var rows int
+	if err := s.queryRow(ctx, `SELECT COUNT(*) FROM schema_version`).Scan(&rows); err != nil {
+		t.Fatal(err)
+	}
+	if rows != 1 {
+		t.Errorf("schema_version holds %d rows, want 1", rows)
+	}
+	if !columnExists(ctx, t, s, schema, "plans", "seq") {
+		t.Error("plans.seq missing; the migrations were serialised into doing nothing")
+	}
 }

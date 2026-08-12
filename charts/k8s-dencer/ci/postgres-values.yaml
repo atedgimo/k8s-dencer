@@ -1,0 +1,40 @@
+# The Postgres backend, rendered and schema-validated like every other profile.
+#
+# It existed as a supported configuration for a whole release before anything
+# ran kubeconform over it, which is how the executor shipped a dangling
+# `affinity:` key: the render succeeded, so the greps that followed found
+# nothing to complain about, and no schema validation ever looked at the
+# result.
+#
+# Deliberately the *full* Postgres shape rather than a minimal one — executor
+# on, persistence off (correct here: there is no file to persist), a password
+# from a Secret, and a CA bundle — because each of those is a branch the
+# SQLite profiles never take.
+database:
+  type: postgres
+  postgres:
+    host: postgres.databases.svc
+    port: 5432
+    database: dencer
+    user: dencer
+    existingSecret: dencer-db
+    existingSecretPasswordKey: password
+    sslMode: verify-full
+    sslRootCert:
+      existingSecret: dencer-db-ca
+      key: ca.crt
+
+persistence:
+  enabled: false
+
+# The constraints Postgres exists to lift: more than one ui-backend, and no
+# co-scheduling. If a future change reintroduces the SQLite single-writer
+# rules, this profile stops rendering.
+uiBackend:
+  replicaCount: 2
+
+executor:
+  enabled: true
+
+auth:
+  enabled: true

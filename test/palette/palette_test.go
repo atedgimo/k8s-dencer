@@ -369,6 +369,72 @@ func TestNoFontSizeBelowElevenPixels(t *testing.T) {
 	}
 }
 
+// scaleSteps is the type scale from theme.css, in px. A size is either one of
+// these or it is not on the scale.
+var scaleSteps = map[float64]string{
+	11: "--text-2xs",
+	12: "--text-xs",
+	13: "--text-sm",
+	14: "--text-md",
+	16: "--text-lg",
+	20: "--text-xl",
+	26: "--text-display",
+	32: "--text-2xl",
+	36: "--text-3xl",
+}
+
+// A scale nobody has to stay on is a list of suggestions.
+//
+// The floor test above already parses every declaration in every stylesheet,
+// and for a long time it checked one thing: nothing below 11px. Fifteen
+// literal sizes drifted past it — 15, 17, 18, 19, 22, 26, 30, 34, 36 — none of
+// them on the scale, three of them larger than --text-2xl, whose own comment
+// reserves it for "the hero line, and nothing else". Every one was ≥15px, so
+// every one passed.
+//
+// That is the same shape of miss as a guard on the store that checked three of
+// the four ways a query can reach the driver. A partial guard reads as
+// coverage, which is worse than no guard, because it stops anyone looking.
+//
+// theme.css is exempt: it is where the scale is defined.
+func TestEveryFontSizeIsOnTheScale(t *testing.T) {
+	styles, err := filepath.Glob(filepath.Join(uiSrc, "styles", "*.css"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	re := regexp.MustCompile(`font-size:\s*([0-9.]+)(px|rem)`)
+	var checked int
+	for _, path := range styles {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range re.FindAllStringSubmatch(string(b), -1) {
+			v, err := strconv.ParseFloat(m[1], 64)
+			if err != nil {
+				continue
+			}
+			px := v
+			if m[2] == "rem" {
+				px = v * 16
+			}
+			checked++
+			if _, ok := scaleSteps[px]; !ok {
+				t.Errorf("%s: font-size %s%s is not on the type scale — use one of the --text-* tokens, or add a step to theme.css deliberately",
+					filepath.Base(path), m[1], m[2])
+			}
+		}
+	}
+	// Literal sizes are meant to be rare, so finding none is the healthy
+	// state and not evidence the test stopped looking. The glob is what
+	// would silently break, so assert on that instead.
+	if len(styles) == 0 {
+		t.Fatal("no stylesheets found; this guard is no longer looking at anything")
+	}
+	t.Logf("checked %d literal font-size declarations across %d stylesheets", checked, len(styles))
+}
+
 // Archivo is retired; the type system is IBM Plex Sans + IBM Plex Mono only.
 func TestArchivoStaysRetired(t *testing.T) {
 	for _, rel := range []string{"theme.css", "fonts.css"} {

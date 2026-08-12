@@ -21,7 +21,7 @@ func (s *Store) RecordDrain(ctx context.Context, r store.Reclamation) error {
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (node, drained_at) DO NOTHING`,
 		r.Node, r.DrainedAt.UTC().Format(time.RFC3339Nano), r.RunID, r.PlanID, r.Step,
-		r.CPUMilli, r.MemBytes, r.External, r.InstanceType, r.CapacityType)
+		r.CPUMilli, r.MemBytes, boolToInt(r.External), r.InstanceType, r.CapacityType)
 	if err != nil {
 		return fmt.Errorf("record drain of %s: %w", r.Node, err)
 	}

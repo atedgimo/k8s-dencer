@@ -2,7 +2,6 @@ package sqlstore_test
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -11,17 +10,14 @@ import (
 	"github.com/atedgimo/k8s-dencer/internal/store/sqlstore"
 )
 
+// Delegates to openTemp so DENCER_TEST_POSTGRES redirects these tests too.
+// They used to open SQLite directly, which meant the store suite only
+// *claimed* to run against both backends: node samples, reclamations,
+// recoveries and staleness never did. Two Postgres bugs shipped through
+// that gap in v0.6.0.
 func planStore(t *testing.T) *sqlstore.Store {
 	t.Helper()
-	db, err := sqlstore.Open(filepath.Join(t.TempDir(), "p.db"))
-	if err != nil {
-		t.Fatalf("open: %v", err)
-	}
-	if err := db.Migrate(context.Background()); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	return db
+	return openTemp(t)
 }
 
 // planID hashes the steps and nothing else, which is right — a plan is its

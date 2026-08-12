@@ -3,6 +3,7 @@ package sqlstore
 import (
 	"context"
 	"database/sql"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -65,27 +66,36 @@ func rebind(d dialect, query string) string {
 	return b.String()
 }
 
-// ddlReplacements is the whole of the type-level difference between the two
-// servers, and it is deliberately a short list rather than a translation
-// layer. Anything longer would mean the schema had grown a SQLite accent, and
-// the honest fix for that is to change the schema, not to teach a translator
-// another word.
-//
-// Ordered longest-first where one pattern contains another, so a replacement
-// cannot eat the prefix of the next.
-var ddlReplacements = []struct{ sqlite, postgres string }{
+// ddlTypes maps SQLite's type names to the Postgres type that means the same
+// thing. Matched on word boundaries, because a plain substring replacement
+// would rewrite a future column named REAL_COST into DOUBLE PRECISION_COST —
+// on Postgres only, so it would reproduce on nobody's SQLite machine.
+var ddlTypes = map[string]string{
 	// SQLite stores arbitrary bytes in BLOB; Postgres calls it BYTEA. Every
 	// use is a gzipped or JSON payload the store already marshals itself.
-	{"BLOB", "BYTEA"},
-	// REAL is 4-byte float in Postgres and 8-byte in SQLite. The one column
-	// using it is the packing ceiling, a fraction compared against computed
-	// capacity, so the narrower type would quietly change plan output.
-	{"REAL", "DOUBLE PRECISION"},
-	// A SQLite storage optimisation with no Postgres equivalent and no
-	// meaning there — the tables it applies to are keyed by a text primary
-	// key either way.
-	{") WITHOUT ROWID;", ");"},
+	"BLOB": "BYTEA",
+
+	// Postgres REAL is 4-byte and SQLite's is 8. The one column using it is
+	// the packing ceiling, a fraction compared against computed capacity, so
+	// the narrower type would quietly change plan output.
+	"REAL": "DOUBLE PRECISION",
+
+	// The one that got away, and the reason this list is now anchored and
+	// tested. SQLite's INTEGER is a 64-bit signed integer; Postgres's is
+	// 32-bit, topping out at 2147483647. Every mem_*_bytes column in this
+	// schema exceeds that on any node with more than 2 GiB of memory — which
+	// is every node. v0.6.0 shipped with these as int4 and the reclamation
+	// ledger could not record a single drain:
+	//
+	//	unable to encode 34359738368 into binary format for int4
+	//
+	// BIGINT is not a widening for safety's sake; it is the faithful
+	// translation. INTEGER was never 32 bits on the backend this schema was
+	// written for.
+	"INTEGER": "BIGINT",
 }
+
+var ddlTypePattern = regexp.MustCompile(`\b(BLOB|REAL|INTEGER)\b`)
 
 // translateDDL rewrites schema statements for the target server.
 //
@@ -95,10 +105,13 @@ func translateDDL(d dialect, ddl string) string {
 	if d != postgresDialect {
 		return ddl
 	}
-	for _, r := range ddlReplacements {
-		ddl = strings.ReplaceAll(ddl, r.sqlite, r.postgres)
-	}
-	return ddl
+	// A SQLite storage optimisation with no Postgres equivalent and no
+	// meaning there — the tables it applies to are keyed by a text primary
+	// key either way.
+	ddl = strings.ReplaceAll(ddl, ") WITHOUT ROWID;", ");")
+	return ddlTypePattern.ReplaceAllStringFunc(ddl, func(m string) string {
+		return ddlTypes[m]
+	})
 }
 
 // The three call shapes every method uses, routed through one place so a

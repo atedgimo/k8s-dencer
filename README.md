@@ -274,11 +274,23 @@ until the next snapshot says where they truly landed.
 execution, and maintenance windows. Phase 4 — hardening toward 1000 nodes and
 50,000 pods — is in progress, with metrics, CI and the release pipeline landed.
 
-**v0.6.0 is published** — images, chart and CLI binaries on `ghcr.io` and the
+**v0.7.0 is published** — images, chart and CLI binaries on `ghcr.io` and the
 [releases page](https://github.com/atedgimo/k8s-dencer/releases), installable by
 the command above.
 
-It adds a **Postgres plan store**. Set `database.type=postgres` and the
+It repairs the Postgres store that v0.6.0 shipped. **If you are running v0.6.0
+on Postgres, upgrade**: the reclamation ledger there could not record a single
+drain, and per-node history was silently dead. Three bugs — a bool bound into
+an integer column, a statement that skipped placeholder rewriting, and SQLite's
+64-bit `INTEGER` translated to Postgres's 32-bit one, which capped every
+memory column at 2 GiB. Schema v15 widens those columns on upgrade. The
+underlying cause was a test suite that claimed to run against both backends and
+did not; it does now, which is what found the third bug. Migration also takes a
+cross-process lock, so the planner and ui-backend no longer race on a fresh
+install, and `database.postgres.sslRootCert` lets an install verify the
+server's certificate rather than only encrypting the connection.
+
+v0.6.0 added the **Postgres plan store**. Set `database.type=postgres` and the
 PersistentVolumeClaim, the `/data` mount, the required pod affinity and the
 PriorityClass all disappear, because all four exist only to keep two writers
 off one file. `uiBackend.replicaCount` becomes an ordinary value.
