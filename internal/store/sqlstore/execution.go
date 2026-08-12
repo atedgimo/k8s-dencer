@@ -1,4 +1,4 @@
-package sqlite
+package sqlstore
 
 import (
 	"context"
@@ -42,7 +42,7 @@ func (s *Store) Enqueue(ctx context.Context, run store.Run) (string, error) {
 		}
 	}
 
-	_, err = s.db.ExecContext(ctx, `
+	_, err = s.exec(ctx, `
 		INSERT INTO runs (id, plan_id, steps, dry_run, status, actor, actor_groups, requested_at, mode, envelope, node)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		run.ID, run.PlanID, steps, boolToInt(run.DryRun), string(run.Status),
@@ -64,7 +64,7 @@ func (s *Store) Claim(ctx context.Context, worker string) (store.Run, error) {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 
 	var id string
-	err := s.db.QueryRowContext(ctx, `
+	err := s.queryRow(ctx, `
 		UPDATE runs
 		SET status = ?, worker = ?, started_at = ?
 		WHERE id = (
@@ -95,7 +95,7 @@ func (s *Store) AppendEvent(ctx context.Context, ev store.RunEvent) error {
 	if ev.Level == "" {
 		ev.Level = store.EventInfo
 	}
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.exec(ctx, `
 		INSERT INTO run_events (run_id, sequence, at, level, step, node, pod, action, rule, message)
 		VALUES (
 			?,
@@ -116,7 +116,7 @@ func (s *Store) Finish(ctx context.Context, runID string, status store.RunStatus
 	if !status.Terminal() {
 		return fmt.Errorf("cannot finish run %s with non-terminal status %s", runID, status)
 	}
-	res, err := s.db.ExecContext(ctx, `
+	res, err := s.exec(ctx, `
 		UPDATE runs SET status = ?, summary = ?, finished_at = ? WHERE id = ?`,
 		string(status), summary, time.Now().UTC().Format(time.RFC3339Nano), runID)
 	if err != nil {
@@ -130,7 +130,7 @@ func (s *Store) Finish(ctx context.Context, runID string, status store.RunStatus
 
 // RunByID returns one run.
 func (s *Store) RunByID(ctx context.Context, runID string) (store.Run, error) {
-	row := s.db.QueryRowContext(ctx, `
+	row := s.queryRow(ctx, `
 		SELECT id, plan_id, steps, dry_run, status, actor, actor_groups,
 		       requested_at, started_at, finished_at, worker, summary, mode, envelope, node, stop_requested, stop_requested_by
 		FROM runs WHERE id = ?`, runID)
@@ -139,7 +139,7 @@ func (s *Store) RunByID(ctx context.Context, runID string) (store.Run, error) {
 
 // ActiveRun returns the pending or running execution, if any.
 func (s *Store) ActiveRun(ctx context.Context) (store.Run, error) {
-	row := s.db.QueryRowContext(ctx, `
+	row := s.queryRow(ctx, `
 		SELECT id, plan_id, steps, dry_run, status, actor, actor_groups,
 		       requested_at, started_at, finished_at, worker, summary, mode, envelope, node, stop_requested, stop_requested_by
 		FROM runs WHERE status IN (?, ?)
@@ -153,7 +153,7 @@ func (s *Store) RecentRuns(ctx context.Context, limit int) ([]store.Run, error) 
 	if limit <= 0 {
 		limit = 100
 	}
-	rows, err := s.db.QueryContext(ctx, `
+	rows, err := s.query(ctx, `
 		SELECT id, plan_id, steps, dry_run, status, actor, actor_groups,
 		       requested_at, started_at, finished_at, worker, summary, mode, envelope, node, stop_requested, stop_requested_by
 		FROM runs ORDER BY requested_at DESC, rowid DESC LIMIT ?`, limit)
@@ -177,7 +177,7 @@ func (s *Store) RunsForPlan(ctx context.Context, planID string, limit int) ([]st
 	if limit <= 0 {
 		limit = 50
 	}
-	rows, err := s.db.QueryContext(ctx, `
+	rows, err := s.query(ctx, `
 		SELECT id, plan_id, steps, dry_run, status, actor, actor_groups,
 		       requested_at, started_at, finished_at, worker, summary, mode, envelope, node, stop_requested, stop_requested_by
 		FROM runs WHERE plan_id = ? ORDER BY requested_at DESC, rowid DESC LIMIT ?`,
@@ -200,7 +200,7 @@ func (s *Store) RunsForPlan(ctx context.Context, planID string, limit int) ([]st
 
 // Events returns a run's audit trail in order.
 func (s *Store) Events(ctx context.Context, runID string) ([]store.RunEvent, error) {
-	rows, err := s.db.QueryContext(ctx, `
+	rows, err := s.query(ctx, `
 		SELECT sequence, at, level, step, node, pod, action, rule, message
 		FROM run_events WHERE run_id = ? ORDER BY sequence`, runID)
 	if err != nil {
@@ -307,7 +307,7 @@ func newRunID() string {
 // which is the only place it honestly can — a pod already evicted cannot be
 // un-evicted.
 func (s *Store) RequestStop(ctx context.Context, runID, by string) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.exec(ctx, `
 		UPDATE runs SET stop_requested = 1, stop_requested_by = ?
 		WHERE id = ? AND status IN (?, ?)`,
 		by, runID, string(store.RunPending), string(store.RunRunning))

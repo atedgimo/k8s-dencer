@@ -1,4 +1,4 @@
-package sqlite_test
+package sqlstore_test
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"github.com/atedgimo/k8s-dencer/internal/constraints"
 	"github.com/atedgimo/k8s-dencer/internal/model"
 	"github.com/atedgimo/k8s-dencer/internal/store"
-	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlite"
+	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlstore"
 )
 
 func openTemp(t *testing.T) *sqlitestore.Store {

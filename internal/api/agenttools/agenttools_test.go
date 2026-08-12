@@ -16,7 +16,7 @@ import (
 	"github.com/atedgimo/k8s-dencer/internal/constraints"
 	"github.com/atedgimo/k8s-dencer/internal/model"
 	"github.com/atedgimo/k8s-dencer/internal/store"
-	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlite"
+	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlstore"
 )
 
 // connect starts the MCP endpoint over HTTP and returns a real MCP client

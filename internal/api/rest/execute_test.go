@@ -16,7 +16,7 @@ import (
 	"github.com/atedgimo/k8s-dencer/internal/auth"
 	"github.com/atedgimo/k8s-dencer/internal/model"
 	"github.com/atedgimo/k8s-dencer/internal/store"
-	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlite"
+	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlstore"
 )
 
 // denyExecute authorizes reads and refuses execution, so the two permissions

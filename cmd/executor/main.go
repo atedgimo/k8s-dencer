@@ -28,7 +28,7 @@ import (
 	"github.com/atedgimo/k8s-dencer/internal/planner"
 	"github.com/atedgimo/k8s-dencer/internal/safety"
 	"github.com/atedgimo/k8s-dencer/internal/store"
-	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlite"
+	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlstore"
 	"github.com/atedgimo/k8s-dencer/internal/telemetry"
 	"github.com/atedgimo/k8s-dencer/internal/window"
 )

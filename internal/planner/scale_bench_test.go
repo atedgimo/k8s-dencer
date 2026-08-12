@@ -14,7 +14,7 @@ import (
 	"github.com/atedgimo/k8s-dencer/internal/model"
 	"github.com/atedgimo/k8s-dencer/internal/planner"
 	"github.com/atedgimo/k8s-dencer/internal/store"
-	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlite"
+	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlstore"
 )
 
 // Scale benchmarks over synthesised clusters.

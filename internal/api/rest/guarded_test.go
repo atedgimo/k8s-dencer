@@ -17,7 +17,7 @@ import (
 
 	"github.com/atedgimo/k8s-dencer/internal/api/rest"
 	"github.com/atedgimo/k8s-dencer/internal/auth"
-	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlite"
+	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlstore"
 )
 
 // openRoutes are the only endpoints permitted to bypass the guard.
