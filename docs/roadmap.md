@@ -56,10 +56,21 @@ estimated — every milestone here starts from a number in
 | **M24** | The field shows what *is*, not only what *would be* — observed states overlaid on the plan, nodes and pods | **done** |
 | **M25** | Closed-loop consolidation — re-plan from observed state after every step, inside an operator-approved envelope | **done** — engine, CLI and UI |
 
-High availability and a Postgres store were **dropped, not deferred**: a
+High availability was **dropped, not deferred**, and stays dropped: a
 consolidation planner is not a serving path. The run queue is already crash-safe
 and resumes, the planner replans on restart, and a minute of UI downtime costs
 nothing.
+
+**The Postgres store was dropped with it, and that call was reversed** — for a
+reason that has nothing to do with availability, which is why the original
+reasoning did not catch it. SQLite is a file on a ReadWriteOnce claim, and RWO
+permits multiple pods only on the same node, so the chart has to co-schedule
+the planner onto the ui-backend's node. That leaves the planner exactly one
+node it may occupy, and on a packed cluster — the kind of cluster this product
+is installed on — it can lose the scheduling race and sit `Pending`. The
+PriorityClass added in v0.5.0 makes that less likely rather than impossible.
+
+Uptime was never the argument. Being schedulable is.
 
 ### M24 — live reality in the field
 

@@ -50,8 +50,7 @@ func main() {
 }
 
 func run(ctx context.Context, log *slog.Logger) error {
-	path := env("DATABASE_PATH", "/data/dencer.db")
-	db, err := sqlitestore.Open(path)
+	db, dbDesc, err := sqlitestore.OpenFromEnv(ctx)
 	if err != nil {
 		return err
 	}
@@ -60,7 +59,7 @@ func run(ctx context.Context, log *slog.Logger) error {
 	// The ui-backend owns the schema and runs migrations. The executor waits
 	// for the tables rather than creating them, so two writers can never race
 	// to define them differently.
-	if err := waitForSchema(ctx, db, log); err != nil {
+	if err := waitForSchema(ctx, db, dbDesc, log); err != nil {
 		return err
 	}
 
@@ -138,7 +137,7 @@ func run(ctx context.Context, log *slog.Logger) error {
 // On a fresh install all three pods start together and the executor may well
 // win the race. Crashlooping until the tables appear would work but reads as a
 // broken deploy; waiting quietly is the same outcome without the alarm.
-func waitForSchema(ctx context.Context, db *sqlitestore.Store, log *slog.Logger) error {
+func waitForSchema(ctx context.Context, db *sqlitestore.Store, dbDesc string, log *slog.Logger) error {
 	for attempt := 0; ; attempt++ {
 		// ErrNotFound means the query ran and matched nothing, which is
 		// exactly what a migrated but idle database looks like.
@@ -146,7 +145,7 @@ func waitForSchema(ctx context.Context, db *sqlitestore.Store, log *slog.Logger)
 			return nil
 		}
 		if attempt == 0 {
-			log.Info("waiting for ui-backend to migrate the plan store", "path", env("DATABASE_PATH", "/data/dencer.db"))
+			log.Info("waiting for ui-backend to migrate the plan store", "store", dbDesc)
 		}
 		select {
 		case <-ctx.Done():

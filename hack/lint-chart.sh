@@ -284,11 +284,69 @@ if [ "$sqlite_prio" -ne 2 ]; then
 fi
 # Postgres removes the co-location, so the cluster-scoped object should not
 # exist at all: no install gets a PriorityClass it has no use for.
-if helm template dencer "$CHART" --set database.type=postgres \
-     | grep -q '^kind: PriorityClass'; then
+#
+# Rendered into a variable first, and the render is required to succeed. The
+# previous form piped `helm template` straight into grep, and because a
+# Postgres install did not render at all back then, the pipeline produced no
+# output, grep matched nothing, and the check passed without ever looking at a
+# manifest. An assertion about a configuration that cannot render is not an
+# assertion.
+if ! pg="$(helm template dencer "$CHART" \
+             --set database.type=postgres \
+             --set database.postgres.host=pg.example \
+             --set database.postgres.existingSecret=pg-secret \
+             --set executor.enabled=true --set auth.enabled=true 2>&1)"; then
+  fail "a Postgres install does not render: $pg"
+fi
+if grep -q '^kind: PriorityClass' <<<"$pg"; then
   fail "a Postgres install created a PriorityClass it does not need"
 fi
 green "  planner and ui-backend prioritised under SQLite, nothing created under Postgres"
+
+bold "==> contract: Postgres install carries no trace of the SQLite volume"
+# The whole point of the Postgres backend is lifting the single-node
+# constraints. A ReadWriteOnce claim still mounted into the pods would quietly
+# reimpose exactly the constraint the operator chose Postgres to escape, and
+# nothing would report an error — the pods would simply be unschedulable
+# across nodes for a reason nobody wrote down.
+for artefact in \
+  'kind: PersistentVolumeClaim' \
+  'claimName:' \
+  'mountPath: /data' \
+  'name: DATABASE_PATH' \
+  'podAffinity'
+do
+  if grep -q "$artefact" <<<"$pg"; then
+    fail "a Postgres install still carries '$artefact', which exists only to serve a SQLite file"
+  fi
+done
+# And the connection details must actually reach every component, including
+# the executor — which set no DATABASE_TYPE at all before this was checked,
+# so it would have opened a SQLite file while the other two used Postgres.
+pg_types="$(grep -c 'name: DATABASE_TYPE' <<<"$pg" || true)"
+if [ "$pg_types" -ne 3 ]; then
+  fail "expected planner, executor and ui-backend to each be told the database type, found $pg_types"
+fi
+if ! grep -q 'name: POSTGRES_PASSWORD' <<<"$pg"; then
+  fail "the password is not wired from the Secret"
+fi
+if grep -qE 'value: .*(password|PASSWORD)' <<<"$pg"; then
+  fail "a password appears as a literal value in the rendered manifest"
+fi
+green "  no claim, no mount, no affinity; all three components pointed at Postgres"
+
+bold "==> contract: SQLite install still gets its volume"
+# The mirror of the check above: gating the volume on the backend must not
+# have gated it away for everybody.
+sq="$(helm template dencer "$CHART" --set executor.enabled=true --set auth.enabled=true)"
+sq_mounts="$(grep -c 'mountPath: /data' <<<"$sq" || true)"
+if [ "$sq_mounts" -ne 3 ]; then
+  fail "expected all three components to mount the SQLite volume, found $sq_mounts"
+fi
+if ! grep -q '^kind: PersistentVolumeClaim' <<<"$sq"; then
+  fail "a SQLite install no longer creates its claim"
+fi
+green "  claim created and mounted by all three components"
 
 bold "==> contract: chart packages without the ci/ fixtures"
 tmp="$(mktemp -d)"

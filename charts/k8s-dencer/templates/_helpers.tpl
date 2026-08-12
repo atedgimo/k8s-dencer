@@ -132,3 +132,56 @@ qualified because the agent may live in a different namespace.
 {{- define "k8s-dencer.uiBackendURL" -}}
 {{- printf "http://%s-ui-backend.%s.svc:%v" (include "k8s-dencer.fullname" .) .Release.Namespace .Values.uiBackend.service.port -}}
 {{- end }}
+
+{{/*
+The plan store environment, shared by planner, executor and ui-backend.
+
+One definition because the three components must agree about which database
+they are talking to. They did not: ui-backend had a postgres branch, planner
+had none, and executor set no DATABASE_TYPE at all — so selecting postgres
+would have left the executor quietly opening a SQLite file nobody else was
+writing to, with no error anywhere. A disagreement about the store is invisible
+at deploy time and looks like lost plans at run time.
+
+The password is never a value and never appears in the rendered manifest; it
+is read from a Secret the operator already has.
+*/}}
+{{- define "k8s-dencer.databaseEnv" -}}
+- name: DATABASE_TYPE
+  value: {{ .Values.database.type | quote }}
+{{- if eq .Values.database.type "sqlite" }}
+- name: DATABASE_PATH
+  value: {{ .Values.database.sqlite.path | quote }}
+{{- else }}
+- name: POSTGRES_HOST
+  value: {{ .Values.database.postgres.host | quote }}
+- name: POSTGRES_PORT
+  value: {{ .Values.database.postgres.port | quote }}
+- name: POSTGRES_DATABASE
+  value: {{ .Values.database.postgres.database | quote }}
+- name: POSTGRES_USER
+  value: {{ .Values.database.postgres.user | quote }}
+- name: POSTGRES_SSLMODE
+  value: {{ .Values.database.postgres.sslMode | quote }}
+{{- with .Values.database.postgres.existingSecret }}
+- name: POSTGRES_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ . }}
+      key: {{ $.Values.database.postgres.existingSecretPasswordKey }}
+{{- end }}
+{{- end }}
+{{- end -}}
+
+{{/*
+Whether the plan store is a file this pod has to mount.
+
+True only for SQLite. Postgres is reached over the network, so the data
+volume, the claim behind it, the co-scheduling affinity and the Recreate
+strategy all stop being necessary — those exist to keep two writers off one
+file, and there is no file. Mounting a claim anyway would quietly reimpose the
+single-node constraint that choosing Postgres was meant to lift.
+*/}}
+{{- define "k8s-dencer.mountsDataVolume" -}}
+{{- if eq .Values.database.type "sqlite" }}true{{ end -}}
+{{- end -}}

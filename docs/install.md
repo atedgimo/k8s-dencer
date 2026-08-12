@@ -171,9 +171,46 @@ them — an autoscaler, or someone with kubectl — and reports them separately.
 The cluster saved that money whoever caused it, and the ledger's job is to be
 accurate about what happened rather than flattering about who did it.
 
+## Postgres instead of SQLite
+
+SQLite is the default and needs nothing to exist beforehand. Choose Postgres
+when the single-node constraints below are the ones costing you something —
+principally a planner that cannot be scheduled because the one node holding
+its claim is full.
+
+```bash
+kubectl create secret generic dencer-db \
+  --namespace k8s-dencer --from-literal=password='…'
+
+helm install k8s-dencer oci://ghcr.io/atedgimo/charts/k8s-dencer \
+  --namespace k8s-dencer --create-namespace \
+  --set database.type=postgres \
+  --set database.postgres.host=postgres.databases.svc \
+  --set database.postgres.database=dencer \
+  --set database.postgres.user=dencer \
+  --set database.postgres.existingSecret=dencer-db
+```
+
+The chart creates the **schema**, not the server: the database and the role
+must already exist, and the role needs `CREATE` on the target schema for the
+first migration. `sslMode` defaults to `require` — an operator who says nothing
+gets an encrypted connection. The password is only ever read from a Secret;
+the chart takes no password as a value, and none appears in the rendered
+manifest.
+
+Selecting Postgres removes the PersistentVolumeClaim, the `/data` mount, the
+co-scheduling affinity and the PriorityClass, because all four exist to keep
+two writers off one file. `uiBackend.replicaCount` is then yours to raise.
+
+**There is no migration path from an existing SQLite store.** Plan history and
+the reclamation ledger stay in the file they were written to. Nothing is lost
+by switching — the planner rebuilds its plan on the next resync, and the
+savings ledger starts recording from the switch — but the history before the
+switch does not come with it.
+
 ## Known constraints
 
-- **SQLite is single-writer.** `uiBackend.replicaCount` is pinned to 1 and enforced by the schema; the planner is co-scheduled with ui-backend via a `requiredDuringScheduling` podAffinity, because a ReadWriteOnce claim only permits multiple pods on the same node. Both constraints disappear when the Postgres store lands.
+- **SQLite is single-writer.** `uiBackend.replicaCount` is pinned to 1 and enforced by the schema; the planner is co-scheduled with ui-backend via a `requiredDuringScheduling` podAffinity, because a ReadWriteOnce claim only permits multiple pods on the same node. Both constraints are lifted by `database.type=postgres` (above) — and only by that; they are properties of the file, not preferences.
 
   That affinity leaves the planner exactly one node it may occupy, so on a packed cluster it can lose the scheduling race and sit `Pending`. The chart creates a `PriorityClass` for the pair to stop that happening — only when the co-location applies, so a Postgres install gets no cluster-scoped object it has no use for. It is `preemptionPolicy: Never`: winning a queue is worth having, evicting someone else's workload to get there is not. Set `priorityClass.create=false` to opt out, or `planner.priorityClassName` to use your own.
 - **PDBs use `maxUnavailable`, never `minAvailable`.** A `minAvailable` PDB on a single-replica Deployment makes its own pod undrainable — the exact pathology this product exists to detect.

@@ -82,12 +82,7 @@ spec:
               value: {{ .Values.planner.usageSource | quote }}
             - name: RETAIN_PLANS
               value: {{ .Values.planner.retainPlans | quote }}
-            - name: DATABASE_TYPE
-              value: {{ .Values.database.type | quote }}
-            {{- if eq .Values.database.type "sqlite" }}
-            - name: DATABASE_PATH
-              value: {{ .Values.database.sqlite.path | quote }}
-            {{- end }}
+            {{- include "k8s-dencer.databaseEnv" . | nindent 12 }}
             - name: POD_NAMESPACE
               valueFrom:
                 fieldRef:
@@ -124,14 +119,17 @@ spec:
             # must be an explicit volume.
             - name: tmp
               mountPath: /tmp
+            {{- if include "k8s-dencer.mountsDataVolume" . }}
             - name: data
               mountPath: {{ dir .Values.database.sqlite.path }}
+            {{- end }}
             {{- with .Values.planner.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
       volumes:
         - name: tmp
           emptyDir: {}
+        {{- if include "k8s-dencer.mountsDataVolume" . }}
         - name: data
           {{- if .Values.persistence.enabled }}
           persistentVolumeClaim:
@@ -141,6 +139,7 @@ spec:
           # ephemeral test installs.
           emptyDir: {}
           {{- end }}
+        {{- end }}
         {{- with .Values.planner.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

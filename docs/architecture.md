@@ -14,7 +14,7 @@ internal/
   impact/          Green/Yellow/Red classifier + rationale composition
   safety/          the non-negotiable rails; refuses Red, caps blast radius, re-checks PDBs
   executor/        the ONLY package that mutates a cluster: cordon, evict, verify, abort
-  store/           Store interface + SQLite implementation and migrations
+  store/           Store interface + one SQLite/Postgres implementation and migrations
   auth/            TokenReview authn + SubjectAccessReview authz; no credential store of our own
   telemetry/       structured logger + the Prometheus series each component publishes
   api/             rest/ (+ SSE events), graph/ (Cytoscape payload), agenttools/ (MCP)
@@ -112,7 +112,9 @@ Thresholds are chart values (`planner.impact.*`) because doc §10 is explicit th
 
 ## Plan store and API
 
-Plans live in SQLite on the chart's PVC, not in a CRD. Doc §6 makes the case: a plan is refreshed continuously and read almost entirely by the UI, and pushing that write volume through etcd is a well-known way to hurt a cluster. Nothing external *desires* a specific plan, so there is nothing for Kubernetes' reconciliation model to do.
+Plans live in a SQL database — SQLite on the chart's PVC by default, or Postgres — not in a CRD. Doc §6 makes the case: a plan is refreshed continuously and read almost entirely by the UI, and pushing that write volume through etcd is a well-known way to hurt a cluster. Nothing external *desires* a specific plan, so there is nothing for Kubernetes' reconciliation model to do.
+
+**One store speaks both dialects rather than two implementations.** They differ in four places — placeholder spelling, `BLOB`/`BYTEA`, `REAL`/`DOUBLE PRECISION`, and where the schema version is kept — and every query, migration and test is shared. The alternative is two things that must agree, kept apart, and discovered to disagree by a user. The same suite runs against both backends in CI, which is how a claim that let two Postgres executors take the same run was found before it reached anyone.
 
 **Each stored plan carries the snapshot and constraint analysis it was computed from.** The UI needs to draw a graph and explain constraints for the plan it's displaying; pairing them guarantees the three agree. Fetching live state instead would show a graph that has already drifted from the plan drawn over it, and history could never be reviewed at all.
 

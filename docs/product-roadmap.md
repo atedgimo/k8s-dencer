@@ -192,8 +192,12 @@ consolidation's.
 
 Decisions, not omissions — recorded so they are not re-litigated by accident:
 
-- **High availability / Postgres** — a consolidation planner is not a serving
-  path; the run queue is crash-safe, the planner replans on restart
+- **High availability** — a consolidation planner is not a serving path; the
+  run queue is crash-safe, the planner replans on restart. Still true.
+- **Postgres** — was recorded here alongside HA, and that was a mistake in
+  reasoning rather than a decision that aged: SQLite's ReadWriteOnce claim
+  pins the planner to one node, where a packed cluster can leave it `Pending`.
+  Shipped as `database.type=postgres`; HA remains out
 - **Fully autonomous operation** — the product's premise is that a human
   approves eviction; scheduled unattended execution stays out until the
   closed-loop envelope model proves itself
