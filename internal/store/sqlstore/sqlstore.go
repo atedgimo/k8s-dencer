@@ -57,7 +57,7 @@ func Open(path string) (*Store, error) {
 // Close releases the database handle.
 func (s *Store) Close() error { return s.db.Close() }
 
-const schemaVersion = 13
+const schemaVersion = 14
 
 // Migrate creates or upgrades the schema.
 func (s *Store) Migrate(ctx context.Context) error {
@@ -140,6 +140,20 @@ func (s *Store) Migrate(ctx context.Context) error {
 			return fmt.Errorf("apply schema v13: %w", err)
 		}
 	}
+	if current < 14 {
+		if _, err := tx.ExecContext(ctx, schemaV14); err != nil {
+			return fmt.Errorf("apply schema v14: %w", err)
+		}
+		// Existing rows get their order from the one SQLite already knows.
+		// Backfilling from rowid preserves the exact sequence the old queries
+		// were sorting by, so an upgrade cannot silently reorder history.
+		if _, err := tx.ExecContext(ctx, `UPDATE plans SET seq = rowid WHERE seq = 0`); err != nil {
+			return fmt.Errorf("backfill plans.seq: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE runs SET seq = rowid WHERE seq = 0`); err != nil {
+			return fmt.Errorf("backfill runs.seq: %w", err)
+		}
+	}
 
 	// PRAGMA does not accept a bound parameter.
 	if _, err := tx.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", schemaVersion)); err != nil {
@@ -160,6 +174,28 @@ ALTER TABLE plans ADD COLUMN pack_ceiling REAL NOT NULL DEFAULT 0;
 // recorded by the executor, so the default is correct for all of them.
 const schemaV9 = `
 ALTER TABLE reclamations ADD COLUMN external INTEGER NOT NULL DEFAULT 0;
+`
+
+// Schema v14 — an explicit insertion order.
+//
+// Six queries sorted by SQLite's rowid to break ties between rows sharing a
+// timestamp, and one of them decides whether a plan has changed at all. That
+// works until the store has to speak to a server without a rowid, and it is
+// not a Postgres problem: an implicit ordering nobody declared is a fragile
+// thing to have been depending on anywhere.
+//
+// Assigned by the INSERT itself — `(SELECT COALESCE(MAX(seq), 0) + 1 …)` —
+// rather than by an identity column, because AUTOINCREMENT and BIGSERIAL
+// differ in spelling and this is the one column whose values must mean the
+// same thing in both. One statement, so no read-then-write window: SQLite
+// serialises writers outright, and on Postgres two inserts racing at the same
+// snapshot would tie rather than skip, which degrades to the arbitrary order
+// these queries already had before the column existed.
+const schemaV14 = `
+ALTER TABLE plans ADD COLUMN seq INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE runs  ADD COLUMN seq INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS plans_seq ON plans (seq DESC);
+CREATE INDEX IF NOT EXISTS runs_seq  ON runs  (seq DESC);
 `
 
 // Schema v13 — a run can be asked to stop. Existing rows were never asked.
@@ -394,7 +430,7 @@ func (s *Store) Save(ctx context.Context, rec store.Record) (bool, error) {
 		}
 		touched, err = s.exec(ctx,
 			`UPDATE plans SET stored_at = ?, pack_ceiling = ?, nodes_before = ?, nodes_after = ?, snapshot = ?
-			 WHERE id = ? AND id = (SELECT id FROM plans ORDER BY stored_at DESC, rowid DESC LIMIT 1)`,
+			 WHERE id = ? AND id = (SELECT id FROM plans ORDER BY stored_at DESC, seq DESC LIMIT 1)`,
 			storedAt.UTC().Format(time.RFC3339Nano), rec.Plan.PackCeiling,
 			rec.Plan.NodesBefore, rec.Plan.NodesAfter, snapshotJSON, rec.Plan.ID)
 	} else {
@@ -413,7 +449,7 @@ func (s *Store) Save(ctx context.Context, rec store.Record) (bool, error) {
 		// of the available failures: the reader has no reason to doubt it.
 		touched, err = s.exec(ctx,
 			`UPDATE plans SET stored_at = ?, pack_ceiling = ?, nodes_before = ?, nodes_after = ?
-			 WHERE id = ? AND id = (SELECT id FROM plans ORDER BY stored_at DESC, rowid DESC LIMIT 1)`,
+			 WHERE id = ? AND id = (SELECT id FROM plans ORDER BY stored_at DESC, seq DESC LIMIT 1)`,
 			storedAt.UTC().Format(time.RFC3339Nano), rec.Plan.PackCeiling,
 			rec.Plan.NodesBefore, rec.Plan.NodesAfter, rec.Plan.ID)
 	}
@@ -446,17 +482,19 @@ func (s *Store) Save(ctx context.Context, rec store.Record) (bool, error) {
 	// A plan ID is a content hash, so an existing row with this ID describes
 	// the same plan; replace it so the newest occurrence carries the current
 	// timestamp rather than resurfacing a stale one.
-	if _, err := tx.ExecContext(ctx, `
+	if _, err := s.txExec(ctx, tx, `
 		INSERT INTO plans (id, generated_at, snapshot_taken_at, status, strategy,
-		                   nodes_before, nodes_after, pack_ceiling, snapshot, analysis, stored_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		                   nodes_before, nodes_after, pack_ceiling, snapshot, analysis, stored_at, seq)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+		        (SELECT COALESCE(MAX(seq), 0) + 1 FROM plans))
 		ON CONFLICT(id) DO UPDATE SET
 		    generated_at = excluded.generated_at,
 		    stored_at    = excluded.stored_at,
 		    status       = excluded.status,
 		    pack_ceiling = excluded.pack_ceiling,
 		    snapshot     = excluded.snapshot,
-		    analysis     = excluded.analysis`,
+		    analysis     = excluded.analysis,
+		    seq          = excluded.seq`,
 		rec.Plan.ID,
 		rec.Plan.GeneratedAt.UTC().Format(time.RFC3339Nano),
 		rec.Plan.SnapshotTakenAt.UTC().Format(time.RFC3339Nano),
@@ -507,7 +545,7 @@ func (s *Store) Save(ctx context.Context, rec store.Record) (bool, error) {
 func (s *Store) Latest(ctx context.Context) (store.Record, error) {
 	var id string
 	err := s.queryRow(ctx,
-		`SELECT id FROM plans ORDER BY stored_at DESC, rowid DESC LIMIT 1`).Scan(&id)
+		`SELECT id FROM plans ORDER BY stored_at DESC, seq DESC LIMIT 1`).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return store.Record{}, store.ErrNotFound
 	}
@@ -628,7 +666,7 @@ func (s *Store) List(ctx context.Context, limit int) ([]store.Summary, error) {
 		       (SELECT COUNT(*) FROM plan_steps s WHERE s.plan_id = p.id AND s.impact = 'Green'),
 		       (SELECT COUNT(*) FROM plan_steps s WHERE s.plan_id = p.id AND s.impact = 'Yellow'),
 		       (SELECT COUNT(*) FROM plan_steps s WHERE s.plan_id = p.id AND s.impact = 'Red')
-		FROM plans p ORDER BY p.stored_at DESC, p.rowid DESC LIMIT ?`, limit)
+		FROM plans p ORDER BY p.stored_at DESC, p.seq DESC LIMIT ?`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -669,7 +707,7 @@ func (s *Store) Prune(ctx context.Context, keep int) (int, error) {
 	// extra rows on the volume.
 	res, err := s.exec(ctx, `
 		DELETE FROM plans WHERE id NOT IN (
-			SELECT id FROM plans ORDER BY stored_at DESC, rowid DESC LIMIT ?
+			SELECT id FROM plans ORDER BY stored_at DESC, seq DESC LIMIT ?
 		)
 		AND id NOT IN (SELECT DISTINCT plan_id FROM runs)`, keep)
 	if err != nil {

@@ -43,8 +43,9 @@ func (s *Store) Enqueue(ctx context.Context, run store.Run) (string, error) {
 	}
 
 	_, err = s.exec(ctx, `
-		INSERT INTO runs (id, plan_id, steps, dry_run, status, actor, actor_groups, requested_at, mode, envelope, node)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		INSERT INTO runs (id, plan_id, steps, dry_run, status, actor, actor_groups, requested_at, mode, envelope, node, seq)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+		        (SELECT COALESCE(MAX(seq), 0) + 1 FROM runs))`,
 		run.ID, run.PlanID, steps, boolToInt(run.DryRun), string(run.Status),
 		run.Actor, groups, run.RequestedAt.UTC().Format(time.RFC3339Nano),
 		run.Mode, envelope, run.Node)
@@ -70,7 +71,7 @@ func (s *Store) Claim(ctx context.Context, worker string) (store.Run, error) {
 		WHERE id = (
 			SELECT id FROM runs
 			WHERE status = ?
-			ORDER BY requested_at, rowid
+			ORDER BY requested_at, seq
 			LIMIT 1
 		)
 		RETURNING id`,
@@ -156,7 +157,7 @@ func (s *Store) RecentRuns(ctx context.Context, limit int) ([]store.Run, error) 
 	rows, err := s.query(ctx, `
 		SELECT id, plan_id, steps, dry_run, status, actor, actor_groups,
 		       requested_at, started_at, finished_at, worker, summary, mode, envelope, node, stop_requested, stop_requested_by
-		FROM runs ORDER BY requested_at DESC, rowid DESC LIMIT ?`, limit)
+		FROM runs ORDER BY requested_at DESC, seq DESC LIMIT ?`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +181,7 @@ func (s *Store) RunsForPlan(ctx context.Context, planID string, limit int) ([]st
 	rows, err := s.query(ctx, `
 		SELECT id, plan_id, steps, dry_run, status, actor, actor_groups,
 		       requested_at, started_at, finished_at, worker, summary, mode, envelope, node, stop_requested, stop_requested_by
-		FROM runs WHERE plan_id = ? ORDER BY requested_at DESC, rowid DESC LIMIT ?`,
+		FROM runs WHERE plan_id = ? ORDER BY requested_at DESC, seq DESC LIMIT ?`,
 		planID, limit)
 	if err != nil {
 		return nil, err
