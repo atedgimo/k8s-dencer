@@ -167,6 +167,34 @@ deciding what to build next and telling users what they get.
   evicted cannot be un-evicted, so abort and pause are the same capability
   and offering both would promise an undo that does not exist
 
+### A Postgres plan store, so the planner stops being pinned to one node (2026-08-12)
+- **`database.type=postgres`** — the plan store reached over the network
+  instead of through a file, which removes the PersistentVolumeClaim, the
+  `/data` mount, the required pod affinity and the PriorityClass in one move.
+  `uiBackend.replicaCount` becomes an ordinary value
+- **Why, precisely** — not availability. SQLite's ReadWriteOnce claim permits
+  multiple pods only on the same node, so the planner is co-scheduled onto the
+  ui-backend's node and has exactly one node it may occupy. On a packed
+  cluster — the kind this product is installed on — it loses the scheduling
+  race and sits `Pending`. v0.5.0's PriorityClass made that less likely, not
+  impossible. Both roadmaps had recorded Postgres as dropped-not-deferred, and
+  that call is reversed here rather than quietly overwritten
+- **One store, both dialects** — thirty-two methods and fourteen schema
+  versions shared, differing in four places: placeholder spelling, `BLOB`,
+  `REAL`, and where the version is kept. The alternative is two things that
+  must agree, kept apart, and found to disagree by a user
+- **The same test suite runs against both backends** in CI, rather than a
+  second suite written from memory. It failed fourteen tests the first time it
+  met a real server, and one of those was a safety bug: `Claim` relied on
+  SQLite's single writer for atomicity, and Postgres let two executors take
+  the same run — two executors draining the same node
+- **Schema v14** — an insertion order the store declares itself, replacing a
+  dependency on SQLite's `rowid` that six queries had grown, backfilled so no
+  existing history reorders
+
+There is no data path from an existing SQLite store (#181), and e2e still
+runs against SQLite only (#180). Both are recorded rather than implied.
+
 ## Next
 
 Ordered by intent; items move up when a user need pulls them.

@@ -10,8 +10,8 @@ type: application
 
 # Chart version tracks the chart; appVersion tracks the images. Component image
 # tags default to appVersion so a chart release pins a coherent image set.
-version: 0.5.0
-appVersion: "0.5.0"
+version: 0.6.0
+appVersion: "0.6.0"
 
 # controller-runtime and the policy/v1 PDB API used here are stable from 1.21,
 # but the chart relies on 1.27-era defaults for restricted Pod Security
