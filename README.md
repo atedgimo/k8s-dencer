@@ -274,11 +274,25 @@ until the next snapshot says where they truly landed.
 execution, and maintenance windows. Phase 4 — hardening toward 1000 nodes and
 50,000 pods — is in progress, with metrics, CI and the release pipeline landed.
 
-**v0.5.0 is published** — images, chart and CLI binaries on `ghcr.io` and the
+**v0.6.0 is published** — images, chart and CLI binaries on `ghcr.io` and the
 [releases page](https://github.com/atedgimo/k8s-dencer/releases), installable by
 the command above.
 
-It is the release that made the product work on managed clusters. A real GKE
+It adds a **Postgres plan store**. Set `database.type=postgres` and the
+PersistentVolumeClaim, the `/data` mount, the required pod affinity and the
+PriorityClass all disappear, because all four exist only to keep two writers
+off one file. `uiBackend.replicaCount` becomes an ordinary value.
+
+The reason is not availability, which is what the roadmap had assumed when it
+recorded Postgres as dropped. SQLite's ReadWriteOnce claim permits multiple
+pods only on the same node, so the planner is co-scheduled onto the
+ui-backend's node and has exactly one node it may occupy — on a packed cluster
+it loses the scheduling race and sits `Pending`. It is one store speaking both
+dialects rather than two implementations, and the same test suite runs against
+both backends in CI: that suite failed fourteen tests the first time it met a
+real Postgres, one of which let two executors claim the same run.
+
+v0.5.0 before it is the release that made the product work on managed clusters. A real GKE
 run found that it could not plan at all there — see below — and fixing that
 brought the rest with it: the savings ledger in money when you say what your
 machines cost, rightsizing and maintenance windows and resilience simulation
