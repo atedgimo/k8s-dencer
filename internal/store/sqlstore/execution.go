@@ -64,6 +64,23 @@ func (s *Store) Enqueue(ctx context.Context, run store.Run) (string, error) {
 func (s *Store) Claim(ctx context.Context, worker string) (store.Run, error) {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 
+	// The one place the two servers need genuinely different SQL, and it is
+	// not cosmetic. SQLite is safe as written: a single writer connection
+	// serialises the whole statement, so the subquery and the update cannot
+	// interleave with another claimer.
+	//
+	// Postgres allows the concurrency that is the entire reason for supporting
+	// it, and there two executors read the same pending run before either
+	// updates it — proven by TestClaimIsAtomicUnderConcurrency, which failed
+	// here the first time this store spoke to a real server. A double claim is
+	// two executors draining the same node, so this is a safety property, not
+	// a throughput one. SKIP LOCKED is the standard work-queue idiom: each
+	// claimer takes the oldest run no other claimer holds a lock on.
+	lock := ""
+	if s.d == postgresDialect {
+		lock = " FOR UPDATE SKIP LOCKED"
+	}
+
 	var id string
 	err := s.queryRow(ctx, `
 		UPDATE runs
@@ -72,7 +89,7 @@ func (s *Store) Claim(ctx context.Context, worker string) (store.Run, error) {
 			SELECT id FROM runs
 			WHERE status = ?
 			ORDER BY requested_at, seq
-			LIMIT 1
+			LIMIT 1`+lock+`
 		)
 		RETURNING id`,
 		string(store.RunRunning), worker, now, string(store.RunPending)).Scan(&id)

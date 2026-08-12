@@ -29,6 +29,27 @@ jobs:
   go:
     name: go test
     runs-on: ubuntu-latest
+
+    # The store speaks to SQLite or to Postgres, and the promise it makes is
+    # that the two behave identically. A real server is the only thing that
+    # can check that promise: the first time this store met one it failed
+    # fourteen tests, thirteen from placeholders never rewritten and one from
+    # a claim that let two executors take the same run — a double drain. None
+    # of it was visible against SQLite.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: dencer
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -43,6 +64,15 @@ jobs:
         # -race because the planner, executor and HTTP servers all run
         # concurrently in production and the tests exercise that.
         run: go test -race -count=1 ./...
+
+      - name: store tests against postgres
+        # The same suite, not a second one: DENCER_TEST_POSTGRES redirects
+        # openTemp, so every assertion already written runs again over the
+        # other backend. A separate Postgres suite would only prove that the
+        # tests someone remembered to write twice agree.
+        env:
+          DENCER_TEST_POSTGRES: postgres://postgres:test@localhost:5432/dencer?sslmode=disable
+        run: go test -race -count=1 ./internal/store/...
 
       - name: gofmt
         run: |

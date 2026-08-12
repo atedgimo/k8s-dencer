@@ -65,6 +65,42 @@ func rebind(d dialect, query string) string {
 	return b.String()
 }
 
+// ddlReplacements is the whole of the type-level difference between the two
+// servers, and it is deliberately a short list rather than a translation
+// layer. Anything longer would mean the schema had grown a SQLite accent, and
+// the honest fix for that is to change the schema, not to teach a translator
+// another word.
+//
+// Ordered longest-first where one pattern contains another, so a replacement
+// cannot eat the prefix of the next.
+var ddlReplacements = []struct{ sqlite, postgres string }{
+	// SQLite stores arbitrary bytes in BLOB; Postgres calls it BYTEA. Every
+	// use is a gzipped or JSON payload the store already marshals itself.
+	{"BLOB", "BYTEA"},
+	// REAL is 4-byte float in Postgres and 8-byte in SQLite. The one column
+	// using it is the packing ceiling, a fraction compared against computed
+	// capacity, so the narrower type would quietly change plan output.
+	{"REAL", "DOUBLE PRECISION"},
+	// A SQLite storage optimisation with no Postgres equivalent and no
+	// meaning there — the tables it applies to are keyed by a text primary
+	// key either way.
+	{") WITHOUT ROWID;", ");"},
+}
+
+// translateDDL rewrites schema statements for the target server.
+//
+// Only DDL goes through here. Queries are portable already: the placeholders
+// are handled by rebind, and ON CONFLICT is spelled the same in both.
+func translateDDL(d dialect, ddl string) string {
+	if d != postgresDialect {
+		return ddl
+	}
+	for _, r := range ddlReplacements {
+		ddl = strings.ReplaceAll(ddl, r.sqlite, r.postgres)
+	}
+	return ddl
+}
+
 // The three call shapes every method uses, routed through one place so a
 // query cannot reach a server in the wrong dialect.
 func (s *Store) exec(ctx context.Context, q string, args ...any) (sql.Result, error) {

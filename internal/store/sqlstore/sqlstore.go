@@ -1,13 +1,22 @@
-// Package sqlite implements the plan store on SQLite.
+// Package sqlstore implements the plan store, on SQLite or on Postgres.
 //
-// modernc.org/sqlite is used rather than mattn/go-sqlite3 because it is pure
-// Go: the components ship on distroless/static with a CGO-free build, and a
-// cgo driver would break that.
+// One implementation over both, differing only where the servers genuinely
+// differ: placeholder spelling (rebind), a handful of DDL types
+// (translateDDL), and where the schema version is kept. Every query, every
+// migration and every test is shared, because a store is the product's memory
+// and two memories that drift are worse than one that is a little more
+// general.
 //
-// SQLite is single-writer. The chart enforces the consequences — ui-backend
+// Both drivers are pure Go — modernc.org/sqlite rather than mattn/go-sqlite3,
+// and pgx's database/sql driver — because the components ship on
+// distroless/static with a CGO-free build, and a cgo driver would break that.
+//
+// SQLite is single-writer, and the chart enforces the consequences: ui-backend
 // pinned to one replica, Recreate rollout strategy, planner co-scheduled onto
-// the same node as the ReadWriteOnce volume — and values.schema.json rejects a
-// configuration that would violate them.
+// the same node as the ReadWriteOnce volume, with values.schema.json rejecting
+// a configuration that would violate them. Postgres is the reason those
+// constraints can be lifted — it is not a second way to store the same data so
+// much as the way to stop pinning the product to one node.
 package sqlstore
 
 import (
@@ -20,6 +29,7 @@ import (
 	"fmt"
 	"time"
 
+	_ "github.com/jackc/pgx/v5/stdlib"
 	_ "modernc.org/sqlite"
 
 	"github.com/atedgimo/k8s-dencer/internal/model"
@@ -54,16 +64,56 @@ func Open(path string) (*Store, error) {
 	return &Store{db: db, d: sqliteDialect}, nil
 }
 
+// OpenPostgres connects to the Postgres server named by dsn.
+//
+// The DSN is passed through to the driver rather than assembled from parts,
+// so sslmode, connect_timeout and the rest are the operator's to set and this
+// code has no opinion it could get wrong. It carries a password, so it is
+// never logged: the errors below name the failure, not the string.
+func OpenPostgres(ctx context.Context, dsn string) (*Store, error) {
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("open postgres: %w", err)
+	}
+	// Unlike SQLite there is no single-writer rule to honour, which is the
+	// point of supporting it. The pool is left small because this store's
+	// traffic is one planner writing and a handful of readers, not because it
+	// has to be.
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(2)
+	db.SetConnMaxLifetime(time.Hour)
+
+	if err := db.PingContext(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("ping postgres: %w", err)
+	}
+	return &Store{db: db, d: postgresDialect}, nil
+}
+
 // Close releases the database handle.
 func (s *Store) Close() error { return s.db.Close() }
 
 const schemaVersion = 14
 
+// migrations are the schema versions in order; index i holds the statements
+// that take the database from version i to i+1.
+//
+// A table rather than fourteen near-identical if-blocks, so adding v15 is one
+// line and cannot be got subtly wrong — the previous shape had the version
+// number written three times per step, which is three chances to typo a
+// number that decides whether an operator's database is upgraded or skipped.
+func migrations() []string {
+	return []string{
+		schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7,
+		schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14,
+	}
+}
+
 // Migrate creates or upgrades the schema.
 func (s *Store) Migrate(ctx context.Context) error {
-	var current int
-	if err := s.queryRow(ctx, "PRAGMA user_version").Scan(&current); err != nil {
-		return fmt.Errorf("read schema version: %w", err)
+	current, err := s.schemaVersionOf(ctx)
+	if err != nil {
+		return err
 	}
 	if current >= schemaVersion {
 		return nil
@@ -75,91 +125,86 @@ func (s *Store) Migrate(ctx context.Context) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	if current < 1 {
-		if _, err := tx.ExecContext(ctx, schemaV1); err != nil {
-			return fmt.Errorf("apply schema v1: %w", err)
+	for i, ddl := range migrations() {
+		v := i + 1
+		if current >= v {
+			continue
 		}
-	}
-	if current < 2 {
-		if _, err := tx.ExecContext(ctx, schemaV2); err != nil {
-			return fmt.Errorf("apply schema v2: %w", err)
+		if _, err := tx.ExecContext(ctx, translateDDL(s.d, ddl)); err != nil {
+			return fmt.Errorf("apply schema v%d: %w", v, err)
 		}
-	}
-	if current < 3 {
-		if _, err := tx.ExecContext(ctx, schemaV3); err != nil {
-			return fmt.Errorf("apply schema v3: %w", err)
-		}
-	}
-	if current < 4 {
-		if _, err := tx.ExecContext(ctx, schemaV4); err != nil {
-			return fmt.Errorf("apply schema v4: %w", err)
-		}
-	}
-	if current < 5 {
-		if _, err := tx.ExecContext(ctx, schemaV5); err != nil {
-			return fmt.Errorf("apply schema v5: %w", err)
-		}
-	}
-	if current < 6 {
-		if _, err := tx.ExecContext(ctx, schemaV6); err != nil {
-			return fmt.Errorf("apply schema v6: %w", err)
-		}
-	}
-	if current < 7 {
-		if _, err := tx.ExecContext(ctx, schemaV7); err != nil {
-			return fmt.Errorf("apply schema v7: %w", err)
-		}
-	}
-	if current < 8 {
-		if _, err := tx.ExecContext(ctx, schemaV8); err != nil {
-			return fmt.Errorf("apply schema v8: %w", err)
-		}
-	}
-	if current < 9 {
-		if _, err := tx.ExecContext(ctx, schemaV9); err != nil {
-			return fmt.Errorf("apply schema v9: %w", err)
-		}
-	}
-	if current < 10 {
-		if _, err := tx.ExecContext(ctx, schemaV10); err != nil {
-			return fmt.Errorf("apply schema v10: %w", err)
-		}
-	}
-	if current < 11 {
-		if _, err := tx.ExecContext(ctx, schemaV11); err != nil {
-			return fmt.Errorf("apply schema v11: %w", err)
-		}
-	}
-	if current < 12 {
-		if _, err := tx.ExecContext(ctx, schemaV12); err != nil {
-			return fmt.Errorf("apply schema v12: %w", err)
-		}
-	}
-	if current < 13 {
-		if _, err := tx.ExecContext(ctx, schemaV13); err != nil {
-			return fmt.Errorf("apply schema v13: %w", err)
-		}
-	}
-	if current < 14 {
-		if _, err := tx.ExecContext(ctx, schemaV14); err != nil {
-			return fmt.Errorf("apply schema v14: %w", err)
-		}
-		// Existing rows get their order from the one SQLite already knows.
-		// Backfilling from rowid preserves the exact sequence the old queries
-		// were sorting by, so an upgrade cannot silently reorder history.
-		if _, err := tx.ExecContext(ctx, `UPDATE plans SET seq = rowid WHERE seq = 0`); err != nil {
-			return fmt.Errorf("backfill plans.seq: %w", err)
-		}
-		if _, err := tx.ExecContext(ctx, `UPDATE runs SET seq = rowid WHERE seq = 0`); err != nil {
-			return fmt.Errorf("backfill runs.seq: %w", err)
+		if v == 14 {
+			if err := s.backfillSeq(ctx, tx); err != nil {
+				return err
+			}
 		}
 	}
 
-	// PRAGMA does not accept a bound parameter.
-	if _, err := tx.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", schemaVersion)); err != nil {
-		return fmt.Errorf("set schema version: %w", err)
+	if err := s.setSchemaVersion(ctx, tx, schemaVersion); err != nil {
+		return err
 	}
 	return tx.Commit()
+}
+
+// backfillSeq gives rows that predate v14 the order the old queries sorted
+// them by, so an upgrade cannot silently reorder anybody's history.
+//
+// SQLite-only, and not as an optimisation: `rowid` is not a column in
+// Postgres, so the statement fails when the query is parsed — on an empty
+// table as readily as a full one. It is never needed there. A Postgres
+// database is created by this code at the current version and cannot predate
+// the column, so there is nothing older to backfill from.
+func (s *Store) backfillSeq(ctx context.Context, tx *sql.Tx) error {
+	if s.d == postgresDialect {
+		return nil
+	}
+	for _, t := range []string{"plans", "runs"} {
+		if _, err := tx.ExecContext(ctx, "UPDATE "+t+" SET seq = rowid WHERE seq = 0"); err != nil {
+			return fmt.Errorf("backfill %s.seq: %w", t, err)
+		}
+	}
+	return nil
+}
+
+// schemaVersionOf reads the version the database is currently at.
+//
+// SQLite keeps it in the file header, which is free and needs no table.
+// Postgres has no equivalent, so the version lives in a table of its own —
+// created here, because it has to exist before the first migration can ask
+// what version the database is.
+func (s *Store) schemaVersionOf(ctx context.Context) (int, error) {
+	if s.d == postgresDialect {
+		if _, err := s.exec(ctx, `CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)`); err != nil {
+			return 0, fmt.Errorf("create schema_version: %w", err)
+		}
+		var v sql.NullInt64
+		if err := s.queryRow(ctx, `SELECT MAX(version) FROM schema_version`).Scan(&v); err != nil {
+			return 0, fmt.Errorf("read schema version: %w", err)
+		}
+		return int(v.Int64), nil
+	}
+	var current int
+	if err := s.queryRow(ctx, "PRAGMA user_version").Scan(&current); err != nil {
+		return 0, fmt.Errorf("read schema version: %w", err)
+	}
+	return current, nil
+}
+
+func (s *Store) setSchemaVersion(ctx context.Context, tx *sql.Tx, v int) error {
+	if s.d == postgresDialect {
+		if _, err := s.txExec(ctx, tx, `DELETE FROM schema_version`); err != nil {
+			return fmt.Errorf("set schema version: %w", err)
+		}
+		if _, err := s.txExec(ctx, tx, `INSERT INTO schema_version (version) VALUES (?)`, v); err != nil {
+			return fmt.Errorf("set schema version: %w", err)
+		}
+		return nil
+	}
+	// PRAGMA does not accept a bound parameter.
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", v)); err != nil {
+		return fmt.Errorf("set schema version: %w", err)
+	}
+	return nil
 }
 
 // v8: the plan records the packing ceiling it was computed under, so the
@@ -510,7 +555,7 @@ func (s *Store) Save(ctx context.Context, rec store.Record) (bool, error) {
 		return false, fmt.Errorf("insert plan: %w", err)
 	}
 
-	if _, err := tx.ExecContext(ctx, `DELETE FROM plan_steps WHERE plan_id = ?`, rec.Plan.ID); err != nil {
+	if _, err := s.txExec(ctx, tx, `DELETE FROM plan_steps WHERE plan_id = ?`, rec.Plan.ID); err != nil {
 		return false, fmt.Errorf("clear steps: %w", err)
 	}
 
@@ -523,7 +568,7 @@ func (s *Store) Save(ctx context.Context, rec store.Record) (bool, error) {
 		if err != nil {
 			return false, fmt.Errorf("encode reasons: %w", err)
 		}
-		if _, err := tx.ExecContext(ctx, `
+		if _, err := s.txExec(ctx, tx, `
 			INSERT INTO plan_steps (plan_id, step_id, sequence_number, target_node, moves,
 			                        impact, rationale, reasons, requires_maintenance_window)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
