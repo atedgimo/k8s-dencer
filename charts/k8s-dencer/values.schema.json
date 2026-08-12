@@ -47,9 +47,10 @@
       "type": "object",
       "properties": {
         "type": {
-          "description": "Plan store backend. Only sqlite is implemented; the postgres Store lands in Phase 2, at which point this enum widens.",
+          "description": "Plan store backend. sqlite is single-writer and pins ui-backend to one replica on a ReadWriteOnce claim; postgres lifts that and is what a multi-replica install needs.",
           "enum": [
-            "sqlite"
+            "sqlite",
+            "postgres"
           ]
         },
         "sqlite": {
@@ -664,6 +665,52 @@
     }
   },
   "allOf": [
+    {
+      "$comment": "A postgres install with no host would start, fail to connect, and crashloop with a message about an empty host. Refusing to render says the same thing before anything is applied.",
+      "if": {
+        "properties": {
+          "database": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "const": "postgres"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          }
+        },
+        "required": [
+          "database"
+        ]
+      },
+      "then": {
+        "properties": {
+          "database": {
+            "type": "object",
+            "properties": {
+              "postgres": {
+                "type": "object",
+                "properties": {
+                  "host": {
+                    "$comment": "database.type=postgres requires database.postgres.host",
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "host"
+                ]
+              }
+            },
+            "required": [
+              "postgres"
+            ]
+          }
+        }
+      }
+    },
     {
       "$comment": "SQLite is a single-writer store on a ReadWriteOnce claim. More than one ui-backend replica risks database corruption, so the chart refuses to render it rather than letting it be discovered in production.",
       "if": {

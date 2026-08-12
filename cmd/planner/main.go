@@ -81,10 +81,11 @@ func run(ctx context.Context, log *slog.Logger) error {
 	// The planner writes plans; the ui-backend owns the schema and runs
 	// migrations. Opening read-write here without migrating keeps the
 	// ownership boundary explicit.
-	db, err := sqlitestore.Open(env("DATABASE_PATH", "/data/dencer.db"))
+	db, dbDesc, err := sqlitestore.OpenFromEnv(ctx)
 	if err != nil {
 		return err
 	}
+	log.Info("plan store", "store", dbDesc)
 	defer func() { _ = db.Close() }()
 
 	// The planner may start before the ui-backend has ever run, in which case

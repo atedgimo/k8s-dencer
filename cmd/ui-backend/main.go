@@ -52,15 +52,7 @@ func main() {
 }
 
 func run(ctx context.Context, log *slog.Logger) error {
-	dbType := env("DATABASE_TYPE", "sqlite")
-	if dbType != "sqlite" {
-		// values.schema.json rejects this too, but a binary launched outside
-		// the chart should fail loudly rather than silently using SQLite.
-		return errUnsupportedDatabase(dbType)
-	}
-
-	path := env("DATABASE_PATH", "/data/dencer.db")
-	db, err := sqlitestore.Open(path)
+	db, dbDesc, err := sqlitestore.OpenFromEnv(ctx)
 	if err != nil {
 		return err
 	}
@@ -69,7 +61,7 @@ func run(ctx context.Context, log *slog.Logger) error {
 	if err := db.Migrate(ctx); err != nil {
 		return err
 	}
-	log.Info("plan store ready", "path", path)
+	log.Info("plan store ready", "store", dbDesc)
 
 	authCfg := authConfig()
 	guard, err := buildGuard(authCfg, log)
@@ -160,7 +152,7 @@ func run(ctx context.Context, log *slog.Logger) error {
 
 	// The schema is migrated and the store is open, so the API can serve.
 	health.SetReady(true)
-	log.Info("starting", "version", version, "database", dbType)
+	log.Info("starting", "version", version, "database", dbDesc)
 
 	return httpserver.Run(ctx, log, env("HTTP_ADDR", ":8080"), mux)
 }
@@ -253,12 +245,6 @@ func buildGuard(cfg auth.Config, log *slog.Logger) (*auth.Middleware, error) {
 var errExecutorWithoutAuth = errors.New(
 	"EXECUTOR_ENABLED is set but AUTH_ENABLED is false; " +
 		"an execute endpoint must never be reachable without authorization")
-
-type errUnsupportedDatabase string
-
-func (e errUnsupportedDatabase) Error() string {
-	return "unsupported database type " + strconv.Quote(string(e)) + "; only sqlite is implemented"
-}
 
 func env(key, fallback string) string {
 	if v, ok := os.LookupEnv(key); ok && v != "" {

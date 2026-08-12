@@ -9,8 +9,9 @@ Three properties are deliberate:
   - One replica, always. Two executors would each be making placement
     decisions the other invalidates. The store's atomic claim would stop them
     taking the same run, but not from draining two nodes at once.
-  - Recreate, not RollingUpdate. It shares the SQLite volume with the planner
-    and ui-backend, and an overlap would put two writers on one file.
+  - Recreate, not RollingUpdate, on both backends. On SQLite an overlap would
+    put two writers on one file; on Postgres that reason is gone but the one
+    above is not, and a rolling update is exactly the overlap it forbids.
 */}}
 apiVersion: apps/v1
 kind: Deployment
@@ -63,8 +64,7 @@ spec:
               value: {{ .Values.executor.logLevel | quote }}
             - name: HTTP_ADDR
               value: ":{{ .Values.executor.probePort }}"
-            - name: DATABASE_PATH
-              value: {{ .Values.database.sqlite.path | quote }}
+            {{- include "k8s-dencer.databaseEnv" . | nindent 12 }}
             # Identifies this executor in claims and audit events, so a run can
             # be traced back to a specific pod.
             - name: POD_NAME
@@ -137,14 +137,17 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            {{- if include "k8s-dencer.mountsDataVolume" . }}
             - name: data
               mountPath: {{ dir .Values.database.sqlite.path }}
+            {{- end }}
             {{- with .Values.executor.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
       volumes:
         - name: tmp
           emptyDir: {}
+        {{- if include "k8s-dencer.mountsDataVolume" . }}
         - name: data
           {{- if .Values.persistence.enabled }}
           persistentVolumeClaim:
@@ -154,6 +157,7 @@ spec:
           # never see a queued run. values.schema.json rejects that combination.
           emptyDir: {}
           {{- end }}
+        {{- end }}
         {{- with .Values.executor.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

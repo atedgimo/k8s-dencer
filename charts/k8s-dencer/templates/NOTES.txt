@@ -81,7 +81,14 @@ beyond a private cluster.
 {{- end }}
 
 {{ if eq .Values.database.type "sqlite" -}}
+{{- if eq .Values.database.type "postgres" }}
+Plan store: Postgres at {{ .Values.database.postgres.host }}:{{ .Values.database.postgres.port }}/{{ .Values.database.postgres.database }} (sslmode={{ .Values.database.postgres.sslMode }}). The schema is created on first start; the database itself must already exist.
+{{- if not .Values.database.postgres.existingSecret }}
+  No existingSecret is set, so no password is sent. That works only if the server authenticates this user another way (trust, peer, or a client certificate).
+{{- end }}
+{{- else }}
 Plan store: SQLite at {{ .Values.database.sqlite.path }}{{ if .Values.persistence.enabled }} on PVC {{ include "k8s-dencer.pvcName" . }}{{ else }} on an emptyDir (NOT durable — plan history is lost on restart){{ end }}.
+{{- end }}
 SQLite is single-writer, so ui-backend is pinned to one replica and the planner
 is co-scheduled with it. Switch database.type to postgres in Phase 2 to lift both.
 {{- end }}

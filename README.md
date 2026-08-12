@@ -94,7 +94,7 @@ flowchart LR
 
     subgraph dencer["k8s-dencer"]
         P["planner<br/>informers → analyze → plan"]
-        DB[("plan store<br/>SQLite")]
+        DB[("plan store<br/>SQLite or Postgres")]
         B["ui-backend<br/>REST + SSE · authn/authz"]
         F["ui-frontend"]
         E["executor<br/>cordon → evict → verify"]

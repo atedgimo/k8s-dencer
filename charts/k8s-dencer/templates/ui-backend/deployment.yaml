@@ -60,30 +60,7 @@ spec:
               value: {{ .Values.uiBackend.logLevel | quote }}
             - name: HTTP_ADDR
               value: ":{{ .Values.uiBackend.service.port }}"
-            - name: DATABASE_TYPE
-              value: {{ .Values.database.type | quote }}
-            {{- if eq .Values.database.type "sqlite" }}
-            - name: DATABASE_PATH
-              value: {{ .Values.database.sqlite.path | quote }}
-            {{- else }}
-            - name: POSTGRES_HOST
-              value: {{ .Values.database.postgres.host | quote }}
-            - name: POSTGRES_PORT
-              value: {{ .Values.database.postgres.port | quote }}
-            - name: POSTGRES_DATABASE
-              value: {{ .Values.database.postgres.database | quote }}
-            - name: POSTGRES_USER
-              value: {{ .Values.database.postgres.user | quote }}
-            - name: POSTGRES_SSLMODE
-              value: {{ .Values.database.postgres.sslMode | quote }}
-            {{- with .Values.database.postgres.existingSecret }}
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ . }}
-                  key: {{ $.Values.database.postgres.existingSecretPasswordKey }}
-            {{- end }}
-            {{- end }}
+            {{- include "k8s-dencer.databaseEnv" . | nindent 12 }}
             - name: POLL_INTERVAL
               value: {{ .Values.uiBackend.pollInterval | quote }}
             # POD_NAMESPACE is already declared below; it also scopes the
@@ -170,14 +147,17 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            {{- if include "k8s-dencer.mountsDataVolume" . }}
             - name: data
               mountPath: {{ dir .Values.database.sqlite.path }}
+            {{- end }}
             {{- with .Values.uiBackend.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
       volumes:
         - name: tmp
           emptyDir: {}
+        {{- if include "k8s-dencer.mountsDataVolume" . }}
         - name: data
           {{- if .Values.persistence.enabled }}
           persistentVolumeClaim:
@@ -187,6 +167,7 @@ spec:
           # ephemeral test installs.
           emptyDir: {}
           {{- end }}
+        {{- end }}
         {{- with .Values.uiBackend.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

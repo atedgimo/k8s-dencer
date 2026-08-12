@@ -28,9 +28,16 @@ rbac:
 database:
   # sqlite | postgres
   #
-  # postgres is declared for Phase 2 and is NOT implemented yet; selecting it
-  # is rejected by values.schema.json. sqlite is single-writer, which is why
-  # uiBackend is pinned to one replica with a Recreate strategy.
+  # sqlite is single-writer on a ReadWriteOnce claim, which is what pins
+  # uiBackend to one replica, forces a Recreate rollout, and co-schedules the
+  # planner onto the ui-backend's node. Good enough for most installs, and it
+  # needs nothing to exist beforehand.
+  #
+  # postgres reaches the store over the network, so all three of those
+  # constraints disappear and uiBackend can scale. Set database.postgres.host
+  # and supply the password through existingSecret; the chart never takes a
+  # password as a value. The database itself must already exist — the chart
+  # creates the schema, not the server.
   type: sqlite
   sqlite:
     path: /data/dencer.db
@@ -180,7 +187,8 @@ priorityClass:
   preemptionPolicy: Never
 
 uiBackend:
-  # Pinned to 1 while database.type is sqlite. Enforced by values.schema.json.
+  # Pinned to 1 while database.type is sqlite, and enforced by
+  # values.schema.json rather than left as advice. Raise it freely on postgres.
   replicaCount: 1
 
   # Shown in the UI header so an operator can see which cluster they are about
