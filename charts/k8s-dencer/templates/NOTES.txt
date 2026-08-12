@@ -87,7 +87,12 @@ Plan store: Postgres at {{ .Values.database.postgres.host }}:{{ .Values.database
 WARNING: no existingSecret is set, so no password is sent. That works only if the
 server authenticates this user another way (trust, peer, or a client certificate).
 {{- end }}
-{{- if not (has .Values.database.postgres.sslMode (list "verify-ca" "verify-full")) }}
+{{- if eq .Values.database.postgres.sslMode "disable" }}
+
+WARNING: sslMode=disable sends the password and every plan, run and audit
+record over the network in the clear. Use it only against a database reached
+over a trusted path, such as a sidecar or a local test cluster.
+{{- else if not (has .Values.database.postgres.sslMode (list "verify-ca" "verify-full")) }}
 
 NOTE: sslMode={{ .Values.database.postgres.sslMode }} encrypts the connection but does NOT verify the
 server's certificate, so it does not protect against an impostor on the network
