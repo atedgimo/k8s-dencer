@@ -39,7 +39,7 @@
 }
 
 .hero-sub {
-  font-size: 15px;
+  font-size: var(--text-md);
   color: var(--text-3);
 }
 
@@ -61,7 +61,7 @@
 }
 
 .hero-stat-figure {
-  font-size: 19px;
+  font-size: var(--text-xl);
   font-weight: 500;
 }
 
@@ -151,7 +151,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 18px;
+  font-size: var(--text-xl);
   font-weight: 600;
 }
 
@@ -533,7 +533,7 @@
 }
 
 .stepdetail-name {
-  font-size: 17px;
+  font-size: var(--text-lg);
   color: var(--text-1);
 }
 

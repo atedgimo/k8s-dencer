@@ -55,7 +55,7 @@
 
 .clusterpage-headline {
   margin: 0;
-  font-size: 26px;
+  font-size: var(--text-display);
   font-weight: 600;
   letter-spacing: var(--tracking-display);
 }
@@ -257,7 +257,7 @@
 }
 
 .clusterdetail-name {
-  font-size: 17px;
+  font-size: var(--text-lg);
   color: var(--text-1);
 }
 

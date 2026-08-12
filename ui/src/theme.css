@@ -93,7 +93,13 @@
   --text-md: 0.875rem; /* 14px — body, the base */
   --text-lg: 1rem; /* 16px — panel titles */
   --text-xl: 1.25rem; /* 20px — section headings */
-  --text-2xl: 2rem; /* 32px — the hero line, and nothing else */
+  --text-2xl: 2rem; /* 32px — the plan-review hero line, and nothing else */
+  /* Two steps the built screens turned out to need. Added deliberately rather
+     than left as literals: four page headlines had drifted to 26px on three
+     screens and 30px on a fourth, which is the kind of inconsistency a scale
+     exists to prevent. */
+  --text-display: 1.625rem; /* 26px — page headlines */
+  --text-3xl: 2.25rem; /* 36px — the sign-in lockup, the largest type here */
 
   --tracking-label: 0.14em;
   --tracking-display: -0.025em;
