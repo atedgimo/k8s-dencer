@@ -271,7 +271,9 @@
         {
           "type": "object",
           "properties": {
-            "enabled": { "type": "boolean" },
+            "enabled": {
+              "type": "boolean"
+            },
             "replicaCount": {
               "type": "integer",
               "minimum": 1
@@ -924,23 +926,45 @@
       }
     },
     {
-      "$comment": "The executor claims work from the shared plan store. On an emptyDir it gets its own empty copy, never sees a queued run, and appears silently broken.",
+      "$comment": "The executor claims work from the shared plan store. On an emptyDir it gets its own empty copy, never sees a queued run, and nothing reports an error. That is a property of the FILE store only \u2014 with database.type=postgres the store is reached over the network, the PVC and the /data mount are gated away entirely, and persistence.enabled=false is then the correct configuration. Gating this on sqlite as the uiBackend.replicaCount rule already does; without it the chart refuses to render a valid Postgres install, citing a volume it would never have created.",
       "if": {
-        "properties": {
-          "executor": {
-            "type": "object",
+        "allOf": [
+          {
             "properties": {
-              "enabled": {
-                "const": true
+              "executor": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "const": true
+                  }
+                },
+                "required": [
+                  "enabled"
+                ]
               }
             },
             "required": [
-              "enabled"
+              "executor"
+            ]
+          },
+          {
+            "properties": {
+              "database": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "const": "sqlite"
+                  }
+                },
+                "required": [
+                  "type"
+                ]
+              }
+            },
+            "required": [
+              "database"
             ]
           }
-        },
-        "required": [
-          "executor"
         ]
       },
       "then": {

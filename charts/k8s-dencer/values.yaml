@@ -48,7 +48,21 @@ database:
     user: dencer
     existingSecret: ""
     existingSecretPasswordKey: password
+    # disable | require | verify-ca | verify-full
+    #
+    # require encrypts the connection but does NOT verify the server's
+    # certificate — the driver accepts any certificate, so it protects against
+    # passive eavesdropping and not against an impostor on the network path.
+    # verify-full is the setting that authenticates the server, and it needs a
+    # CA below.
     sslMode: require
+    # CA bundle used to verify the server's certificate. Name a Secret holding
+    # it; without one, verify-ca and verify-full fall back to the system roots,
+    # which is right for a managed cloud database and wrong for an in-cluster
+    # Postgres with a private CA.
+    sslRootCert:
+      existingSecret: ""
+      key: ca.crt
 
 # PersistentVolumeClaim backing the SQLite plan store.
 persistence:

@@ -137,6 +137,7 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            {{- include "k8s-dencer.postgresCAMount" . | nindent 12 }}
             {{- if include "k8s-dencer.mountsDataVolume" . }}
             - name: data
               mountPath: {{ dir .Values.database.sqlite.path }}
@@ -147,6 +148,7 @@ spec:
       volumes:
         - name: tmp
           emptyDir: {}
+        {{- include "k8s-dencer.postgresCAVolume" . | nindent 8 }}
         {{- if include "k8s-dencer.mountsDataVolume" . }}
         - name: data
           {{- if .Values.persistence.enabled }}
@@ -169,18 +171,21 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if .Values.executor.affinity }}
       affinity:
-        {{- if .Values.executor.affinity }}
         {{- toYaml .Values.executor.affinity | nindent 8 }}
-        {{- else if eq .Values.database.type "sqlite" }}
-        # A ReadWriteOnce claim can only be mounted by pods on one node, so the
-        # executor must land wherever ui-backend did. Same constraint the
-        # planner already carries; it lifts when the Postgres store arrives.
+      {{- else if include "k8s-dencer.mountsDataVolume" . }}
+      # A ReadWriteOnce claim can only be mounted by pods on one node, so the
+      # executor must land wherever ui-backend did. Same constraint the planner
+      # carries, and it lifts with database.type=postgres — the key lives
+      # inside each branch so a Postgres install does not render a bare
+      # `affinity:` with nothing under it.
+      affinity:
         podAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             - topologyKey: kubernetes.io/hostname
               labelSelector:
                 matchLabels:
                   {{- include "k8s-dencer.componentSelectorLabels" (dict "ctx" . "component" "ui-backend") | nindent 18 }}
-        {{- end }}
+      {{- end }}
 {{- end }}

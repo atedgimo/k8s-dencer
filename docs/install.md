@@ -193,10 +193,32 @@ helm install k8s-dencer oci://ghcr.io/atedgimo/charts/k8s-dencer \
 
 The chart creates the **schema**, not the server: the database and the role
 must already exist, and the role needs `CREATE` on the target schema for the
-first migration. `sslMode` defaults to `require` — an operator who says nothing
-gets an encrypted connection. The password is only ever read from a Secret;
-the chart takes no password as a value, and none appears in the rendered
-manifest.
+first migration. The password is only ever read from a Secret; the chart takes
+no password as a value, and none appears in the rendered manifest.
+
+**`sslMode` defaults to `require`, which encrypts but does not authenticate.**
+Worth being precise, because the name suggests more than it does: with no root
+certificate the driver accepts *any* certificate the server presents, so the
+channel is private but you have no assurance about who is on the other end of
+it. That matters here more than for a typical application — this store holds
+the audit trail and the run queue the executor drains nodes from.
+
+To verify the server as well as encrypt the channel, supply a CA and ask for
+it:
+
+```bash
+kubectl create secret generic dencer-db-ca \
+  --namespace k8s-dencer --from-file=ca.crt=/path/to/ca.crt
+
+helm upgrade k8s-dencer … \
+  --set database.postgres.sslMode=verify-full \
+  --set database.postgres.sslRootCert.existingSecret=dencer-db-ca
+```
+
+A managed cloud database presenting a publicly-trusted certificate needs no CA
+— `verify-full` alone will use the system roots. The CA is for an in-cluster
+Postgres with a private one. The install notes tell you which of these you are
+getting.
 
 Selecting Postgres removes the PersistentVolumeClaim, the `/data` mount, the
 co-scheduling affinity and the PriorityClass, because all four exist to keep

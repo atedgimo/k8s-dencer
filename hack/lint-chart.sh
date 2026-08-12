@@ -31,7 +31,7 @@ render() {
 }
 
 bold "==> helm lint"
-for profile in minimal production orbstack; do
+for profile in minimal production orbstack postgres; do
   helm lint "$CHART" -f "$CHART/ci/${profile}-values.yaml" >/dev/null \
     || fail "helm lint failed for $profile"
 done
@@ -39,7 +39,7 @@ helm lint "$CHART" >/dev/null || fail "helm lint failed for defaults"
 green "  all profiles lint clean"
 
 bold "==> render + kubeconform"
-for profile in defaults minimal production orbstack; do
+for profile in defaults minimal production orbstack postgres; do
   # CRD-backed kinds (ServiceMonitor, kagent.dev/*) have no upstream schema, so
   # they are skipped rather than failing the run.
   render "$profile" | "$KUBECONFORM" \

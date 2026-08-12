@@ -147,6 +147,7 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            {{- include "k8s-dencer.postgresCAMount" . | nindent 12 }}
             {{- if include "k8s-dencer.mountsDataVolume" . }}
             - name: data
               mountPath: {{ dir .Values.database.sqlite.path }}
@@ -157,6 +158,7 @@ spec:
       volumes:
         - name: tmp
           emptyDir: {}
+        {{- include "k8s-dencer.postgresCAVolume" . | nindent 8 }}
         {{- if include "k8s-dencer.mountsDataVolume" . }}
         - name: data
           {{- if .Values.persistence.enabled }}

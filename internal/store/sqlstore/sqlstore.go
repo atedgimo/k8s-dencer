@@ -27,6 +27,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -93,7 +94,7 @@ func OpenPostgres(ctx context.Context, dsn string) (*Store, error) {
 // Close releases the database handle.
 func (s *Store) Close() error { return s.db.Close() }
 
-const schemaVersion = 14
+const schemaVersion = 15
 
 // migrations are the schema versions in order; index i holds the statements
 // that take the database from version i to i+1.
@@ -102,16 +103,59 @@ const schemaVersion = 14
 // line and cannot be got subtly wrong — the previous shape had the version
 // number written three times per step, which is three chances to typo a
 // number that decides whether an operator's database is upgraded or skipped.
-func migrations() []string {
+func (s *Store) migrations() []string {
 	return []string{
 		schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7,
 		schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14,
+		s.schemaV15(),
 	}
 }
 
+// schemaV15 is Postgres-only: SQLite's INTEGER was always 64-bit, so there is
+// nothing to widen there and an empty step keeps the version numbers aligned
+// across both backends rather than letting them drift apart.
+func (s *Store) schemaV15() string {
+	if s.d == postgresDialect {
+		return schemaV15Postgres
+	}
+	return ""
+}
+
+// migrateLockKey is an arbitrary but fixed identifier for the advisory lock
+// that serialises migration across processes. "dencer" in ASCII hex; the value
+// only has to be stable and unlikely to collide with another application
+// sharing the database.
+const migrateLockKey int64 = 0x64656e636572
+
 // Migrate creates or upgrades the schema.
+//
+// Everything happens inside one transaction, and on Postgres that transaction
+// opens by taking an advisory lock. The planner and the ui-backend both call
+// this at startup and on a fresh install both pods start together, so without
+// the lock they race: one creates schema_version while the other is doing the
+// same, and the loser dies on a duplicate key in pg_type. It self-heals on
+// restart, but a CrashLoopBackOff on first install reads as a broken deploy,
+// and later interleavings fail on an unguarded ALTER TABLE instead. Raising
+// uiBackend.replicaCount — which the Postgres backend exists to allow — makes
+// it likelier, not less.
+//
+// SQLite needs no lock: one writer connection, serialised by the driver.
 func (s *Store) Migrate(ctx context.Context) error {
-	current, err := s.schemaVersionOf(ctx)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if s.d == postgresDialect {
+		// Held until this transaction ends, whether by commit or rollback,
+		// so a crashing migrator cannot leave the lock behind.
+		if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, migrateLockKey); err != nil {
+			return fmt.Errorf("take migration lock: %w", err)
+		}
+	}
+
+	current, err := s.schemaVersionTx(ctx, tx)
 	if err != nil {
 		return err
 	}
@@ -119,19 +163,18 @@ func (s *Store) Migrate(ctx context.Context) error {
 		return nil
 	}
 
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	for i, ddl := range migrations() {
+	for i, ddl := range s.migrations() {
 		v := i + 1
 		if current >= v {
 			continue
 		}
-		if _, err := tx.ExecContext(ctx, translateDDL(s.d, ddl)); err != nil {
-			return fmt.Errorf("apply schema v%d: %w", v, err)
+		// A version may legitimately be a no-op on one backend — v15 widens
+		// integers that were never narrow on SQLite — and an empty statement
+		// is a syntax error rather than a no-op if handed to a driver.
+		if strings.TrimSpace(ddl) != "" {
+			if _, err := tx.ExecContext(ctx, translateDDL(s.d, ddl)); err != nil {
+				return fmt.Errorf("apply schema v%d: %w", v, err)
+			}
 		}
 		if v == 14 {
 			if err := s.backfillSeq(ctx, tx); err != nil {
@@ -166,28 +209,41 @@ func (s *Store) backfillSeq(ctx context.Context, tx *sql.Tx) error {
 	return nil
 }
 
-// schemaVersionOf reads the version the database is currently at.
+// schemaVersionTx reads the version the database is currently at, inside the
+// caller's transaction so it is covered by the same advisory lock as the
+// migration that follows it.
 //
-// SQLite keeps it in the file header, which is free and needs no table.
-// Postgres has no equivalent, so the version lives in a table of its own —
+// SQLite keeps the version in the file header, which is free and needs no
+// table. Postgres has no equivalent, so it lives in a table of its own —
 // created here, because it has to exist before the first migration can ask
 // what version the database is.
-func (s *Store) schemaVersionOf(ctx context.Context) (int, error) {
+func (s *Store) schemaVersionTx(ctx context.Context, tx *sql.Tx) (int, error) {
 	if s.d == postgresDialect {
-		if _, err := s.exec(ctx, `CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)`); err != nil {
+		if _, err := tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_version (version BIGINT NOT NULL)`); err != nil {
 			return 0, fmt.Errorf("create schema_version: %w", err)
 		}
 		var v sql.NullInt64
-		if err := s.queryRow(ctx, `SELECT MAX(version) FROM schema_version`).Scan(&v); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT MAX(version) FROM schema_version`).Scan(&v); err != nil {
 			return 0, fmt.Errorf("read schema version: %w", err)
 		}
 		return int(v.Int64), nil
 	}
 	var current int
-	if err := s.queryRow(ctx, "PRAGMA user_version").Scan(&current); err != nil {
+	if err := tx.QueryRowContext(ctx, "PRAGMA user_version").Scan(&current); err != nil {
 		return 0, fmt.Errorf("read schema version: %w", err)
 	}
 	return current, nil
+}
+
+// schemaVersionOf is the same question asked outside a transaction, for tests
+// and callers that only want to read.
+func (s *Store) schemaVersionOf(ctx context.Context) (int, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	return s.schemaVersionTx(ctx, tx)
 }
 
 func (s *Store) setSchemaVersion(ctx context.Context, tx *sql.Tx, v int) error {
@@ -206,6 +262,51 @@ func (s *Store) setSchemaVersion(ctx context.Context, tx *sql.Tx, v int) error {
 	}
 	return nil
 }
+
+// Schema v15 — integers that are actually 64-bit, on Postgres.
+//
+// SQLite's INTEGER is a 64-bit signed integer. Postgres's is 32-bit, and
+// v0.6.0 translated one to the other unchanged, so every mem_*_bytes column
+// capped at 2147483647 — about 2 GiB, which no real node is under. The
+// reclamation ledger could not record a single drain there:
+//
+//	unable to encode 34359738368 into binary format for int4
+//
+// Fresh databases get BIGINT from translateDDL. This exists for the ones
+// created by v0.6.0 in the window it was published, so they are corrected on
+// the next start rather than carrying a silently narrower schema forever.
+//
+// Empty on SQLite, where INTEGER was always 64-bit and there is nothing to
+// widen — see the dialect guard in Migrate.
+const schemaV15Postgres = `
+ALTER TABLE node_samples ALTER COLUMN cpu_used_milli TYPE BIGINT;
+ALTER TABLE node_samples ALTER COLUMN cpu_alloc_milli TYPE BIGINT;
+ALTER TABLE plan_steps ALTER COLUMN sequence_number TYPE BIGINT;
+ALTER TABLE plan_steps ALTER COLUMN requires_maintenance_window TYPE BIGINT;
+ALTER TABLE plans ALTER COLUMN nodes_before TYPE BIGINT;
+ALTER TABLE plans ALTER COLUMN nodes_after TYPE BIGINT;
+ALTER TABLE plans ALTER COLUMN seq TYPE BIGINT;
+ALTER TABLE reclamations ALTER COLUMN step TYPE BIGINT;
+ALTER TABLE reclamations ALTER COLUMN cpu_milli TYPE BIGINT;
+ALTER TABLE reclamations ALTER COLUMN mem_bytes TYPE BIGINT;
+ALTER TABLE reclamations ALTER COLUMN external TYPE BIGINT;
+ALTER TABLE recoveries ALTER COLUMN took_seconds TYPE BIGINT;
+ALTER TABLE run_events ALTER COLUMN sequence TYPE BIGINT;
+ALTER TABLE run_events ALTER COLUMN step TYPE BIGINT;
+ALTER TABLE runs ALTER COLUMN dry_run TYPE BIGINT;
+ALTER TABLE runs ALTER COLUMN stop_requested TYPE BIGINT;
+ALTER TABLE runs ALTER COLUMN seq TYPE BIGINT;
+ALTER TABLE samples ALTER COLUMN nodes TYPE BIGINT;
+ALTER TABLE samples ALTER COLUMN pods TYPE BIGINT;
+ALTER TABLE samples ALTER COLUMN cpu_req_milli TYPE BIGINT;
+ALTER TABLE samples ALTER COLUMN cpu_alloc_milli TYPE BIGINT;
+ALTER TABLE samples ALTER COLUMN mem_req_bytes TYPE BIGINT;
+ALTER TABLE samples ALTER COLUMN mem_alloc_bytes TYPE BIGINT;
+ALTER TABLE samples ALTER COLUMN cpu_used_milli TYPE BIGINT;
+ALTER TABLE samples ALTER COLUMN mem_used_bytes TYPE BIGINT;
+ALTER TABLE samples ALTER COLUMN has_usage TYPE BIGINT;
+ALTER TABLE samples ALTER COLUMN reclaimable TYPE BIGINT;
+`
 
 // v8: the plan records the packing ceiling it was computed under, so the
 // UI's ceiling line can describe the plan on screen rather than the current

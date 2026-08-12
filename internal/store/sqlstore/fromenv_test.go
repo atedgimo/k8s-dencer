@@ -145,3 +145,56 @@ func TestOpenFromEnvConnectsToPostgres(t *testing.T) {
 		t.Fatalf("migrate through OpenFromEnv: %v", err)
 	}
 }
+
+// sslmode=require encrypts but does not authenticate: pgx sets
+// InsecureSkipVerify when no root certificate is configured, so anything on
+// the network path can present a certificate and be believed. The store
+// carries the credentials, the audit trail and the run queue the executor
+// drains from, so the difference is worth surfacing rather than implying.
+func TestPostgresDSNCarriesTheRootCertificate(t *testing.T) {
+	t.Setenv("POSTGRES_HOST", "pg.internal")
+	t.Setenv("POSTGRES_SSLMODE", "verify-full")
+	t.Setenv("POSTGRES_SSLROOTCERT", "/etc/dencer/postgres-ca/ca.crt")
+
+	dsn, desc, err := postgresDSN()
+	if err != nil {
+		t.Fatalf("build dsn: %v", err)
+	}
+	if !strings.Contains(dsn, "sslrootcert=%2Fetc%2Fdencer%2Fpostgres-ca%2Fca.crt") &&
+		!strings.Contains(dsn, "sslrootcert=/etc/dencer/postgres-ca/ca.crt") {
+		t.Errorf("root certificate not passed to the driver: %s", redact(dsn))
+	}
+	if !strings.Contains(desc, "verified") || strings.Contains(desc, "NOT verified") {
+		t.Errorf("description should record that the server is verified: %q", desc)
+	}
+}
+
+// And the default must say plainly that it is not verifying anything, because
+// the operator who never set sslMode is exactly the one who will assume it is.
+func TestPostgresDefaultSaysItDoesNotVerifyTheServer(t *testing.T) {
+	t.Setenv("POSTGRES_HOST", "pg.internal")
+
+	_, desc, err := postgresDSN()
+	if err != nil {
+		t.Fatalf("build dsn: %v", err)
+	}
+	if !strings.Contains(desc, "NOT verified") {
+		t.Errorf("the default hides that the server is unauthenticated: %q", desc)
+	}
+}
+
+// A Secret key that exists but is empty is a routine partially-populated
+// state. It must mean "no password", not "the password is the empty string".
+func TestPostgresEmptyPasswordIsNoPassword(t *testing.T) {
+	t.Setenv("POSTGRES_HOST", "pg.internal")
+	t.Setenv("POSTGRES_USER", "dencer")
+	t.Setenv("POSTGRES_PASSWORD", "")
+
+	dsn, _, err := postgresDSN()
+	if err != nil {
+		t.Fatalf("build dsn: %v", err)
+	}
+	if strings.Contains(dsn, "dencer:@") {
+		t.Errorf("an empty password was sent as a password: %s", redact(dsn))
+	}
+}
