@@ -55,6 +55,7 @@ estimated — every milestone here starts from a number in
 | **M23** | Cloud test on GKE — GKE's autoscaler reclaimed a drained node in **11m9s**, observed | **done** |
 | **M24** | The field shows what *is*, not only what *would be* — observed states overlaid on the plan, nodes and pods | **done** |
 | **M25** | Closed-loop consolidation — re-plan from observed state after every step, inside an operator-approved envelope | **done** — engine, CLI and UI |
+| **M26** | A Postgres plan store — the planner stops sharing a volume with the ui-backend, and stops being pinned to its node | **done** — v0.6.0 |
 
 High availability was **dropped, not deferred**, and stays dropped: a
 consolidation planner is not a serving path. The run queue is already crash-safe
