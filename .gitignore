@@ -15,6 +15,13 @@ ui/dist/
 # version named in the filename, kept so the migration path an operator
 # actually takes is tested rather than assumed.
 !test/fixtures/stores/*.db
+# The WAL sidecars are not part of a fixture — they appear the moment anything
+# opens one and are regenerated on the next open. Committed once by accident,
+# and worth excluding by name: a stale -wal sitting beside a fixture can change
+# what that fixture reads as, which would be a very quiet way to break the
+# upgrade test.
+*.db-wal
+*.db-shm
 *.sqlite
 .DS_Store
 

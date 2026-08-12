@@ -2,12 +2,17 @@ package sqlstore_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/atedgimo/k8s-dencer/internal/constraints"
 	"github.com/atedgimo/k8s-dencer/internal/model"
@@ -15,14 +20,84 @@ import (
 	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlstore"
 )
 
+// openTemp is a migrated, empty store — and the single lever that decides
+// which server the whole suite runs against.
+//
+// With DENCER_TEST_POSTGRES set to a DSN, every test that calls this runs
+// against a real Postgres instead of a temp file. Not a second suite of
+// Postgres tests: the same assertions, because the promise being made is that
+// the two backends behave identically, and a separate suite would only ever
+// prove that the tests someone remembered to write twice agree.
 func openTemp(t *testing.T) *sqlitestore.Store {
 	t.Helper()
+	if dsn := os.Getenv("DENCER_TEST_POSTGRES"); dsn != "" {
+		return openTempPostgres(t, dsn)
+	}
 	s, err := sqlitestore.Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
 	t.Cleanup(func() { _ = s.Close() })
 	if err := s.Migrate(context.Background()); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	return s
+}
+
+// openTempPostgres gives each test its own schema on the shared server, which
+// is what t.TempDir() buys the SQLite path: tests that cannot see each other's
+// rows, and can therefore run in any order.
+func openTempPostgres(t *testing.T, dsn string) *sqlitestore.Store {
+	t.Helper()
+	ctx := context.Background()
+
+	// Derived from the test name so a failure names the schema it left
+	// behind, and sanitised because test names contain slashes and spaces
+	// that are not identifier characters.
+	schema := "t_" + strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			return r
+		case r >= 'A' && r <= 'Z':
+			return r + 32
+		default:
+			return '_'
+		}
+	}, t.Name())
+	if len(schema) > 60 {
+		schema = schema[:60]
+	}
+
+	admin, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open postgres: %v", err)
+	}
+	defer func() { _ = admin.Close() }()
+	if _, err := admin.ExecContext(ctx, `DROP SCHEMA IF EXISTS `+schema+` CASCADE`); err != nil {
+		t.Fatalf("reset schema: %v", err)
+	}
+	if _, err := admin.ExecContext(ctx, `CREATE SCHEMA `+schema); err != nil {
+		t.Fatalf("create schema: %v", err)
+	}
+
+	sep := "?"
+	if strings.Contains(dsn, "?") {
+		sep = "&"
+	}
+	s, err := sqlitestore.OpenPostgres(ctx, dsn+sep+"search_path="+schema)
+	if err != nil {
+		t.Fatalf("open postgres: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = s.Close()
+		// Best effort: a left-behind schema costs nothing but a name, and
+		// failing cleanup would mask the assertion that actually failed.
+		if db, err := sql.Open("pgx", dsn); err == nil {
+			_, _ = db.ExecContext(ctx, `DROP SCHEMA IF EXISTS `+schema+` CASCADE`)
+			_ = db.Close()
+		}
+	})
+	if err := s.Migrate(ctx); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	return s
