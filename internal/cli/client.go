@@ -238,16 +238,68 @@ func tokenViaTransport(cfg *rest.Config) (string, error) {
 	return tok, nil
 }
 
+// findBackendService locates the ui-backend Service by the labels the chart
+// puts on it, rather than by rebuilding its name.
+//
+// The name was `<release>-ui-backend`, which is right for exactly one release
+// name. The chart derives it from the standard fullname helper —
+// `<release>-<chart>`, collapsing to just `<release>` when the release already
+// contains the chart name — so `helm install dencer` produces
+// `dencer-k8s-dencer-ui-backend` and the CLI could not find its own backend.
+// The error even suggested passing --release, which the user had already done
+// correctly; the value that works is the fullname, which is not a release name
+// at all.
+//
+// Labels are the fix rather than a second copy of the fullname template,
+// because two places that must agree and are kept apart will drift — the
+// lesson this project keeps relearning. The chart already selects its own pods
+// with these labels, so they cannot silently change.
+func findBackendService(ctx context.Context, cs kubernetes.Interface, ns, release string) (*corev1.Service, error) {
+	const base = "app.kubernetes.io/name=k8s-dencer,app.kubernetes.io/component=ui-backend"
+
+	// Scoped to the release first, so a namespace holding two installs picks
+	// the one asked for.
+	scoped := base + ",app.kubernetes.io/instance=" + release
+	for _, sel := range []string{scoped, base} {
+		list, err := cs.CoreV1().Services(ns).List(ctx, metav1.ListOptions{LabelSelector: sel})
+		if err != nil {
+			return nil, fmt.Errorf("list services in %s: %w", ns, err)
+		}
+		switch len(list.Items) {
+		case 0:
+			continue
+		case 1:
+			return &list.Items[0], nil
+		default:
+			names := make([]string, 0, len(list.Items))
+			for i := range list.Items {
+				names = append(names, list.Items[i].Name)
+			}
+			return nil, fmt.Errorf(
+				"found %d k8s-dencer backends in namespace %s (%s)\n"+
+					"Pass --release to choose one", len(list.Items), ns, strings.Join(names, ", "))
+		}
+	}
+
+	// Fall back to the constructed name purely so the error can say what it
+	// looked for; an install predating these labels would still be found.
+	legacy := release + "-ui-backend"
+	if svc, err := cs.CoreV1().Services(ns).Get(ctx, legacy, metav1.GetOptions{}); err == nil {
+		return svc, nil
+	}
+	return nil, fmt.Errorf(
+		"no k8s-dencer ui-backend Service in namespace %s\n"+
+			"Looked for labels %s. Pass --namespace if the release is elsewhere, or\n"+
+			"--server if the backend is reachable directly", ns, base)
+}
+
 // forward opens a port-forward to the ui-backend Service.
 func forward(ctx context.Context, cfg *rest.Config, cs kubernetes.Interface, ns, release string) (int, func(), error) {
-	svcName := release + "-ui-backend"
-	svc, err := cs.CoreV1().Services(ns).Get(ctx, svcName, metav1.GetOptions{})
+	svc, err := findBackendService(ctx, cs, ns, release)
 	if err != nil {
-		return 0, nil, fmt.Errorf(
-			"could not find Service %s/%s: %w\n"+
-				"Pass --namespace/--release if the release is named differently, or --server if the\n"+
-				"backend is reachable directly", ns, svcName, err)
+		return 0, nil, err
 	}
+	svcName := svc.Name
 	port := int32(8080)
 	if len(svc.Spec.Ports) > 0 {
 		port = svc.Spec.Ports[0].Port
