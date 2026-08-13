@@ -57,6 +57,19 @@ INGRESS_PORT="${INGRESS_PORT:-18080}"
 INGRESS_HOST="${INGRESS_HOST:-k8s-dencer.e2e}"
 
 PROVIDER="${PROVIDER:-k3d}"
+
+# Which plan store to run the whole e2e against: sqlite | postgres.
+#
+# Not a second script. Everything after the install — the plan, the guard, the
+# execution, the assertion that the cluster actually changed — is identical,
+# because the promise the store makes is that the two backends behave the same.
+# Only the install and the storage assertions differ, and the storage
+# assertions differ by being their own opposites: SQLite must have a claim and
+# co-scheduled readers, Postgres must have neither.
+#
+# It was SQLite-only for the whole of v0.6.0, which is how a backend that could
+# not record a single drain reached a release.
+BACKEND="${BACKEND:-sqlite}"
 GCP_ZONE="${GCP_ZONE:-us-central1-a}"
 GCP_MACHINE="${GCP_MACHINE:-e2-medium}"
 # Published tags, not a local build: on GKE this doubles as the first proof
@@ -396,11 +409,101 @@ fi
 # correctly refuses to drain anything younger than minNodeAge — the rail that
 # stops it reclaiming a node an autoscaler added moments ago. Sensible in
 # production, fatal to a test that built its cluster ten seconds earlier.
+# The store the rest of this run will use. Deployed into the same namespace so
+# it is torn down with everything else, and with an emptyDir because nothing
+# here outlives the cluster.
+STORE_SET=(--set persistence.enabled=true)
+if [[ "$BACKEND" == "postgres" ]]; then
+  bold "==> postgres for the plan store"
+  kubectl --context "$CTX" -n "$NS" apply -f - >/dev/null <<PGYAML
+apiVersion: v1
+kind: Secret
+metadata:
+  name: e2e-db
+type: Opaque
+stringData:
+  password: e2e-not-a-real-password
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: e2e-postgres
+spec:
+  selector: {app: e2e-postgres}
+  ports: [{port: 5432, targetPort: 5432}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: e2e-postgres
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: e2e-postgres}}
+  template:
+    metadata:
+      labels: {app: e2e-postgres}
+    spec:
+      # On the server node, which this test never drains. The plan targets
+      # agents, and a store sitting on a drainable node is a store the test
+      # will evict out from under itself — its emptyDir goes with it, and the
+      # ui-backend then serves "relation does not exist" against a database it
+      # migrated successfully ten minutes earlier. Observed, before this line.
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: "true"
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          env:
+            - {name: POSTGRES_DB, value: dencer}
+            - {name: POSTGRES_USER, value: dencer}
+            - {name: POSTGRES_PASSWORD, valueFrom: {secretKeyRef: {name: e2e-db, key: password}}}
+            - {name: PGDATA, value: /var/lib/postgresql/data/pgdata}
+          ports: [{containerPort: 5432}]
+          readinessProbe:
+            exec: {command: ["pg_isready","-U","dencer"]}
+            periodSeconds: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 70
+            capabilities: {drop: ["ALL"]}
+            seccompProfile: {type: RuntimeDefault}
+          volumeMounts: [{name: data, mountPath: /var/lib/postgresql/data}]
+      volumes: [{name: data, emptyDir: {}}]
+PGYAML
+  kubectl --context "$CTX" -n "$NS" rollout status deploy/e2e-postgres --timeout=180s >/dev/null \
+    || fail "postgres did not become ready"
+  green "  postgres ready in ${NS}"
+
+  # persistence off is the correct configuration here, not a shortcut: the
+  # chart gates the claim and the /data mount away entirely on this backend.
+  # replicaCount=2 is the point of the release — it is the constraint SQLite
+  # imposes and Postgres lifts — and it also puts two migrators in the race
+  # the advisory lock exists for.
+  STORE_SET=(
+    --set database.type=postgres
+    --set database.postgres.host=e2e-postgres
+    --set database.postgres.database=dencer
+    --set database.postgres.user=dencer
+    --set database.postgres.existingSecret=e2e-db
+    --set database.postgres.sslMode=disable
+    --set persistence.enabled=false
+    --set uiBackend.replicaCount=2
+  )
+fi
+
 bold "==> install with execution on and readiness: Ready"
 helm --kube-context "$CTX" upgrade --install "$RELEASE" "$REPO/charts/k8s-dencer" \
   --namespace "$NS" \
   --set auth.enabled=true \
-  --set persistence.enabled=true \
+  "${STORE_SET[@]}" \
   "${PROVIDER_SET[@]}" \
   --set executor.enabled=true \
   --set planner.minNodeAge=0s \
@@ -426,28 +529,64 @@ green "  all pods admitted under enforced restricted PodSecurity"
 
 # The chart has always claimed these three; none was ever checked against a
 # cluster that could disprove them.
-bold "==> storage, on a named StorageClass"
-pvc="$(kubectl --context "$CTX" -n "$NS" get pvc -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
-[[ -n "$pvc" ]] || fail "persistence is on but no PersistentVolumeClaim was created"
-phase="$(kubectl --context "$CTX" -n "$NS" get pvc "$pvc" -o jsonpath='{.status.phase}')"
-[[ "$phase" == "Bound" ]] || fail "PVC ${pvc} is ${phase}, not Bound"
-want_sc="local-path"; [[ "$PROVIDER" == "gke" ]] && want_sc="standard-rwo"
-sc="$(kubectl --context "$CTX" -n "$NS" get pvc "$pvc" -o jsonpath='{.spec.storageClassName}')"
-[[ "$sc" == "$want_sc" ]] || fail "PVC bound to StorageClass '${sc}', not the requested ${want_sc}"
-green "  ${pvc} Bound on ${sc}"
+if [[ "$BACKEND" == "postgres" ]]; then
+  # The mirror image of the SQLite assertions below, and asserted rather than
+  # skipped: everything the file store needs must be *absent*, or the install
+  # has quietly kept the single-node constraint that choosing Postgres was
+  # meant to lift, and nothing would report an error.
+  bold "==> postgres install carries none of the file store's baggage"
+  claims="$(kubectl --context "$CTX" -n "$NS" get pvc -o name 2>/dev/null | wc -l | tr -d ' ')"
+  [[ "$claims" == "0" ]] || fail "a Postgres install created ${claims} PersistentVolumeClaim(s)"
 
-bold "==> the ReadWriteOnce claim keeps its two readers together"
-# SQLite is single-writer and the volume is ReadWriteOnce, so the chart
-# co-schedules the planner with ui-backend through a required podAffinity. On
-# one node that constraint is free; this is the first cluster that could
-# violate it.
-pnode="$(kubectl --context "$CTX" -n "$NS" get pod -l app.kubernetes.io/component=planner \
-  -o jsonpath='{.items[0].spec.nodeName}')"
-bnode="$(kubectl --context "$CTX" -n "$NS" get pod -l app.kubernetes.io/component=ui-backend \
-  -o jsonpath='{.items[0].spec.nodeName}')"
-[[ -n "$pnode" && "$pnode" == "$bnode" ]] \
-  || fail "planner is on '${pnode}' and ui-backend on '${bnode}'; a ReadWriteOnce volume cannot span nodes"
-green "  planner and ui-backend co-scheduled on ${pnode}"
+  mounts="$(kubectl --context "$CTX" -n "$NS" get deploy -o json \
+    | grep -c '"mountPath": "/data"' || true)"
+  [[ "$mounts" == "0" ]] || fail "a Postgres install still mounts /data in ${mounts} place(s)"
+  green "  no claim, no /data mount"
+
+  bold "==> the readers are free to land anywhere"
+  replicas="$(kubectl --context "$CTX" -n "$NS" get deploy "${RELEASE}-ui-backend" \
+    -o jsonpath='{.status.readyReplicas}')"
+  [[ "${replicas:-0}" -ge 2 ]] || fail "ui-backend has ${replicas:-0} ready replica(s); Postgres exists so this can exceed 1"
+
+  aff="$(kubectl --context "$CTX" -n "$NS" get deploy "${RELEASE}-planner" \
+    -o jsonpath='{.spec.template.spec.affinity.podAffinity}')"
+  [[ -z "$aff" ]] || fail "the planner still carries the ReadWriteOnce co-scheduling affinity"
+  green "  ${replicas} ui-backend replicas, planner unpinned"
+
+  # Two ui-backends and a planner all migrate on startup. Before the advisory
+  # lock this raced and one pod died on a duplicate key, self-healing on
+  # restart — which is exactly why a restart count is the thing to assert.
+  bold "==> nothing restarted while three pods migrated at once"
+  restarts="$(kubectl --context "$CTX" -n "$NS" get pods \
+    -l app.kubernetes.io/part-of=k8s-dencer \
+    -o jsonpath='{range .items[*]}{.status.containerStatuses[0].restartCount}{"\n"}{end}' \
+    | awk '{t+=$1} END {print t+0}')"
+  [[ "$restarts" == "0" ]] || fail "${restarts} container restart(s); a migration race looks exactly like this"
+  green "  0 restarts across the release"
+else
+bold "==> storage, on a named StorageClass"
+  pvc="$(kubectl --context "$CTX" -n "$NS" get pvc -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+  [[ -n "$pvc" ]] || fail "persistence is on but no PersistentVolumeClaim was created"
+  phase="$(kubectl --context "$CTX" -n "$NS" get pvc "$pvc" -o jsonpath='{.status.phase}')"
+  [[ "$phase" == "Bound" ]] || fail "PVC ${pvc} is ${phase}, not Bound"
+  want_sc="local-path"; [[ "$PROVIDER" == "gke" ]] && want_sc="standard-rwo"
+  sc="$(kubectl --context "$CTX" -n "$NS" get pvc "$pvc" -o jsonpath='{.spec.storageClassName}')"
+  [[ "$sc" == "$want_sc" ]] || fail "PVC bound to StorageClass '${sc}', not the requested ${want_sc}"
+  green "  ${pvc} Bound on ${sc}"
+  
+  bold "==> the ReadWriteOnce claim keeps its two readers together"
+  # SQLite is single-writer and the volume is ReadWriteOnce, so the chart
+  # co-schedules the planner with ui-backend through a required podAffinity. On
+  # one node that constraint is free; this is the first cluster that could
+  # violate it.
+  pnode="$(kubectl --context "$CTX" -n "$NS" get pod -l app.kubernetes.io/component=planner \
+    -o jsonpath='{.items[0].spec.nodeName}')"
+  bnode="$(kubectl --context "$CTX" -n "$NS" get pod -l app.kubernetes.io/component=ui-backend \
+    -o jsonpath='{.items[0].spec.nodeName}')"
+  [[ -n "$pnode" && "$pnode" == "$bnode" ]] \
+    || fail "planner is on '${pnode}' and ui-backend on '${bnode}'; a ReadWriteOnce volume cannot span nodes"
+  green "  planner and ui-backend co-scheduled on ${pnode}"
+fi
 
 if [[ "$PROVIDER" == "gke" ]]; then
   bold "==> ingress"
@@ -566,6 +705,22 @@ after_ready="$(kubectl --context "$CTX" -n "$APP_NS" get deploy web -o jsonpath=
 [[ "${after_ready:-0}" -eq "${before_ready}" ]] \
   || fail "readyReplicas ${before_ready} -> ${after_ready}: the workload did not fully recover"
 green "  all ${after_ready} replicas Ready again — on the Ready path, with real probes"
+
+# The assertion that would have caught v0.6.0.
+#
+# The drain above succeeded on both backends. On Postgres it also wrote nothing
+# to the ledger, for the whole of that release: RecordDrain bound a Go bool
+# into an INTEGER column, pgx refused it, and both call sites only log. Every
+# drain reported success while the savings ledger stayed permanently empty and
+# PendingReclamations never surfaced a node that was drained and never removed.
+#
+# Nothing here checked, because the executor's own events were all this run
+# ever read. The store is a separate claim and gets its own.
+bold "==> the drain reached the ledger"
+pending="$(api /api/v1/reclamations | grep -c "\"node\":\"${TARGET}\"" || true)"
+[[ "${pending:-0}" -ge 1 ]] \
+  || fail "the ledger has no record of draining ${TARGET}; the drain succeeded and the store did not hear about it"
+green "  ${TARGET} recorded in the reclamation ledger"
 
 # ------------------------------------------------------- reclamation loop
 

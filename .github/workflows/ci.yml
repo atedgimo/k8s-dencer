@@ -124,8 +124,17 @@ jobs:
       - run: npm run build
 
   e2e:
-    name: e2e on a multi-node cluster
+    name: e2e on a multi-node cluster (${{ matrix.backend }})
     runs-on: ubuntu-latest
+    # Both plan stores, because the promise is that they behave identically and
+    # for one release they did not: v0.6.0's Postgres backend could not record
+    # a drain, and this job — SQLite-only at the time — was green throughout.
+    # The same script either way; only the install and the storage assertions
+    # differ, and those differ by being each other's opposites.
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [sqlite, postgres]
     # The only job that installs anything. Everything else is unit tests,
     # rendered templates, or benchmarks over synthesised fixtures — none of
     # which evict a pod that is really running.
@@ -152,6 +161,8 @@ jobs:
           k3d version
 
       - name: e2e
+        env:
+          BACKEND: ${{ matrix.backend }}
         run: ./hack/e2e.sh
 
   bench:
