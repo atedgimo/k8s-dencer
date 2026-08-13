@@ -216,6 +216,29 @@ Two guards failed the same way on the same day: one checked three of the four
 ways a query reaches the driver, the other checked the type scale's floor but
 not the scale. A partial guard reads as coverage, which is worse than none.
 
+### What running it found (2026-08-13)
+- **The CLI could not find its own backend** unless the Helm release was named
+  `k8s-dencer`. It rebuilt the Service name; the chart derives it from the
+  fullname helper, and those agree for exactly one release name. It now finds
+  the Service by label, which cannot drift from the chart the way a second copy
+  of a naming template does
+- **A live plan reported as twenty hours old.** A plan ID is a content hash, so
+  a stable cluster produces the same plan every cycle and the first-computed
+  time never moves. The CLI printed that and the UI printed the confirmation
+  time, so the two surfaces contradicted each other about the same plan
+- **`503 plan store unavailable`** replaces `internal error` when the database
+  cannot answer — and deliberately *not* by failing readiness, which would take
+  every replica out of the Service at once and turn a database blip into a
+  total blackout
+- **e2e runs against both plan stores**, including an assertion that a drain
+  reaches the ledger. That is exactly what v0.6.0 got wrong: the drain
+  succeeded, the executor's events looked perfect, and nothing was written
+
+The pattern is the point. The reviews found the store bugs; the cluster found
+everything else, including two flaws in the new test itself — it drained the
+node its own database was on, then drained the pod its own port-forward was
+talking through.
+
 ## Next
 
 Ordered by intent; items move up when a user need pulls them.

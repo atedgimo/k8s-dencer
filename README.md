@@ -274,11 +274,20 @@ until the next snapshot says where they truly landed.
 execution, and maintenance windows. Phase 4 — hardening toward 1000 nodes and
 50,000 pods — is in progress, with metrics, CI and the release pipeline landed.
 
-**v0.7.0 is published** — images, chart and CLI binaries on `ghcr.io` and the
+**v0.8.0 is published** — images, chart and CLI binaries on `ghcr.io` and the
 [releases page](https://github.com/atedgimo/k8s-dencer/releases), installable by
 the command above.
 
-It repairs the Postgres store that v0.6.0 shipped. **If you are running v0.6.0
+It is the release that went looking. Every fix in it came from running the
+product rather than reading it: the CLI could not find its own backend unless
+the Helm release happened to be named `k8s-dencer`; it reported a plan the
+planner had just re-confirmed as twenty hours old, contradicting the UI about
+the same plan; and a ui-backend whose database had gone away answered every
+request with `internal error`, which named nothing. The API now returns `503
+plan store unavailable`, and the e2e runs against **both** plan stores — the
+gap that let v0.6.0 ship a Postgres backend unable to record a drain.
+
+v0.7.0 before it repaired the Postgres store that v0.6.0 shipped. **If you are running v0.6.0
 on Postgres, upgrade**: the reclamation ledger there could not record a single
 drain, and per-node history was silently dead. Three bugs — a bool bound into
 an integer column, a statement that skipped placeholder rewriting, and SQLite's
