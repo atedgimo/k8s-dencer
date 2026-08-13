@@ -123,12 +123,40 @@ func reclaimSummary(env *PlanEnvelope) string {
 	return out + ")"
 }
 
+// freshness describes how current the plan is, in the terms the UI uses.
+//
+// This used to be time.Since(GeneratedAt), which reads as "nobody has planned
+// in 20 hours" for a plan the planner has been re-confirming every 30 seconds.
+// A plan ID is a content hash, so a stable cluster produces the same plan
+// forever and GeneratedAt stays at the moment those steps were first computed;
+// StoredAt is refreshed on every cycle that agrees.
+//
+// The UI already got this right — it reads planConfirmedAt and says "confirmed
+// just now" — so the CLI saying "20h33m old" about the same plan left the two
+// surfaces contradicting each other about the same object, which is the thing
+// this CLI's design goes out of its way to avoid elsewhere.
+//
+// Both facts are kept when they differ, because both are worth knowing: how
+// long ago anything changed, and whether the planner is still running.
+func freshness(env *PlanEnvelope) string {
+	confirmed := time.Since(env.StoredAt).Round(time.Second)
+	computed := time.Since(env.Plan.GeneratedAt).Round(time.Second)
+
+	if env.StoredAt.IsZero() {
+		return fmt.Sprintf("%s old", computed)
+	}
+	// A minute's slack: on a changing cluster the two are the same event, and
+	// printing both would be noise.
+	if computed-confirmed < time.Minute {
+		return fmt.Sprintf("%s old", computed)
+	}
+	return fmt.Sprintf("confirmed %s ago, unchanged for %s", confirmed, computed)
+}
+
 // PrintPlan renders a plan as a table.
 func PrintPlan(w io.Writer, env *PlanEnvelope, awaiting int) {
 	p := env.Plan
-	age := time.Since(p.GeneratedAt).Round(time.Second)
-
-	fmt.Fprintf(w, "%s  %s\n", bold("plan "+p.ID), dim(fmt.Sprintf("%s old, %s", age, env.Strategy)))
+	fmt.Fprintf(w, "%s  %s\n", bold("plan "+p.ID), dim(freshness(env)+", "+env.Strategy))
 	fmt.Fprintf(w, "%d nodes now, %d after, %s\n\n",
 		p.NodesBefore, p.NodesAfter, bold(reclaimSummary(env)))
 
