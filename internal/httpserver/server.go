@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -16,6 +17,53 @@ import (
 // dependencies (informer caches, database migrations) are satisfied.
 type Health struct {
 	ready atomic.Bool
+
+	mu     sync.Mutex
+	checks []namedCheck
+}
+
+type namedCheck struct {
+	name string
+	fn   func(context.Context) error
+}
+
+// AddCheck registers a dependency reported by /dependenciesz.
+//
+// Explicitly NOT wired into /readyz, and the reasoning is worth keeping,
+// because the obvious thing to do here is the wrong one.
+//
+// Readiness decides Service membership. Failing it on a dependency every
+// replica shares means that when the database goes down, every pod goes
+// NotReady at the same moment, the Service drops to zero endpoints, and the
+// ingress returns a bare 503 with no explanation — turning "some requests fail
+// with a message" into "nothing answers at all". It can also stall a rolling
+// update, since no new pod ever becomes Ready.
+//
+// The failure this was written for — a store that has gone away — is therefore
+// handled where it is actually visible: the API answers 503 naming the plan
+// store instead of "internal error", so an operator reads the cause in the
+// response rather than inferring it from an empty endpoint list. This endpoint
+// exists for monitoring and for a human with curl, neither of which should be
+// able to take the Service down by asking a question.
+func (h *Health) AddCheck(name string, fn func(context.Context) error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.checks = append(h.checks, namedCheck{name: name, fn: fn})
+}
+
+// probe runs every registered check, returning the first failure.
+func (h *Health) probe(ctx context.Context) (string, error) {
+	h.mu.Lock()
+	checks := make([]namedCheck, len(h.checks))
+	copy(checks, h.checks)
+	h.mu.Unlock()
+
+	for _, c := range checks {
+		if err := c.fn(ctx); err != nil {
+			return c.name, err
+		}
+	}
+	return "", nil
 }
 
 // SetReady marks the component ready to serve traffic.
@@ -43,6 +91,22 @@ func (h *Health) Register(mux *http.ServeMux) {
 		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ready"))
+	})
+
+	// Dependency state, for monitoring and for a human with curl. The kubelet
+	// does not read this, so a database outage cannot empty the Service
+	// through it.
+	mux.HandleFunc("GET /dependenciesz", func(w http.ResponseWriter, r *http.Request) {
+		// Bounded, because a dependency that has stopped answering is exactly
+		// when this runs, and a hanging probe is worse than a failing one.
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		defer cancel()
+		if name, err := h.probe(ctx); err != nil {
+			http.Error(w, name+": "+err.Error(), http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
 	})
 }
 

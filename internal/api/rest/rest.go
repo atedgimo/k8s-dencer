@@ -484,6 +484,16 @@ func (s *Server) fail(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "no plan available yet")
 		return
 	}
+	// A store that cannot answer is not an internal error, and calling it one
+	// sends an operator looking through the wrong logs. 503 also says the
+	// right thing to anything that retries: this may work shortly, and it is
+	// not the request's fault.
+	if store.IsUnavailable(err) {
+		s.log.Error("plan store unavailable", "error", err)
+		writeError(w, http.StatusServiceUnavailable,
+			"plan store unavailable — the API is up but cannot reach its database")
+		return
+	}
 	s.log.Error("request failed", "error", err)
 	writeError(w, http.StatusInternalServerError, "internal error")
 }

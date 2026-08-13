@@ -30,6 +30,7 @@ import (
 	"github.com/atedgimo/k8s-dencer/internal/auth"
 	"github.com/atedgimo/k8s-dencer/internal/httpserver"
 	"github.com/atedgimo/k8s-dencer/internal/pricing"
+	"github.com/atedgimo/k8s-dencer/internal/store"
 	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlstore"
 	"github.com/atedgimo/k8s-dencer/internal/telemetry"
 	"github.com/atedgimo/k8s-dencer/internal/window"
@@ -151,6 +152,17 @@ func run(ctx context.Context, log *slog.Logger) error {
 	go api.PollStore(ctx, duration(log, "POLL_INTERVAL", 5*time.Second))
 
 	// The schema is migrated and the store is open, so the API can serve.
+	//
+	// Reported by /dependenciesz, not by /readyz — see AddCheck. ActiveRun is
+	// the right question: a real query against a table the product needs,
+	// whose ErrNotFound is the healthy answer on an idle cluster, so a working
+	// store cannot fail it by being quiet.
+	health.AddCheck("plan store", func(ctx context.Context) error {
+		if _, err := db.ActiveRun(ctx); err != nil && !errors.Is(err, store.ErrNotFound) {
+			return err
+		}
+		return nil
+	})
 	health.SetReady(true)
 	log.Info("starting", "version", version, "database", dbDesc)
 
