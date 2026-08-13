@@ -242,6 +242,12 @@ func (s *Server) failRun(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "no such run")
 		return
 	}
+	if store.IsUnavailable(err) {
+		s.log.Error("plan store unavailable", "error", err)
+		writeError(w, http.StatusServiceUnavailable,
+			"plan store unavailable — the run may still be executing; the executor owns it, not this request")
+		return
+	}
 	s.log.Error("run request failed", "error", err)
 	writeError(w, http.StatusInternalServerError, "internal error")
 }

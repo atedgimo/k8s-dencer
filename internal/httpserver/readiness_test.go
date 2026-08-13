@@ -18,12 +18,15 @@ func probeReady(t *testing.T, h *Health) *httptest.ResponseRecorder {
 	return rec
 }
 
-// Readiness used to be a latch: set once at startup and never asked again. A
-// ui-backend that migrated its database successfully and then had the schema
-// disappear underneath it stayed Ready and served "relation does not exist" to
-// every request, indefinitely, because nothing ever asked the store a question
-// a second time.
-func TestReadinessReflectsTheDependencyNotJustTheLatch(t *testing.T) {
+// Readiness must NOT follow a dependency every replica shares.
+//
+// The tempting version of this fix failed /readyz when the store was
+// unreachable. That takes every pod out of the Service at the same moment,
+// leaving zero endpoints and a bare 503 from the ingress — "some requests fail
+// with a message" becomes "nothing answers at all", and a rolling update can
+// stall because no pod ever becomes Ready. The store's absence is reported by
+// the API's own 503 and by /dependenciesz instead.
+func TestReadinessIgnoresSharedDependencies(t *testing.T) {
 	var h Health
 	broken := errors.New(`relation "runs" does not exist`)
 	fail := false
@@ -40,28 +43,57 @@ func TestReadinessReflectsTheDependencyNotJustTheLatch(t *testing.T) {
 	}
 
 	fail = true
-	rec := probeReady(t, &h)
-	if rec.Code != http.StatusServiceUnavailable {
-		t.Errorf("store is unusable and the pod still reports ready: %d", rec.Code)
+	if rec := probeReady(t, &h); rec.Code != http.StatusOK {
+		t.Errorf("a shared dependency failure took the pod out of the Service: %d %s", rec.Code, rec.Body)
 	}
-	// The operator reads this in `kubectl describe`, so it has to say which
-	// dependency and why.
+}
+
+// The dependency is still reported — just somewhere the kubelet is not
+// reading, so monitoring and a human with curl can both see it.
+func TestDependenciesEndpointReportsTheFailure(t *testing.T) {
+	var h Health
+	broken := errors.New(`relation "runs" does not exist`)
+	fail := false
+	h.AddCheck("plan store", func(context.Context) error {
+		if fail {
+			return broken
+		}
+		return nil
+	})
+	h.SetReady(true)
+
+	probe := func() *httptest.ResponseRecorder {
+		mux := http.NewServeMux()
+		h.Register(mux)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/dependenciesz", nil))
+		return rec
+	}
+
+	if rec := probe(); rec.Code != http.StatusOK {
+		t.Fatalf("healthy dependency reported down: %d %s", rec.Code, rec.Body)
+	}
+
+	fail = true
+	rec := probe()
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("broken dependency reported healthy: %d", rec.Code)
+	}
 	for _, want := range []string{"plan store", "relation"} {
 		if !strings.Contains(rec.Body.String(), want) {
-			t.Errorf("readiness failure does not say %q: %s", want, rec.Body.String())
+			t.Errorf("report does not say %q: %s", want, rec.Body.String())
 		}
 	}
 
-	// And it recovers on its own once the dependency does, without a restart.
 	fail = false
-	if rec := probeReady(t, &h); rec.Code != http.StatusOK {
-		t.Errorf("readiness did not recover with the store: %d", rec.Code)
+	if rec := probe(); rec.Code != http.StatusOK {
+		t.Errorf("did not recover with the dependency: %d", rec.Code)
 	}
 }
 
 // The latch still comes first: a component still starting up is not ready
 // however healthy its dependencies are.
-func TestUnstartedComponentIsNotReadyEvenWithHealthyChecks(t *testing.T) {
+func TestUnstartedComponentIsNotReady(t *testing.T) {
 	var h Health
 	h.AddCheck("plan store", func(context.Context) error { return nil })
 

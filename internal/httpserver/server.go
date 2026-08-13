@@ -27,21 +27,24 @@ type namedCheck struct {
 	fn   func(context.Context) error
 }
 
-// AddCheck registers a dependency that must be usable for the component to be
-// ready, consulted on every probe rather than latched once at startup.
+// AddCheck registers a dependency reported by /dependenciesz.
 //
-// The latch alone was not enough. A ui-backend that migrated its database
-// successfully and then had the schema disappear underneath it — a restore
-// from before the current version, a failover to a lagging replica, a wrong
-// database name — stayed Ready and served "internal error" to every request
-// indefinitely, because nothing ever asked the store a question again.
+// Explicitly NOT wired into /readyz, and the reasoning is worth keeping,
+// because the obvious thing to do here is the wrong one.
 //
-// Deliberately readiness and not liveness. Liveness restarts the container,
-// and a probe that restarts on a dependency failure turns a brief database
-// blip into every pod restarting at once, which is the standard way to convert
-// a small outage into a large one. Readiness takes the pod out of the Service
-// so a healthy replica serves, and makes the failure visible as 0/1 Ready
-// rather than as HTTP 500s an operator has to go looking for.
+// Readiness decides Service membership. Failing it on a dependency every
+// replica shares means that when the database goes down, every pod goes
+// NotReady at the same moment, the Service drops to zero endpoints, and the
+// ingress returns a bare 503 with no explanation — turning "some requests fail
+// with a message" into "nothing answers at all". It can also stall a rolling
+// update, since no new pod ever becomes Ready.
+//
+// The failure this was written for — a store that has gone away — is therefore
+// handled where it is actually visible: the API answers 503 naming the plan
+// store instead of "internal error", so an operator reads the cause in the
+// response rather than inferring it from an empty endpoint list. This endpoint
+// exists for monitoring and for a human with curl, neither of which should be
+// able to take the Service down by asking a question.
 func (h *Health) AddCheck(name string, fn func(context.Context) error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -81,22 +84,29 @@ func (h *Health) Register(mux *http.ServeMux) {
 	}
 	mux.HandleFunc("GET /healthz", alive)
 	mux.HandleFunc("GET /startupz", alive)
-	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, _ *http.Request) {
 		if !h.ready.Load() {
 			http.Error(w, "not ready", http.StatusServiceUnavailable)
 			return
 		}
-		// Bounded, because a probe that hangs is reported as a failure only
-		// after the kubelet's own timeout, and a database that has stopped
-		// answering is exactly when this runs.
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ready"))
+	})
+
+	// Dependency state, for monitoring and for a human with curl. The kubelet
+	// does not read this, so a database outage cannot empty the Service
+	// through it.
+	mux.HandleFunc("GET /dependenciesz", func(w http.ResponseWriter, r *http.Request) {
+		// Bounded, because a dependency that has stopped answering is exactly
+		// when this runs, and a hanging probe is worse than a failing one.
 		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 		defer cancel()
 		if name, err := h.probe(ctx); err != nil {
-			http.Error(w, "not ready: "+name+": "+err.Error(), http.StatusServiceUnavailable)
+			http.Error(w, name+": "+err.Error(), http.StatusServiceUnavailable)
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ready"))
+		_, _ = w.Write([]byte("ok"))
 	})
 }
 

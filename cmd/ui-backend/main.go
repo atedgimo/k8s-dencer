@@ -151,15 +151,12 @@ func run(ctx context.Context, log *slog.Logger) error {
 	// volume. The ID is a content hash, so the check is a string comparison.
 	go api.PollStore(ctx, duration(log, "POLL_INTERVAL", 5*time.Second))
 
-	// The schema is migrated and the store is open, so the API can serve —
-	// and it keeps being asked, rather than only being asked once. A store
-	// that migrates cleanly at startup can still stop having the tables in it,
-	// and a ui-backend that reports Ready while answering every request with
-	// "relation does not exist" is worse than one that reports NotReady.
+	// The schema is migrated and the store is open, so the API can serve.
 	//
-	// ActiveRun is the right question: it is a real query against a table the
-	// product needs, and ErrNotFound is its healthy answer on an idle cluster,
-	// so a working store cannot fail this by being quiet.
+	// Reported by /dependenciesz, not by /readyz — see AddCheck. ActiveRun is
+	// the right question: a real query against a table the product needs,
+	// whose ErrNotFound is the healthy answer on an idle cluster, so a working
+	// store cannot fail it by being quiet.
 	health.AddCheck("plan store", func(ctx context.Context) error {
 		if _, err := db.ActiveRun(ctx); err != nil && !errors.Is(err, store.ErrNotFound) {
 			return err
