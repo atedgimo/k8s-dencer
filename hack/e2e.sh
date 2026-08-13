@@ -609,9 +609,26 @@ fi
 # ---------------------------------------------------------------- plan
 
 bold "==> a plan against real state"
-kubectl --context "$CTX" -n "$NS" port-forward "svc/${RELEASE}-ui-backend" "${PF_PORT}:8080" >/dev/null 2>&1 &
-PF=$!
-sleep 5
+# The port-forward binds to one pod, and this test drains nodes for a living.
+# A ui-backend that lands on the target node is evicted mid-run and the forward
+# dies with it — after which every api() call fails and the run looks stuck at
+# "Running" while the executor's own logs show it Succeeded twice.
+#
+# Postgres made that likely rather than rare: without the ReadWriteOnce
+# co-scheduling pin the readers spread across agent nodes, and there are two of
+# them, so the odds that one is on whichever node the planner picks are good.
+# It is the test's plumbing that breaks, not the product, so the plumbing
+# reconnects instead of the assertions being loosened.
+pf_start() {
+  kubectl --context "$CTX" -n "$NS" port-forward "svc/${RELEASE}-ui-backend" "${PF_PORT}:8080" >/dev/null 2>&1 &
+  PF=$!
+  for _ in $(seq 1 20); do
+    curl -s --max-time 2 -o /dev/null "http://localhost:${PF_PORT}/healthz" && return 0
+    sleep 1
+  done
+  return 1
+}
+pf_start || fail "could not port-forward to the ui-backend"
 
 kubectl --context "$CTX" get serviceaccount e2e-operator -n "$NS" >/dev/null 2>&1 \
   || kubectl --context "$CTX" create serviceaccount e2e-operator -n "$NS" >/dev/null
@@ -620,7 +637,18 @@ kubectl --context "$CTX" create rolebinding e2e-operator -n "$NS" \
   --serviceaccount="${NS}:e2e-operator" >/dev/null 2>&1 || true
 TOKEN="$(kubectl --context "$CTX" create token e2e-operator -n "$NS" --duration=30m)"
 
-api() { curl -sS -H "Authorization: Bearer ${TOKEN}" "http://localhost:${PF_PORT}$1" "${@:2}"; }
+# Retries through a dead forward once, because the pod on the other end may
+# have been evicted by the very drain this test asked for.
+api() {
+  local out rc
+  out="$(curl -sS -H "Authorization: Bearer ${TOKEN}" "http://localhost:${PF_PORT}$1" "${@:2}" 2>/dev/null)"; rc=$?
+  if [[ $rc -ne 0 ]]; then
+    kill "$PF" 2>/dev/null || true
+    pf_start >/dev/null 2>&1 || true
+    out="$(curl -sS -H "Authorization: Bearer ${TOKEN}" "http://localhost:${PF_PORT}$1" "${@:2}" 2>/dev/null)"
+  fi
+  printf '%s' "$out"
+}
 
 plan=""
 for _ in $(seq 1 40); do
