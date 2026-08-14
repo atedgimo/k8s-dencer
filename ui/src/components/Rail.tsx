@@ -50,6 +50,19 @@ const ICONS: Record<Surface, React.ReactNode> = {
       <circle cx="8" cy="8" r="3" stroke="currentColor" strokeWidth="1.4" fill="none" />
     </svg>
   ),
+  resilience: (
+    // A shield outline: what holds when something is lost, rather than a
+    // warning triangle — this screen is an audit, not an alarm.
+    <svg viewBox="0 0 16 16" className="rail-icon" aria-hidden="true">
+      <path
+        d="M8 1.8 13 3.6v4.1c0 3-2.1 5.4-5 6.5-2.9-1.1-5-3.5-5-6.5V3.6L8 1.8Z"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </svg>
+  ),
   rightsizing: (
     <svg viewBox="0 0 16 16" className="rail-icon" aria-hidden="true">
       <rect x="2.5" y="4" width="11" height="3.4" rx="1" stroke="currentColor" strokeWidth="1.4" fill="none" />
@@ -68,6 +81,7 @@ const LABELS: Record<Surface, string> = {
   review: "Review",
   cluster: "Cluster",
   recommendations: "Recommendations",
+  resilience: "Resilience",
   rightsizing: "Rightsizing",
   history: "History",
 };

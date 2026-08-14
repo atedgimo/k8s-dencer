@@ -34,7 +34,13 @@ export type FieldView = "rack" | "wells" | "load";
  * the axes is what made the old view switcher read as four equal views of
  * the same thing.
  */
-export type Surface = "review" | "cluster" | "recommendations" | "rightsizing" | "history";
+export type Surface =
+  | "review"
+  | "cluster"
+  | "recommendations"
+  | "resilience"
+  | "rightsizing"
+  | "history";
 
 const KEY = "dencer.view";
 

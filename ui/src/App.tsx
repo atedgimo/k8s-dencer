@@ -20,6 +20,7 @@ import { runtimeConfig } from "./runtime-config";
 import { useObserved } from "./useObserved";
 import { usePlan } from "./usePlan";
 import { useReclamations } from "./useReclamations";
+import ResiliencePage from "./components/resilience/ResiliencePage";
 import RightsizingPage from "./components/rightsizing/RightsizingPage";
 import WhyNothing from "./components/review/WhyNothing";
 import { useRecommendations } from "./useRecommendations";
@@ -406,6 +407,8 @@ export default function App() {
               }}
             />
           )}
+
+          {state.status === "ready" && surface === "resilience" && <ResiliencePage />}
 
           {state.status === "ready" && surface === "rightsizing" && <RightsizingPage />}
 

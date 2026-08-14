@@ -44,6 +44,18 @@ func (s *Server) handleResilience(w http.ResponseWriter, r *http.Request) {
 		if pc.Movable {
 			continue
 		}
+		// Pinned is not at risk, and this is the same distinction that made
+		// NodeDrainable correct. A DaemonSet pod cannot move, but losing its
+		// node costs nothing — the DaemonSet is meant to have one pod per
+		// node and now there is one fewer node. A static pod owned by the
+		// node goes away with the thing that defined it.
+		//
+		// Reporting them here read as "3 pods will not survive a node loss"
+		// on a healthy cluster, which is the kind of false alarm that teaches
+		// people to stop reading a screen.
+		if pc.PinnedToNode {
+			continue
+		}
 		for _, c := range pc.Blockers() {
 			findings = append(findings, resilienceFinding{
 				Kind: string(c.Kind), Pod: pc.Key(), Node: pc.NodeName,
