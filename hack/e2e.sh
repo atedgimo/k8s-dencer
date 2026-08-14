@@ -675,16 +675,39 @@ if [[ "${steps:-0}" -eq 0 ]]; then
 fi
 green "  plan with ${steps} steps"
 
-# Pick a step that does not need a maintenance window, and that actually moves
+# The nodes k8s-dencer's own pods are sitting on.
+#
+# Draining one of those evicts the product mid-run. The planner's metrics are
+# an in-process histogram, so a planner that is rescheduled loses the
+# reclamation it just timed and dencer_reclamation_seconds_count reads 0 —
+# observed twice in CI, both times looking like a regression in whatever PR
+# happened to be open. The ui-backend being evicted kills the port-forward, and
+# the store being evicted empties the database.
+#
+# On SQLite the ReadWriteOnce affinity kept these together and mostly out of
+# the way. Postgres lifts that pin, which is the point of it, so the test has
+# to stop assuming.
+#
+# This is a property of the test, not of the product: in production a planner
+# that plans to drain its own node is behaving correctly and Kubernetes
+# reschedules it. Here it saws off the branch it is measuring from.
+OURS="$(kubectl --context "$CTX" -n "$NS" get pods \
+  -o jsonpath='{range .items[*]}{.spec.nodeName}{"\n"}{end}' 2>/dev/null | sort -u | tr '\n' ',')"
+
+# Pick a step that does not need a maintenance window, that actually moves
 # something — a step with no moves would drain an already-empty node and prove
-# nothing about recovery.
-read -r SEQ TARGET MOVES <<<"$(printf '%s' "$plan" | python3 -c '
-import json,sys
+# nothing about recovery — and that is not standing on our own feet.
+read -r SEQ TARGET MOVES <<<"$(printf '%s' "$plan" | OURS="$OURS" python3 -c '
+import json,os,sys
 d = json.load(sys.stdin)
 p = d.get("plan") or d
-for s in p.get("steps") or []:
-    if s.get("impact") != "Red" and s.get("moves"):
-        print(s["sequenceNumber"], s.get("targetNode",""), len(s["moves"])); break
+ours = {n for n in os.environ.get("OURS", "").split(",") if n}
+usable = [s for s in (p.get("steps") or []) if s.get("impact") != "Red" and s.get("moves")]
+# Prefer a node none of our own pods are on; fall back rather than fail, so a
+# single-node or fully-packed cluster still exercises the drain.
+pick = next((s for s in usable if s.get("targetNode") not in ours), None) or (usable[0] if usable else None)
+if pick:
+    print(pick["sequenceNumber"], pick.get("targetNode", ""), len(pick["moves"]))
 else:
     print("", "", "")
 ')"
