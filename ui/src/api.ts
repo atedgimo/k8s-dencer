@@ -490,6 +490,10 @@ export const api = {
 
   /** Requests against observed usage, per workload. Needs metrics-server. */
   rightsizing: (signal?: AbortSignal) => get<Rightsizing>(`/api/v1/rightsizing`, signal),
+
+  /** The resilience audit: what this cluster does not survive losing a node
+   *  to. The same analysis the planner runs, read in the opposite mood. */
+  resilience: (signal?: AbortSignal) => get<Resilience>(`/api/v1/resilience`, signal),
   /** Per node: will it drain, and if not, what is in the way. */
   preflight: (signal?: AbortSignal) => get<Preflight>(`/api/v1/preflight`, signal),
 
@@ -591,6 +595,24 @@ function dispatchFrame(frame: string, onEvent: (event: string, data: string) => 
 }
 
 /** One workload's requests against what it actually uses. */
+/**
+ * A pod that cannot be evicted voluntarily is also a pod that handles an
+ * involuntary node loss badly. Explanation is the analyzer's own text, quoted
+ * rather than paraphrased, so a constraint cannot be described one way here
+ * and another way on the plan.
+ */
+export interface ResilienceFinding {
+  kind: string;
+  pod: string;
+  node?: string;
+  explanation: string;
+}
+
+export interface Resilience {
+  takenAt?: string;
+  findings?: ResilienceFinding[];
+}
+
 export interface RightsizingRow {
   workload: string;
   pods: number;

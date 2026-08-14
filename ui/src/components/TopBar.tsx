@@ -3,8 +3,13 @@
  *
  * 60px: what plan this is (name + short hash), whether it still describes
  * the cluster (the freshness dot), which algorithm produced it, and the one
- * action that follows from staleness — Recompute. The theme toggle and a
- * settings stub sit on the right.
+ * action that follows from staleness — Recompute. The theme toggle sits on
+ * the right.
+ *
+ * There was a disabled Settings square here, holding a place for a
+ * destination that was never specified. A control whose only state is refusal
+ * advertises somewhere that does not exist, so it is gone until there is
+ * something behind it.
  *
  * "Recompute" surfaces what the planner already does: it recomputes every
  * resync, and this button shows the latest plan when the view is pinned on
@@ -121,19 +126,6 @@ export default function TopBar({ planId, strategy, confirmedAt, stale, onRecompu
           </button>
         )}
         <ThemeToggle />
-        {/* Settings is designed as a destination but not yet specified;
-            the stub keeps its place in the frame without pretending. */}
-        <button type="button" className="topbar-square" disabled title="Settings — not yet available">
-          <svg viewBox="0 0 16 16" className="topbar-btn-icon" aria-hidden="true">
-            <circle cx="8" cy="8" r="2.6" stroke="currentColor" strokeWidth="1.4" fill="none" />
-            <path
-              d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2"
-              stroke="currentColor"
-              strokeWidth="1.4"
-              strokeLinecap="round"
-            />
-          </svg>
-        </button>
       </div>
     </header>
   );
