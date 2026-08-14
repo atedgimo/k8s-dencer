@@ -170,9 +170,18 @@ is read from a Secret the operator already has.
       name: {{ . }}
       key: {{ $.Values.database.postgres.existingSecretPasswordKey }}
 {{- end }}
-{{- if .Values.database.postgres.sslRootCert.existingSecret }}
+{{- /*
+  Nil-safe, because helm upgrade --reuse-values carries the stored values
+  forward and does NOT merge in defaults for keys the chart has grown since.
+  sslRootCert arrived in 0.8.0, so an install predating it upgraded with
+  --reuse-values had no such map and this dereference failed the render with
+  "nil pointer evaluating interface {}.existingSecret" — an upgrade path
+  broken for exactly the operators who had been running longest.
+*/ -}}
+{{- $ca := .Values.database.postgres.sslRootCert | default dict }}
+{{- if $ca.existingSecret }}
 - name: POSTGRES_SSLROOTCERT
-  value: /etc/dencer/postgres-ca/{{ .Values.database.postgres.sslRootCert.key }}
+  value: /etc/dencer/postgres-ca/{{ $ca.key | default "ca.crt" }}
 {{- end }}
 {{- end }}
 {{- end -}}
@@ -199,14 +208,15 @@ network path can impersonate the database and collect the credentials, the
 audit trail and the run queue the executor drains from.
 */}}
 {{- define "k8s-dencer.mountsPostgresCA" -}}
-{{- if and (eq .Values.database.type "postgres") .Values.database.postgres.sslRootCert.existingSecret }}true{{ end -}}
+{{- $ca := .Values.database.postgres.sslRootCert | default dict -}}
+{{- if and (eq .Values.database.type "postgres") $ca.existingSecret }}true{{ end -}}
 {{- end -}}
 
 {{- define "k8s-dencer.postgresCAVolume" -}}
 {{- if include "k8s-dencer.mountsPostgresCA" . }}
 - name: postgres-ca
   secret:
-    secretName: {{ .Values.database.postgres.sslRootCert.existingSecret }}
+    secretName: {{ (.Values.database.postgres.sslRootCert | default dict).existingSecret }}
 {{- end }}
 {{- end -}}
 

@@ -99,3 +99,42 @@ Capture as you go so the answers survive the window:
 RUN_DIR=/tmp/gcprun ./hack/capture/capture.sh baseline
 RUN_DIR=/tmp/gcprun ./hack/capture/capture.sh after-converge
 ```
+
+---
+
+## Phase 2 — the same questions on Postgres (optional, ~0 extra cost)
+
+Run **only after items 1-3 above have passed.** The P0 question deserves an
+uncontaminated answer first: a database pod consumes capacity on nodes whose
+940m allocatable is already 30-80% spoken for by GKE's own daemons, and this
+run exists to measure exactly that.
+
+```bash
+./hack/capture/postgres-phase.sh
+```
+
+It deploys Postgres on a 10Gi claim — not an emptyDir, because this exercise
+drains nodes and the database is an ordinary workload that a drain can evict;
+on a claim it comes back with its data — then converts the release with
+`uiBackend.replicaCount=2`, which is the constraint SQLite imposes and
+Postgres lifts.
+
+Cost: a pod on nodes already running, plus one PD for the rest of the window.
+Fractions of a cent against the ~15-20¢ the six e2-medium nodes cost anyway.
+
+| # | Question | Why it is on the list |
+|---|---|---|
+| P1 | Every pod Running, 0 restarts after conversion | Two ui-backends and a planner migrate at once. Before the advisory lock one died on a duplicate key and CrashLoopBackOffed until another committed |
+| P2 | No plan-store `/data` mount anywhere | If it survived, the single-node constraint came with it and Postgres bought nothing |
+| P3 | A plan appears, with steps | Item 1 asked again on the other backend |
+| P4 | A drain reaches the reclamation ledger | Exactly what v0.6.0 got wrong: the drain succeeded, the executor's events looked perfect, and nothing was written to the store |
+
+The old `k8s-dencer-data` claim survives the switch by design
+(`helm.sh/resource-policy: keep`) so a backend change never destroys plan
+history. It is removed with the cluster; `verify-teardown.sh` confirms it.
+
+**Rehearsed on a local cluster before this was written**, which found three
+things worth having found for free: a chart template that could not be
+upgraded into with `--reuse-values`, a script that broke its own database on
+a second run, and the fact that the component images are distroless and have
+no shell to exec into.
