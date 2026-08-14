@@ -71,6 +71,9 @@ export default function App() {
   // places you visit, and reopening the app anywhere but the plan would bury
   // the thing the product is for.
   const [surface, setSurface] = useState<Surface>("review");
+  // Set when arriving at Rightsizing from a recommendation, so the row an
+  // operator asked about is the one they land on.
+  const [rightsizingFocus, setRightsizingFocus] = useState<string | null>(null);
   const lastToggled = useRef<number | null>(null);
 
   const recommendations = useRecommendations();
@@ -400,6 +403,10 @@ export default function App() {
               muted={muted}
               onMute={mute}
               onUnmute={unmute}
+              onOpenRightsizing={(workload) => {
+                setRightsizingFocus(workload);
+                setSurface("rightsizing");
+              }}
               onOpenSteps={(seqs) => {
                 setSurface("review");
                 setFocusedRating(null);
@@ -410,7 +417,9 @@ export default function App() {
 
           {state.status === "ready" && surface === "resilience" && <ResiliencePage />}
 
-          {state.status === "ready" && surface === "rightsizing" && <RightsizingPage />}
+          {state.status === "ready" && surface === "rightsizing" && (
+            <RightsizingPage focus={rightsizingFocus} recs={recommendations} />
+          )}
 
           {state.status === "ready" && surface === "history" && <History pricing={reclamations.stats.pricing} />}
         </div>

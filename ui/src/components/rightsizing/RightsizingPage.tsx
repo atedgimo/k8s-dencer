@@ -12,8 +12,8 @@
  * different claims and only one of them is ever true here.
  */
 
-import { useEffect, useState } from "react";
-import { Rightsizing, api, formatBytes, formatCPU } from "../../api";
+import { useEffect, useRef, useState } from "react";
+import { Recommendation, Rightsizing, api, formatBytes, formatCPU } from "../../api";
 
 /** Below this the gap is noise, not a finding worth a row's attention. */
 const WORTH_SHOWING_MILLI = 50;
@@ -21,9 +21,23 @@ const WORTH_SHOWING_MILLI = 50;
 /** formatCPU drops the unit above a core, so "cores" is only right above it. */
 const cores = (milli: number) => (milli >= 1000 ? `${formatCPU(milli)} cores` : formatCPU(milli));
 
-export default function RightsizingPage() {
+interface Props {
+  /** Workload to scroll to and mark, when arriving from a recommendation. */
+  focus?: string | null;
+  /** Open findings, so a measured workload can say one is waiting for it. */
+  recs?: Recommendation[] | null;
+}
+
+export default function RightsizingPage({ focus, recs }: Props = {}) {
   const [data, setData] = useState<Rightsizing | null>(null);
   const [failed, setFailed] = useState(false);
+  const focusRow = useRef<HTMLTableRowElement>(null);
+
+  // Arriving from a recommendation should land on the row that was asked
+  // about, not at the top of a table the operator then has to search.
+  useEffect(() => {
+    focusRow.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [focus, data]);
 
   useEffect(() => {
     let cancelled = false;
@@ -73,6 +87,13 @@ export default function RightsizingPage() {
       </div>
     );
   }
+
+  // Workloads with an open finding on the other screen. These two screens are
+  // deliberately not merged — a recommendation carries a paste-ready fix and
+  // this one carries none, because a single usage sample is not a number to
+  // set requests from — but reading either without knowing the other exists
+  // is how an operator ends up doing half the job.
+  const advised = new Set((recs ?? []).map((r) => r.workload));
 
   const rows = [...(data.workloads ?? [])].sort(
     (a, b) => b.requestedMilli - b.usedMilli - (a.requestedMilli - a.usedMilli),
@@ -130,8 +151,19 @@ export default function RightsizingPage() {
               const gap = Math.max(r.requestedMilli - r.usedMilli, 0);
               const usedPct = r.requestedMilli > 0 ? (r.usedMilli / r.requestedMilli) * 100 : 0;
               return (
-                <tr key={r.workload}>
-                  <td className="mono rightsizing-name">{r.workload}</td>
+                <tr
+                  key={r.workload}
+                  ref={r.workload === focus ? focusRow : undefined}
+                  className={r.workload === focus ? "is-focused" : undefined}
+                >
+                  <td className="mono rightsizing-name">
+                    {r.workload}
+                    {advised.has(r.workload) && (
+                      <span className="rightsizing-advised" title="This workload also has an open recommendation">
+                        finding open
+                      </span>
+                    )}
+                  </td>
                   <td className="num mono">{r.pods}</td>
                   <td className="num mono">{formatCPU(r.requestedMilli)}</td>
                   <td className="num mono">{formatCPU(r.usedMilli)}</td>
