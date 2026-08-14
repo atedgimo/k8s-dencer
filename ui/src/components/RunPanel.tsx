@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { PlanStep, RunEvent, RunStatus } from "../api";
+import { PlanStep } from "../api";
 import { RunState } from "../useRun";
 
 /**
@@ -116,77 +116,14 @@ export function RunTrail({ state, onDismiss }: { state: RunState; onDismiss: () 
     );
   }
 
-  const { run, events } = state;
-  const done = state.status === "done";
-
-  return (
-    <div className={`trail trail-${run.status.toLowerCase()}`} aria-live="polite">
-      <div className="trail-head">
-        <span className="trail-status">{headline(run.status, run.dryRun)}</span>
-        <span className="trail-meta mono">
-          {run.dryRun ? "dry run · " : ""}
-          {run.steps.length} step{run.steps.length === 1 ? "" : "s"}
-        </span>
-        {done && (
-          <button className="trail-close" onClick={onDismiss} aria-label="Dismiss">
-            ✕
-          </button>
-        )}
-      </div>
-
-      <ol className="trail-list" ref={listRef}>
-        {events.map((e) => (
-          <li key={e.sequence} className={`trail-row trail-row-${e.level.toLowerCase()}`}>
-            <span className="trail-action mono">{e.action}</span>
-            <span className="trail-subject mono">{e.pod ?? e.node ?? ""}</span>
-            <span className="trail-msg">{e.message}</span>
-            {/* Which rail refused. The question asked after any incident. */}
-            {e.rule && <span className="trail-rule mono">{e.rule}</span>}
-          </li>
-        ))}
-      </ol>
-
-      {run.summary && <p className="trail-summary">{run.summary}</p>}
-
-      {done && run.status === "Succeeded" && !run.dryRun && (
-        <p className="trail-note">
-          The drained nodes are empty and cordoned. k8s-dencer does not delete nodes — removing the
-          machines is your autoscaler&apos;s or node-pool tooling&apos;s job. Run{" "}
-          <code>kubectl uncordon</code> to put one back into service.
-        </p>
-      )}
-
-      {done && run.status === "Blocked" && (
-        <p className="trail-note">
-          The Safety Guard stopped this run. That is the rails working, not a failure — any node it
-          had already cordoned has been made schedulable again.
-        </p>
-      )}
-    </div>
-  );
+  // Unreachable by construction, and deliberately not implemented twice:
+  // App renders this only while a run is neither active nor done, because
+  // RunScreen owns both of those states. The event list that used to live
+  // here was a second rendering of a run in flight that nothing could ever
+  // display — the same drift, in the UI, that the store and the chart each
+  // had to have removed.
+  return null;
 }
-
-function headline(status: RunStatus, dryRun: boolean): string {
-  switch (status) {
-    case "Pending":
-      return "Waiting for the executor";
-    case "Running":
-      return dryRun ? "Rehearsing" : "Draining";
-    case "Succeeded":
-      return dryRun ? "Rehearsal complete" : "Drained";
-    case "Blocked":
-      return "Stopped by the Safety Guard";
-    case "Failed":
-      return "Run failed";
-  }
-}
-
-/** Events worth surfacing without expanding — used for the compact readout. */
-export function lastMeaningful(events: RunEvent[]): RunEvent | undefined {
-  return events[events.length - 1];
-}
-
-/* -------------------------------------------------------- converge consent */
 
 interface ConvergeProps {
   /** The current plan's reclaimable count — context only, and labelled so. */
@@ -195,14 +132,6 @@ interface ConvergeProps {
   onCancel: () => void;
 }
 
-/**
- * The consent sheet for a closed-loop run, and deliberately not ConfirmRun
- * with different text. A steps run approves a concrete list an operator can
- * picture; a converge run approves a POLICY — the executor re-plans after
- * every drain and picks its own targets — and this sheet exists to make that
- * difference impossible to miss. Both bounds are explicit inputs with no
- * pre-filled node budget, because a defaulted consent is not consent.
- */
 export function ConfirmConverge({ planReclaims, onConfirm, onCancel }: ConvergeProps) {
   const [maxNodes, setMaxNodes] = useState("");
   const [ceiling, setCeiling] = useState<"Green" | "Yellow">("Green");

@@ -69,18 +69,8 @@
   background: var(--inset);
   border-bottom: 1px solid var(--border);
 }
-
-/* The only place a run's outcome is coloured, and it uses the same scale as
-   the ratings: blocked is the Yellow of "needs a human", failed is Red. */
-.trail-blocked {
-  box-shadow: inset 3px 0 0 var(--caution);
-}
-.trail-failed,
 .trail-error {
   box-shadow: inset 3px 0 0 var(--held);
-}
-.trail-succeeded {
-  box-shadow: inset 3px 0 0 var(--safe);
 }
 
 .trail-head {
@@ -94,11 +84,6 @@
   font-size: var(--text-md);
 }
 
-.trail-meta {
-  font-size: var(--text-2xs);
-  color: var(--text-5);
-}
-
 .trail-close {
   margin-left: auto;
   padding: 0 var(--space-1);
@@ -107,59 +92,10 @@
   border: 0;
 }
 
-.trail-list {
-  max-height: 9rem;
-  margin: 0.5rem 0 0;
-  padding: 0;
-  overflow-y: auto;
-  list-style: none;
-}
-
-.trail-row {
-  display: grid;
-  grid-template-columns: 5rem 12rem minmax(0, 1fr) auto;
-  gap: var(--space-3);
-  padding: var(--space-1) 0;
-  font-size: var(--text-xs);
-  color: var(--text-3);
-}
-
-.trail-row-blocked {
-  color: var(--caution);
-}
-
-.trail-row-error {
-  color: var(--held);
-}
-
-.trail-action {
-  color: var(--text-1);
-}
-
-.trail-subject {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.trail-rule {
-  font-size: var(--text-2xs);
-  padding: 0 var(--space-1);
-  border: 1px solid currentColor;
-  border-radius: var(--radius-sm);
-}
-
 .trail-summary {
   margin: 0.5rem 0 0;
   font-size: var(--text-sm);
   color: var(--text-1);
-}
-
-.trail-note {
-  margin: 0.35rem 0 0;
-  max-width: 70ch;
-  font-size: var(--text-xs);
-  color: var(--text-3);
 }
 
 .trail-grant {
@@ -180,7 +116,6 @@
     display: none;
   }
 }
-
 
 .verdict-flag {
   display: block;

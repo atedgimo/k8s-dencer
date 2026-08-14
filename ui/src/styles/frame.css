@@ -287,24 +287,6 @@
   background: var(--raised);
 }
 
-.topbar-square {
-  width: 30px;
-  height: 30px;
-  border: 1px solid var(--border-strong);
-  border-radius: 7px;
-  background: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-3);
-  padding: 0;
-}
-
-.topbar-square:disabled {
-  color: var(--text-faint);
-  cursor: default;
-}
-
 .topbar-btn-icon {
   width: 13px;
   height: 13px;
