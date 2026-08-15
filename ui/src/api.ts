@@ -104,6 +104,14 @@ export interface GraphStats {
   /** Nodes holding only DaemonSets and static pods: free to take, and needing
    *  no step because there is nothing to relocate. */
   alreadyReclaimable?: number;
+  /** What executing this plan would stop costing. Absent unless the operator
+   *  supplied prices — a prediction, not the measured ledger. */
+  forecast?: {
+    currency: string;
+    perMonth: number;
+    pricedNodes: number;
+    unpricedNodes: number;
+  };
   /** The utilisation fraction THIS plan refused to pack above; the Wells
    *  lens draws its ceiling line here. Absent on plans that predate it. */
   packCeiling?: number;

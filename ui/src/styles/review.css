@@ -894,3 +894,22 @@
 .whynothing-unlock {
   color: var(--accent-text);
 }
+
+/*
+ * What the plan is worth, on the screen where someone decides to run it.
+ * Quiet: the hero's job is the decision, and money is the argument for it
+ * rather than the headline.
+ */
+.hero-worth {
+  margin: 6px 0 0;
+  font-size: var(--text-sm);
+  color: var(--text-3);
+}
+
+.hero-worth strong {
+  color: var(--text-1);
+}
+
+.hero-worth-gap {
+  color: var(--text-5);
+}
