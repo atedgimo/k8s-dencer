@@ -310,3 +310,61 @@ func TestPollingHooksReReadWhenTheTokenArrives(t *testing.T) {
 		}
 	}
 }
+
+// A read-only reviewer must still be able to export the change record.
+//
+// The overflow menu used to be hidden wholesale alongside the drain
+// controls, on the reasonable-looking grounds that everything in it acted on
+// the cluster. Adding the change record to it made that wrong: the person
+// who signs in read-only to review a plan is exactly the person who needs
+// the approval to exist in a ticket, and hiding it would have shipped a
+// feature that is invisible to its main audience.
+func TestTheChangeRecordSurvivesAReadOnlySession(t *testing.T) {
+	src := read(t, "components/review/ReviewFooter.tsx")
+
+	// The menu item exists.
+	if !strings.Contains(src, "Copy as change record") {
+		t.Fatal("no change-record action in the footer")
+	}
+
+	// The overflow container is not itself gated on !readOnly. Anything of
+	// the form `{!readOnly && (` immediately before the overflow div would
+	// take the record down with the drain controls.
+	overflow := strings.Index(src, `className="reviewfooter-overflow"`)
+	if overflow < 0 {
+		t.Fatal("no overflow container")
+	}
+	// Look back over the JSX immediately preceding the container.
+	window := src[max(0, overflow-400):overflow]
+	if strings.Contains(window, "{!readOnly && (") {
+		t.Error("the overflow menu is gated on !readOnly, which hides the change " +
+			"record from the read-only reviewer it exists for")
+	}
+
+	// Run to optimum, which evicts pods, must still be gated. Anchored on the
+	// button's own label -- with its ellipsis -- because the file's doc
+	// comment names the action too, and matching that instead made this test
+	// report a gate that was three hundred characters further down.
+	converge := strings.Index(src, "Run to optimum\u2026")
+	if converge < 0 {
+		t.Fatal("no converge action")
+	}
+	if !strings.Contains(src[max(0, converge-600):converge], "!readOnly") {
+		t.Error("Run to optimum is reachable in a read-only session")
+	}
+}
+
+// The record must speak the product's vocabulary, not its own.
+//
+// The UI renders verdicts as Safe now / Needs a call / Held back, and the
+// underlying values are Green / Yellow / Red. A record that pasted the raw
+// values into a ticket would describe the same step differently from the
+// screen it was exported from, which is how a reviewer and an operator end
+// up arguing about two things they both call "the yellow one".
+func TestTheChangeRecordUsesTheProductsWordsForAVerdict(t *testing.T) {
+	src := read(t, "components/review/ReviewFooter.tsx")
+	if !strings.Contains(src, "VERDICT_LABEL[s.impact]") {
+		t.Error("the change record does not render verdicts through VERDICT_LABEL; " +
+			"a raw Green/Yellow/Red in a ticket contradicts the screen it came from")
+	}
+}

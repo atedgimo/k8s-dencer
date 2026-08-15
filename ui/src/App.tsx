@@ -357,6 +357,7 @@ export default function App() {
               <ReviewFooter
                 planId={state.plan.plan.id}
                 picked={pickedSteps}
+                clusterLabel={server?.clusterLabel}
                 readOnly={readOnly}
                 stale={state.superseded}
                 busy={busy}
