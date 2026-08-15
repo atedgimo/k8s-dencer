@@ -27,6 +27,10 @@ export default function Hero({ graph, steps, focusedRating, onFocusRating }: Pro
   const byRating = (r: Impact) => steps.filter((s) => s.impact === r);
   // Nodes needing no step because nothing on them can or must move.
   const free = graph.stats.alreadyReclaimable ?? 0;
+  // What running this plan would stop costing. Deliberately on the screen
+  // where someone decides whether to run it: the measured figure lives on
+  // History, which is the honest place for it and four clicks from here.
+  const forecast = graph.stats.forecast;
   const safe = byRating("Green");
   const caution = byRating("Yellow");
   const held = byRating("Red");
@@ -92,6 +96,22 @@ export default function Hero({ graph, steps, focusedRating, onFocusRating }: Pro
             )}
           </div>
         )}
+        {forecast && forecast.pricedNodes > 0 && (
+          // A rate, not a running total, and named as a forecast: the ledger
+          // on History reports what was measured after the fact, and the two
+          // numbers must never be mistaken for each other.
+          <p className="hero-worth">
+            Worth <strong>{fmtMoney(forecast.currency, forecast.perMonth)}/month</strong> if run in
+            full
+            {forecast.unpricedNodes > 0 && (
+              <span className="hero-worth-gap">
+                {" "}
+                · {forecast.unpricedNodes} node{forecast.unpricedNodes === 1 ? "" : "s"} unpriced,
+                so the real figure is higher
+              </span>
+            )}
+          </p>
+        )}
         {safe.length > 0 && (
           <div className="hero-stats">
             <div className="hero-stat">
@@ -154,4 +174,18 @@ export default function Hero({ graph, steps, focusedRating, onFocusRating }: Pro
       </div>
     </div>
   );
+}
+
+/** Money, at the precision a monthly rate deserves and no more. */
+function fmtMoney(currency: string, amount: number): string {
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency,
+      maximumFractionDigits: amount < 100 ? 2 : 0,
+    }).format(amount);
+  } catch {
+    // An unknown currency code must not blank the figure it is attached to.
+    return `${amount.toFixed(2)} ${currency}`;
+  }
 }

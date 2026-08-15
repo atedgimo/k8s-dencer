@@ -16,6 +16,7 @@ import (
 	"github.com/atedgimo/k8s-dencer/internal/auth"
 	"github.com/atedgimo/k8s-dencer/internal/constraints"
 	"github.com/atedgimo/k8s-dencer/internal/model"
+	"github.com/atedgimo/k8s-dencer/internal/pricing"
 	"github.com/atedgimo/k8s-dencer/internal/store"
 	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlstore"
 )
@@ -42,6 +43,36 @@ func testServer(t *testing.T, records ...store.Record) *httptest.Server {
 	guard := auth.NewMiddleware(nil, nil, auth.Config{Enabled: false}, slog.New(slog.DiscardHandler))
 
 	api := rest.New(db, slog.New(slog.DiscardHandler), "test", guard, auth.Config{Enabled: false}.Describe())
+	mux := http.NewServeMux()
+	api.Routes(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// testServerPriced is the same server with an operator-supplied price table,
+// which is the only way prices ever reach this product.
+func testServerPriced(t *testing.T, records ...store.Record) *httptest.Server {
+	t.Helper()
+	db, err := sqlitestore.Open(filepath.Join(t.TempDir(), "priced.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if err := db.Migrate(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	for _, rec := range records {
+		if _, err := db.Save(context.Background(), rec); err != nil {
+			t.Fatal(err)
+		}
+	}
+	guard := auth.NewMiddleware(nil, nil, auth.Config{Enabled: false}, slog.New(slog.DiscardHandler))
+	api := rest.New(db, slog.New(slog.DiscardHandler), "test", guard, auth.Config{Enabled: false}.Describe()).
+		WithPricing(pricing.Table{
+			Currency: "USD",
+			PerHour:  map[string]float64{"e2-medium": 0.034},
+		})
 	mux := http.NewServeMux()
 	api.Routes(mux)
 	srv := httptest.NewServer(mux)
@@ -328,5 +359,83 @@ func TestStepFlagsOnlyReplicaMoves(t *testing.T) {
 	_, body = get(t, srv2, "/api/v1/plans/latest/steps/1")
 	if got, ok := body["singletons"].([]any); !ok || len(got) != 0 {
 		t.Errorf("singletons = %#v, want empty — the workload has a second replica", body["singletons"])
+	}
+}
+
+// The money belongs on the screen where the decision is made.
+//
+// It lived only on History, which reports what was measured after the fact —
+// the honest number, in the right place, and four clicks from where someone
+// decides whether to run a plan. So Review said nothing about what running it
+// is worth, and the figure most likely to justify this tool to whoever
+// approves the spend was the hardest one to find.
+//
+// A forecast, not the ledger. The doctrine holds: no built-in price table,
+// unpriced is never treated as free, and spot is not on-demand.
+func TestGraphCarriesAForecastWhenPricesAreConfigured(t *testing.T) {
+	snap := &model.ClusterSnapshot{
+		TakenAt: time.Now().UTC(),
+		Nodes: []model.Node{
+			{Name: "n1", Ready: true,
+				Labels:      map[string]string{"node.kubernetes.io/instance-type": "e2-medium"},
+				Allocatable: model.Resources{MilliCPU: 940, MemoryBytes: 1 << 31, Pods: 110}},
+			{Name: "n2", Ready: true,
+				// No instance-type label: unpriced, and it must be reported as
+				// unpriced rather than quietly counted as free.
+				Allocatable: model.Resources{MilliCPU: 940, MemoryBytes: 1 << 31, Pods: 110}},
+		},
+		Pods: []model.Pod{
+			{Namespace: "app", Name: "a", NodeName: "n1", Phase: model.PodRunning,
+				Owner: &model.OwnerRef{Kind: "ReplicaSet", Name: "a"}},
+			{Namespace: "app", Name: "b", NodeName: "n2", Phase: model.PodRunning,
+				Owner: &model.OwnerRef{Kind: "ReplicaSet", Name: "b"}},
+		},
+	}
+	rec := store.Record{
+		Plan: &model.Plan{
+			ID: "priced01", GeneratedAt: time.Now().UTC(), SnapshotTakenAt: snap.TakenAt,
+			Status: model.PlanValid, NodesBefore: 2, NodesAfter: 0,
+			Steps: []model.PlanStep{
+				{ID: "s1", SequenceNumber: 1, TargetNode: "n1", Impact: model.ImpactGreen,
+					Moves: []model.Move{{Namespace: "app", Pod: "a", FromNode: "n1", ToNode: "n2"}}},
+				{ID: "s2", SequenceNumber: 2, TargetNode: "n2", Impact: model.ImpactGreen,
+					Moves: []model.Move{{Namespace: "app", Pod: "b", FromNode: "n2", ToNode: "n1"}}},
+			},
+		},
+		Snapshot: snap,
+		Analysis: &constraints.Analysis{},
+		Strategy: "greedy-first-fit-decreasing",
+	}
+
+	srv := testServerPriced(t, rec)
+	code, body := get(t, srv, "/api/v1/plans/priced01/graph")
+	if code != 200 {
+		t.Fatalf("graph = %d, want 200", code)
+	}
+	stats, _ := body["stats"].(map[string]any)
+	f, ok := stats["forecast"].(map[string]any)
+	if !ok {
+		t.Fatalf("no forecast in stats: %v", stats)
+	}
+	if f["pricedNodes"].(float64) != 1 {
+		t.Errorf("pricedNodes = %v, want 1", f["pricedNodes"])
+	}
+	if f["unpricedNodes"].(float64) != 1 {
+		t.Errorf("unpricedNodes = %v, want 1 — unpriced must be reported, never treated as free",
+			f["unpricedNodes"])
+	}
+	if f["perMonth"].(float64) <= 0 {
+		t.Errorf("perMonth = %v, want a positive rate", f["perMonth"])
+	}
+}
+
+// With no prices configured the field is absent, not zero. A zero would read
+// as "this plan saves nothing", which is a claim the product has not earned.
+func TestGraphOmitsTheForecastWithoutPrices(t *testing.T) {
+	srv := testServer(t, sampleRecord("noprice01"))
+	_, body := get(t, srv, "/api/v1/plans/noprice01/graph")
+	stats, _ := body["stats"].(map[string]any)
+	if _, present := stats["forecast"]; present {
+		t.Errorf("forecast present with no price table: %v", stats["forecast"])
 	}
 }

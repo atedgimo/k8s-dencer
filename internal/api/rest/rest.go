@@ -390,7 +390,60 @@ func (s *Server) handleGraph(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, graph.BuildWith(rec.Plan, rec.Snapshot, rec.Analysis, s.graphOpts))
+	payload := graph.BuildWith(rec.Plan, rec.Snapshot, rec.Analysis, s.graphOpts)
+	payload.Stats.Forecast = s.forecast(rec)
+	writeJSON(w, http.StatusOK, payload)
+}
+
+// forecast prices the nodes this plan would free.
+//
+// The money lived only on History, which reports what was *measured* after the
+// fact. That is the honest number and it belongs there — but it meant the
+// screen where someone decides whether to run a plan said nothing about what
+// running it is worth, and the figure most likely to justify this tool to
+// whoever approves the spend was four clicks away.
+//
+// A prediction, unlike the ledger, and every renderer of it has to say so.
+// Nil when the operator supplied no prices: there is no built-in price table,
+// and an invented one would be a confident wrong number about someone's bill.
+func (s *Server) forecast(rec store.Record) *graph.Forecast {
+	if s.pricing.Empty() || rec.Plan == nil || rec.Snapshot == nil {
+		return nil
+	}
+
+	// Instance type comes from the node the step drains, so a plan that frees
+	// two spot machines and one on-demand is priced as exactly that rather
+	// than as three of something averaged.
+	byName := make(map[string]*model.Node, len(rec.Snapshot.Nodes))
+	for i := range rec.Snapshot.Nodes {
+		byName[rec.Snapshot.Nodes[i].Name] = &rec.Snapshot.Nodes[i]
+	}
+
+	nodes := make([]pricing.Node, 0, len(rec.Plan.Steps))
+	for _, step := range rec.Plan.Steps {
+		n, ok := byName[step.TargetNode]
+		if !ok {
+			continue
+		}
+		nodes = append(nodes, pricing.Node{
+			InstanceType: n.InstanceType(),
+			CapacityType: n.CapacityType(),
+		})
+	}
+	if len(nodes) == 0 {
+		return nil
+	}
+
+	v := s.pricing.Value(nodes)
+	if v.Priced == 0 && v.Unpriced == 0 {
+		return nil
+	}
+	return &graph.Forecast{
+		Currency:      s.pricing.Currency,
+		PerMonth:      v.PerMonth,
+		PricedNodes:   v.Priced,
+		UnpricedNodes: v.Unpriced,
+	}
 }
 
 func (s *Server) handleSnapshot(w http.ResponseWriter, r *http.Request) {

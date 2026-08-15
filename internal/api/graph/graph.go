@@ -129,6 +129,15 @@ type Stats struct {
 	// anywhere that they existed.
 	AlreadyReclaimable int `json:"alreadyReclaimable,omitempty"`
 
+	// Forecast is what executing this plan would stop costing, per month.
+	//
+	// Absent unless the operator supplied prices — there is no built-in price
+	// table and never will be. A prediction, and labelled as one wherever it
+	// is rendered: the reclamation ledger is the measured figure and the two
+	// must not be confused. Nil rather than zero when nothing is priced,
+	// because unpriced is not free.
+	Forecast *Forecast `json:"forecast,omitempty"`
+
 	// PackCeiling is the utilisation fraction THIS plan refused to pack
 	// above, copied from the plan record — the Wells lens draws its ceiling
 	// line here, and the line must describe the plan on screen, not the
@@ -143,6 +152,17 @@ type Stats struct {
 	// never read them from here — it gets the same numbers from the plan
 	// envelope. Same bar as ever: they can come back the day something reads
 	// them. nodesAfter also lived here once; still nothing reads it.
+}
+
+// Forecast is the money a plan would stop spending if it were executed.
+type Forecast struct {
+	Currency string  `json:"currency"`
+	PerMonth float64 `json:"perMonth"`
+	// PricedNodes and UnpricedNodes together are the plan's reclaimable nodes.
+	// An unpriced machine type is reported, never silently treated as free — a
+	// total that quietly omits half the fleet is worse than no total.
+	PricedNodes   int `json:"pricedNodes"`
+	UnpricedNodes int `json:"unpricedNodes"`
 }
 
 // Build renders the payload at default detail.
