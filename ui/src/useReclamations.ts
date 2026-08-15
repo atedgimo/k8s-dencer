@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { onTokenChange } from "./auth";
 import { api, Reclamation } from "./api";
 
 export interface ReclamationState {
@@ -76,9 +77,18 @@ export function useReclamations(): ReclamationState {
     };
     void load();
     const t = setInterval(load, 30_000);
+    // Re-read the moment a token arrives.
+    //
+    // The app mounts before anyone signs in, so the first load above is
+    // unauthenticated, 401s, and is swallowed by the catch below. Without
+    // this line the screen then shows a confident zero until the interval
+    // fires — measured at 0 findings on a cluster with 34, for a full
+    // minute after sign-in, which is exactly when someone is looking.
+    const stopAuth = onTokenChange(load);
     return () => {
       cancelled = true;
       clearInterval(t);
+      stopAuth();
     };
   }, []);
 

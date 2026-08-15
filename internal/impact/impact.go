@@ -297,14 +297,28 @@ func (c Classifier) rationale(step model.PlanStep, rating model.ImpactRating, re
 	b.WriteString(" because: ")
 	b.WriteString(driving.Detail)
 
+	// Deduplicated by wording, because several pods can hit the same
+	// constraint and each contributes its own reason with identical detail.
+	// Printed as-is that reads as a stutter — observed on a real cluster:
+	// "Rated Yellow because: Topology spread ... Also: Topology spread ...",
+	// the same sentence twice, which looks like a bug in the product rather
+	// than two pods bound by one rule.
 	if len(reasons) > 1 {
-		b.WriteString(" Also: ")
+		seen := map[string]bool{strings.TrimSuffix(driving.Detail, "."): true}
 		rest := make([]string, 0, len(reasons)-1)
 		for _, r := range reasons[1:] {
-			rest = append(rest, strings.TrimSuffix(r.Detail, "."))
+			d := strings.TrimSuffix(r.Detail, ".")
+			if d == "" || seen[d] {
+				continue
+			}
+			seen[d] = true
+			rest = append(rest, d)
 		}
-		b.WriteString(strings.Join(rest, "; "))
-		b.WriteString(".")
+		if len(rest) > 0 {
+			b.WriteString(" Also: ")
+			b.WriteString(strings.Join(rest, "; "))
+			b.WriteString(".")
+		}
 	}
 
 	if rating == model.ImpactRed {
