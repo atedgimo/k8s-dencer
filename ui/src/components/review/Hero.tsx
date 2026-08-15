@@ -25,6 +25,8 @@ interface Props {
 
 export default function Hero({ graph, steps, focusedRating, onFocusRating }: Props) {
   const byRating = (r: Impact) => steps.filter((s) => s.impact === r);
+  // Nodes needing no step because nothing on them can or must move.
+  const free = graph.stats.alreadyReclaimable ?? 0;
   const safe = byRating("Green");
   const caution = byRating("Yellow");
   const held = byRating("Red");
@@ -67,7 +69,21 @@ export default function Hero({ graph, steps, focusedRating, onFocusRating }: Pro
           </div>
         ) : (
           <div className="hero-line">
-            <h2 className="hero-headline">Nothing is safely reclaimable right now</h2>
+            <h2 className="hero-headline">
+              {free > 0
+                ? `${free} node${free === 1 ? "" : "s"} ${free === 1 ? "is" : "are"} already free to take`
+                : "Nothing is safely reclaimable right now"}
+            </h2>
+            {free > 0 && (
+              // No step, because there is nothing to relocate — but saying
+              // nothing at all is how three idle GKE nodes went unmentioned
+              // while the autoscaler quietly removed them.
+              <span className="hero-sub">
+                {free === 1 ? "It holds" : "They hold"} only DaemonSets and static pods.{" "}
+                <span className="hero-sub-strong">Draining {free === 1 ? "it" : "them"} moves nothing</span>
+                {" "}— most autoscalers remove {free === 1 ? "it" : "them"} unprompted.
+              </span>
+            )}
             {steps.length > 0 && (
               <span className="hero-sub">
                 <span className="hero-sub-strong">{steps.length} reclaimable</span> if the rules

@@ -129,6 +129,20 @@ func planID(strategy string, steps []model.PlanStep) string {
 // occupiedNodes counts nodes currently holding at least one movable pod.
 // Nodes holding only DaemonSet pods are already reclaimable and are not
 // counted as occupied.
+// occupiedInSnapshot counts every node carrying anything at all, which is what
+// an operator means by "how many nodes do I have". Distinct from
+// occupiedNodes, which asks the narrower question the packer needs: which
+// nodes have movable work on them.
+func occupiedInSnapshot(snap *model.ClusterSnapshot) int {
+	n := 0
+	for _, node := range snap.Nodes {
+		if !snap.RequestedOnNode(node.Name).IsZero() {
+			n++
+		}
+	}
+	return n
+}
+
 func occupiedNodes(p *constraints.Placement) int {
 	n := 0
 	for _, name := range p.NodeNames() {

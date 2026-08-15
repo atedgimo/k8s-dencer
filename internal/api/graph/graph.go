@@ -122,6 +122,13 @@ type Stats struct {
 	Reclaimable int `json:"reclaimable"`
 	Steps       int `json:"steps"`
 
+	// AlreadyReclaimable is nodes holding nothing but DaemonSets and static
+	// pods: free to take, and needing no step because there is nothing to
+	// relocate. Carried to the UI because the alternative is what happened on
+	// GKE — three of seven nodes idle, no step proposed, and no mention
+	// anywhere that they existed.
+	AlreadyReclaimable int `json:"alreadyReclaimable,omitempty"`
+
 	// PackCeiling is the utilisation fraction THIS plan refused to pack
 	// above, copied from the plan record — the Wells lens draws its ceiling
 	// line here, and the line must describe the plan on screen, not the
@@ -261,10 +268,11 @@ func BuildWith(plan *model.Plan, snap *model.ClusterSnapshot, analysis *constrai
 
 func buildStats(plan *model.Plan) Stats {
 	return Stats{
-		NodesBefore: plan.NodesBefore,
-		Reclaimable: plan.ReclaimedNodes(),
-		Steps:       len(plan.Steps),
-		PackCeiling: plan.PackCeiling,
+		NodesBefore:        plan.NodesBefore,
+		AlreadyReclaimable: plan.AlreadyReclaimable,
+		Reclaimable:        plan.ReclaimedNodes(),
+		Steps:              len(plan.Steps),
+		PackCeiling:        plan.PackCeiling,
 	}
 }
 

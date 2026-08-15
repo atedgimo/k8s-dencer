@@ -1,0 +1,2 @@
+{"time":"2026-08-15T16:07:21.041069254Z","level":"INFO","msg":"starting","component":"executor","version":"0.8.1","worker":"k8s-dencer-executor-746b89f5f5-lh5bt","maxNodesPerRun":3,"minReadyNodes":3}
+{"time":"2026-08-15T16:07:21.041170465Z","level":"INFO","msg":"http server listening","component":"executor","addr":":8081"}

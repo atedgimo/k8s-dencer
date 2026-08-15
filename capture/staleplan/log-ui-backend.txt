@@ -1,0 +1,6 @@
+{"time":"2026-08-15T16:07:20.658185905Z","level":"INFO","msg":"plan store ready","component":"ui-backend","store":"sqlite at /data/dencer.db"}
+{"time":"2026-08-15T16:07:20.659176441Z","level":"INFO","msg":"authentication enabled","component":"ui-backend","namespace":"k8s-dencer","anonymousRead":false,"oidc":false}
+{"time":"2026-08-15T16:07:20.659294491Z","level":"INFO","msg":"execution enabled","component":"ui-backend","route":"POST /api/v1/plans/{id}/execute"}
+{"time":"2026-08-15T16:07:20.661230658Z","level":"INFO","msg":"pricing configured","component":"ui-backend","currency":"USD","machineTypes":2}
+{"time":"2026-08-15T16:07:20.661601342Z","level":"INFO","msg":"starting","component":"ui-backend","version":"0.8.1","database":"sqlite at /data/dencer.db"}
+{"time":"2026-08-15T16:07:20.661656536Z","level":"INFO","msg":"http server listening","component":"ui-backend","addr":":8080"}

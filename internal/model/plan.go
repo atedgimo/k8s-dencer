@@ -45,8 +45,28 @@ type Plan struct {
 	Steps []PlanStep `json:"steps"`
 
 	// NodesBefore and NodesAfter describe the packing this plan achieves.
+	//
+	// NodesBefore is the fleet: every node carrying anything at all. It used
+	// to count only nodes the packer had work for, which meant a node holding
+	// nothing but DaemonSets was missing from the number an operator reads as
+	// "how big is my cluster".
 	NodesBefore int `json:"nodesBefore"`
 	NodesAfter  int `json:"nodesAfter"`
+
+	// AlreadyReclaimable is how many nodes hold nothing but pods that cannot move
+	// and do not need to — DaemonSets, and static pods owned by the node.
+	//
+	// They need no step, because a step is a list of pods to relocate and there is
+	// nothing to relocate. But they are the cheapest capacity in the cluster:
+	// `kubectl drain --ignore-daemonsets` empties them instantly, and most
+	// autoscalers remove them unprompted.
+	//
+	// Counted separately because the planner used to leave them out of everything.
+	// They were absent from the steps, which was right, and absent from
+	// NodesBefore, which was not: on GKE, 2026-08-15, three of seven nodes held
+	// only DaemonSets and the product reported "4 nodes now, 4 after, nothing to
+	// do" while three machines sat there costing money.
+	AlreadyReclaimable int `json:"alreadyReclaimable,omitempty"`
 
 	// PackCeiling is the utilisation fraction this plan refused to pack
 	// destinations above (0.85 = plan to 85% of allocatable). Recorded on

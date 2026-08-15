@@ -1,0 +1,37 @@
+USER-SUPPLIED VALUES:
+auth:
+  enabled: true
+executor:
+  enabled: true
+  image:
+    registry: ghcr.io
+    repository: atedgimo/k8s-dencer-executor
+    tag: 0.8.1
+persistence:
+  enabled: true
+  storageClass: standard-rwo
+planner:
+  image:
+    registry: ghcr.io
+    repository: atedgimo/k8s-dencer-planner
+    tag: 0.8.1
+  minNodeAge: 30s
+  usageSource: metrics-server
+safety:
+  maxNodesPerRun: 3
+  minReadyNodes: 3
+uiBackend:
+  image:
+    registry: ghcr.io
+    repository: atedgimo/k8s-dencer-ui-backend
+    tag: 0.8.1
+  pricing:
+    currency: USD
+    perHour:
+      e2-medium: "0.03400"
+      e2-medium/spot: "0.01133"
+uiFrontend:
+  image:
+    registry: ghcr.io
+    repository: atedgimo/k8s-dencer-ui-frontend
+    tag: 0.8.1
