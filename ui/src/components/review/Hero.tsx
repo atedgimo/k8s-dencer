@@ -54,7 +54,9 @@ export default function Hero({ graph, steps, focusedRating, onFocusRating }: Pro
   return (
     <div className="hero">
       <div className="hero-lead">
-        <span className="eyebrow mono">If you approve everything safe</span>
+        <span className="eyebrow mono">
+          {safe.length > 0 ? "If you approve everything safe" : free > 0 ? "Free capacity" : "This cluster"}
+        </span>
         {safe.length > 0 ? (
           <div className="hero-line">
             <h2 className="hero-headline">
@@ -76,7 +78,13 @@ export default function Hero({ graph, steps, focusedRating, onFocusRating }: Pro
             <h2 className="hero-headline">
               {free > 0
                 ? `${free} node${free === 1 ? "" : "s"} ${free === 1 ? "is" : "are"} already free to take`
-                : "Nothing is safely reclaimable right now"}
+                : steps.length > 0
+                  ? "Nothing is safely reclaimable right now"
+                  : // The state a well-run cluster spends most of its life in.
+                    // It used to read as an absence — "nothing is safely
+                    // reclaimable" — which describes a failure and a success
+                    // with the same sentence. This is the success.
+                    "This cluster is packed as tightly as its rules allow"}
             </h2>
             {free > 0 && (
               // No step, because there is nothing to relocate — but saying
@@ -86,6 +94,12 @@ export default function Hero({ graph, steps, focusedRating, onFocusRating }: Pro
                 {free === 1 ? "It holds" : "They hold"} only DaemonSets and static pods.{" "}
                 <span className="hero-sub-strong">Draining {free === 1 ? "it" : "them"} moves nothing</span>
                 {" "}— most autoscalers remove {free === 1 ? "it" : "them"} unprompted.
+              </span>
+            )}
+            {steps.length === 0 && free === 0 && (
+              <span className="hero-sub">
+                Every node is either needed or held by a rule. Nothing to
+                approve — which is the point.
               </span>
             )}
             {steps.length > 0 && (

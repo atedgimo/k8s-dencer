@@ -11,7 +11,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { GraphPayload, Impact, NodeStability, PlanStep, WhatIf, api, formatCPU } from "../../api";
-import { FieldView, VIEW_LABELS } from "../../view";
+import { FieldView, VIEW_HINTS, VIEW_LABELS } from "../../view";
 import { VERDICT } from "../Impact";
 import type { ObservedNode } from "../../useObserved";
 
@@ -151,6 +151,7 @@ export default function ClusterPage({
               className={"viewswitch-btn" + (v === lens ? " is-on" : "")}
               aria-pressed={v === lens}
               onClick={() => onLens(v)}
+              title={VIEW_HINTS[v]}
             >
               {VIEW_LABELS[v]}
             </button>

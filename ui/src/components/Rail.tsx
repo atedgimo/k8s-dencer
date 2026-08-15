@@ -1,9 +1,9 @@
 /**
  * The left rail — the redesign's spine (assets/design/README.md, screen 1a).
  *
- * 224px: lockup, the four destinations, and at the bottom the two facts the
- * old UI once forgot to show anywhere — which cluster this is, and who you
- * are. For a tool whose pitch is that a human approves before pods are
+ * 224px: lockup, the destinations in two groups — where you act and where
+ * you look — and at the bottom the two facts the old UI once forgot to show
+ * anywhere: which cluster this is, and who you are. For a tool whose pitch is that a human approves before pods are
  * evicted, both belong on every screen, which is why they live in the frame
  * and not on a settings page.
  *
@@ -11,6 +11,8 @@
  * Recommendations counts high-severity findings. A destination with nothing
  * to do shows no number.
  */
+
+import { Fragment } from "react";
 
 import { Surface } from "../view";
 
@@ -79,12 +81,16 @@ const ICONS: Record<Surface, React.ReactNode> = {
 
 const LABELS: Record<Surface, string> = {
   review: "Review",
-  cluster: "Cluster",
   recommendations: "Recommendations",
+  cluster: "Cluster",
   resilience: "Resilience",
   rightsizing: "Rightsizing",
   history: "History",
 };
+
+// Where an operator acts, as opposed to where they look. The rail renders
+// these as two groups; everything not listed here falls into "Understand".
+const DECIDE: Surface[] = ["review", "recommendations"];
 
 export default function Rail({
   surface,
@@ -116,24 +122,36 @@ export default function Rail({
       </div>
 
       <div className="rail-nav">
-        <div className="rail-group eyebrow mono">Plan</div>
-        {(Object.keys(LABELS) as Surface[]).map((s) => (
-          <button
-            key={s}
-            type="button"
-            className={"rail-item" + (s === surface ? " is-on" : "")}
-            aria-current={s === surface ? "page" : undefined}
-            onClick={() => onSurface(s)}
-          >
-            {ICONS[s]}
-            {LABELS[s]}
-            {s === "review" && stepCount != null && stepCount > 0 && (
-              <span className="rail-badge mono">{stepCount}</span>
-            )}
-            {s === "recommendations" && highFindings != null && highFindings > 0 && (
-              <span className="rail-badge rail-badge-pill mono">{highFindings}</span>
-            )}
-          </button>
+        {/*
+          Two groups, because the destinations are not peers. Review and
+          Recommendations are where an operator acts; the rest are where they
+          look. Six presented as a flat list made the rail a menu rather than
+          a hierarchy — and the group header already existed, used once.
+        */}
+        {(["Decide", "Understand"] as const).map((group) => (
+          <Fragment key={group}>
+            <div className="rail-group eyebrow mono">{group}</div>
+            {(Object.keys(LABELS) as Surface[])
+              .filter((s) => (group === "Decide") === DECIDE.includes(s))
+              .map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className={"rail-item" + (s === surface ? " is-on" : "")}
+                  aria-current={s === surface ? "page" : undefined}
+                  onClick={() => onSurface(s)}
+                >
+                  {ICONS[s]}
+                  {LABELS[s]}
+                  {s === "review" && stepCount != null && stepCount > 0 && (
+                    <span className="rail-badge mono">{stepCount}</span>
+                  )}
+                  {s === "recommendations" && highFindings != null && highFindings > 0 && (
+                    <span className="rail-badge rail-badge-pill mono">{highFindings}</span>
+                  )}
+                </button>
+              ))}
+          </Fragment>
         ))}
       </div>
 
