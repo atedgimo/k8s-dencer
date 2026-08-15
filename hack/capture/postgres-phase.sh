@@ -124,6 +124,22 @@ spec:
     metadata:
       labels: {app: play-postgres}
     spec:
+      # fsGroup, or nothing starts on a real cloud disk.
+      #
+      # A GKE PersistentDisk mounts owned by root. Postgres runs as uid 70 and
+      # cannot create its own data directory:
+      #
+      #   mkdir: can't create directory '/var/lib/postgresql/data/pgdata':
+      #   Permission denied
+      #
+      # fsGroup makes the kubelet chown the volume on mount. This passed every
+      # rehearsal on OrbStack's local-path and on emptyDir, both permissive,
+      # and failed the moment it met real storage — which is the entire
+      # argument for having run this phase on GKE at all.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70
+        fsGroup: 70
       containers:
         - name: postgres
           image: postgres:16-alpine

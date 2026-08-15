@@ -57,8 +57,11 @@ sleep 1
 kubectl --context "$CTX" -n "$NS" port-forward --address 127.0.0.1 \
   "svc/${RELEASE}-ui-frontend" "${UI_PORT}:80" >/tmp/dencer-ui-pf.log 2>&1 &
 PF=$!
-cleanup() { kill $PF 2>/dev/null || true; }
-trap cleanup EXIT
+# Deliberately NOT trapped to EXIT. The capture happens at the end of this
+# script, and on 2026-08-15 the trap tore the port-forward down the instant it
+# ran — so the UI died exactly when the operator went to look at it. The
+# forward is meant to outlive the script; stop it with:
+#   pkill -f "port-forward.*ui-frontend"
 sleep 4
 
 # An identity that can read AND execute, because you are going to drain
@@ -117,10 +120,22 @@ fi
 echo
 
 bold "==> play"
-echo "  Take as long as you like. When you are done — and BEFORE the cluster"
-echo "  expires — press Enter here and everything gets captured."
+echo "  Take as long as you like. The UI stays up — this prompt does not hold"
+echo "  it open. When you are done, and BEFORE the cluster expires, type"
+echo "  'capture' here and everything is kept."
 echo
-read -r -p "  Press Enter to capture, or Ctrl-C to skip: " _ || true
+# A word rather than a bare Enter. On 2026-08-15 a newline left in the buffer
+# by the command that started this script counted as an answer and the capture
+# fired instantly, before anyone had opened a browser. Draining stdin first was
+# the obvious fix and the wrong one — it eats piped input, so the script became
+# unusable non-interactively. Requiring a specific word defeats the stray
+# newline without caring where stdin comes from.
+read -r -p "  Type 'capture' and Enter when you are done (Ctrl-C to skip): " answer || true
+if [[ "${answer:-}" != "capture" ]]; then
+  echo "  not capturing. Run it yourself when ready:"
+  echo "    CTX=$CTX NS=$NS DEMO_NS=$DEMO_NS $HERE/postrun.sh"
+  exit 0
+fi
 
 # --------------------------------------------------------------- the keeping
 echo
