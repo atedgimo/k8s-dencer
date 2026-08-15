@@ -138,3 +138,31 @@ things worth having found for free: a chart template that could not be
 upgraded into with `--reuse-values`, a script that broke its own database on
 a second run, and the fact that the component images are distroless and have
 no shell to exec into.
+
+---
+
+## Before you start
+
+- `hack/capture/UI-CHECKLIST.md` — what to look at on each screen and what
+  "right" looks like. Keep it open beside the browser; the last three UI bugs
+  all passed every automated gate and only appeared when someone read the
+  screen.
+
+## Before the cluster expires
+
+```bash
+./hack/capture/postrun.sh
+```
+
+Collects 30-odd files — nodes, pods, events, all three components' logs
+including the previous container, every API endpoint, metrics from all three,
+the per-node system overhead, and the graph every lens draws from — then
+writes a `FINDINGS.md` to fill in **while the cluster still exists**.
+
+Rehearsed against a local cluster, which is how three defects in it were found
+before they cost a window: it used the ui-backend's own ServiceAccount, whose
+token authenticates and is then refused, so every API file was an error body
+that looked like a successful capture; it read metrics from the wrong port on
+one component; and it passed `--context` to a script that reads stdin.
+
+Afterwards: `./hack/capture/verify-teardown.sh`.
