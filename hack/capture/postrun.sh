@@ -18,7 +18,9 @@ set -uo pipefail
 
 CTX="${CTX:-$(kubectl config current-context)}"
 NS="${NS:-k8s-dencer}"
-DEMO_NS="${DEMO_NS:-play}"
+# dencer-demo is what gcp-playground.sh actually uses; "play" was a guess and
+# produced empty workload files that looked like a successful capture.
+DEMO_NS="${DEMO_NS:-dencer-demo}"
 RELEASE="${RELEASE:-k8s-dencer}"
 OUT="${OUT:-capture/$(date -u +%Y%m%dT%H%M%SZ)}"
 PF_PORT="${PF_PORT:-18922}"
@@ -182,6 +184,35 @@ Ordered by how much it would have helped during this run.
 - [ ]
 NOTES
 green "  $OUT/FINDINGS.md"
+
+# A capture that looks successful and contains nothing has now happened twice:
+# once authenticating as a ServiceAccount that is refused (eleven files of
+# {"code":"forbidden"}), once pointed at a namespace with no workloads. Both
+# were discovered after the cluster was gone. Complain at the time instead.
+say "does this capture actually contain anything?"
+suspect=0
+for f in "$OUT"/api-*.json; do
+  [ -e "$f" ] || continue
+  if grep -qE '"code":"(forbidden|unauthenticated)"' "$f" 2>/dev/null; then
+    warn "  $(basename "$f") is an error body, not data"; suspect=$((suspect+1))
+  fi
+done
+# Not "does it contain letters" — kubectl writes its errors into the file, and
+# "Error from server (NotFound): namespaces not found" is full of letters. Ask
+# for the thing a real listing has: a header row.
+if ! grep -q '^NAME' "$OUT/demo-pods.txt" 2>/dev/null; then
+  warn "  demo-pods.txt has no workloads — is DEMO_NS=$DEMO_NS right for this cluster?"
+  warn "    $(head -1 "$OUT/demo-pods.txt" 2>/dev/null | cut -c1-90)"
+  suspect=$((suspect+1))
+fi
+for f in nodes.txt pods-all.txt log-planner.txt; do
+  [ -s "$OUT/$f" ] || { warn "  $f is empty"; suspect=$((suspect+1)); }
+done
+if [ "$suspect" -eq 0 ]; then
+  green "  looks real: $(ls "$OUT" | wc -l | tr -d ' ') files, no error bodies"
+else
+  warn "  $suspect problem(s) above — fix and re-run while the cluster exists"
+fi
 
 echo
 bold "captured into $OUT"

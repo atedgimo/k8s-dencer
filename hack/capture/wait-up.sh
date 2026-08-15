@@ -22,6 +22,18 @@ echo "waiting for nodes ..."
 until [ "$(kubectl --context gke-play get nodes --no-headers 2>/dev/null | grep -c ' Ready')" -ge 1 ]; do sleep 15; done
 kubectl --context gke-play get nodes --no-headers 2>/dev/null | wc -l | xargs echo "nodes present:"
 
+echo "waiting for the product to be installed ..."
+# kubectl wait --all ERRORS when nothing matches, rather than waiting for
+# something to appear. On the 2026-08-15 run this raced the installer and
+# printed "=== READY ===" over an empty namespace, which is worse than being
+# slow: it is confidently wrong at the one moment someone is trusting it.
+for _ in $(seq 1 120); do
+  n=$(kubectl --context gke-play -n k8s-dencer get deploy --no-headers 2>/dev/null | wc -l | tr -d ' ')
+  [ "${n:-0}" -ge 3 ] && break
+  sleep 5
+done
+kubectl --context gke-play -n k8s-dencer get deploy --no-headers 2>/dev/null | wc -l | xargs echo "deployments present:"
+
 echo "waiting for the product to be Ready (up to ~10m) ..."
 kubectl --context gke-play -n k8s-dencer wait --for=condition=available deploy --all --timeout=600s 2>&1 | tail -4
 kubectl --context gke-play -n k8s-dencer get pods 2>&1
