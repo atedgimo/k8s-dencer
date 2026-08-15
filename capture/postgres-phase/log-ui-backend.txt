@@ -1,0 +1,7 @@
+Found 2 pods, using pod/k8s-dencer-ui-backend-5d66fd84b7-vcgj5
+{"time":"2026-08-15T16:34:25.726197914Z","level":"INFO","msg":"plan store ready","component":"ui-backend","store":"postgres at play-postgres:5432/dencer (sslmode=disable, server certificate NOT verified)"}
+{"time":"2026-08-15T16:34:25.728572672Z","level":"INFO","msg":"authentication enabled","component":"ui-backend","namespace":"k8s-dencer","anonymousRead":false,"oidc":false}
+{"time":"2026-08-15T16:34:25.729045059Z","level":"INFO","msg":"execution enabled","component":"ui-backend","route":"POST /api/v1/plans/{id}/execute"}
+{"time":"2026-08-15T16:34:25.730441467Z","level":"INFO","msg":"pricing configured","component":"ui-backend","currency":"USD","machineTypes":2}
+{"time":"2026-08-15T16:34:25.731206778Z","level":"INFO","msg":"starting","component":"ui-backend","version":"0.8.1","database":"postgres at play-postgres:5432/dencer (sslmode=disable, server certificate NOT verified)"}
+{"time":"2026-08-15T16:34:25.731640935Z","level":"INFO","msg":"http server listening","component":"ui-backend","addr":":8080"}

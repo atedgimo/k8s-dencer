@@ -1,0 +1,3 @@
+{"time":"2026-08-15T16:34:24.672944566Z","level":"INFO","msg":"waiting for ui-backend to migrate the plan store","component":"executor","store":"postgres at play-postgres:5432/dencer (sslmode=disable, server certificate NOT verified)"}
+{"time":"2026-08-15T16:34:26.680698578Z","level":"INFO","msg":"starting","component":"executor","version":"0.8.1","worker":"k8s-dencer-executor-54f68fb6cd-rbrl9","maxNodesPerRun":3,"minReadyNodes":3}
+{"time":"2026-08-15T16:34:26.680838578Z","level":"INFO","msg":"http server listening","component":"executor","addr":":8081"}

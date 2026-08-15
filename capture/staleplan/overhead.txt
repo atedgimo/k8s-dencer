@@ -1,0 +1,27 @@
+node                                              system cpu  workload cpu   system mem
+gke-dencer-play-default-pool-846d4868-9f4d              276m            0m        508Mi
+gke-dencer-play-default-pool-846d4868-j9s8              276m            0m        508Mi
+gke-dencer-play-default-pool-846d4868-kzdf              301m          380m        588Mi
+gke-dencer-play-default-pool-846d4868-ps2n              276m            0m        508Mi
+gke-dencer-play-default-pool-846d4868-r3pj              576m          280m        783Mi
+gke-dencer-play-default-pool-846d4868-t20r              595m          250m        857Mi
+gke-dencer-play-default-pool-846d4868-tst6              455m          270m        821Mi
+
+system CPU requests per node: min 276m  max 595m  mean 393m  across 7 nodes
+
+system pods requesting CPU (by controller):
+    270m  kube-system/kube-dns-7ddbc8bb55
+    105m  gke-managed-cim/kube-state-metrics
+    105m  kube-system/fluentbit-gke
+    100m  kube-system/kube-proxy-gke-dencer-play-default-pool-846d4868
+     44m  kube-system/metrics-server-v1.35.1-6869f77d64
+     30m  kube-system/node-local-dns
+     21m  kube-system/gke-metrics-agent
+     20m  kube-system/kube-dns-autoscaler-7dc78dc96
+     15m  kube-system/konnectivity-agent-7f74769845
+     15m  kube-system/pdcsi-node
+     10m  kube-system/konnectivity-agent-autoscaler-69d8bfcd9b
+     10m  kube-system/l7-default-backend-7d8d77ff56
+      5m  gmp-system/collector
+      3m  kube-system/event-exporter-gke-7c667c5978
+      1m  gmp-system/gmp-operator-6f7b667cbb

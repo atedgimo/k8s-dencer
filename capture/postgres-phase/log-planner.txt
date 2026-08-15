@@ -1,0 +1,12 @@
+{"time":"2026-08-15T16:34:25.216075323Z","level":"INFO","msg":"usage source enabled","component":"planner","source":"metrics-server"}
+{"time":"2026-08-15T16:34:25.364744292Z","level":"INFO","msg":"plan store","component":"planner","store":"postgres at play-postgres:5432/dencer (sslmode=disable, server certificate NOT verified)"}
+{"time":"2026-08-15T16:34:25.607885056Z","level":"INFO","msg":"waiting for informer cache sync","component":"planner"}
+{"time":"2026-08-15T16:34:25.607952592Z","level":"INFO","msg":"http server listening","component":"planner","addr":":8081"}
+{"time":"2026-08-15T16:34:25.608552301Z","level":"INFO","msg":"cache synced","component":"planner"}
+{"time":"2026-08-15T16:34:26.561665117Z","level":"INFO","msg":"snapshot","component":"planner","nodes":7,"nodesOccupied":7,"pods":73,"pdbs":1,"pdbsBlocking":0,"cpuRequestedPct":"62.8%","memRequestedPct":"30.7%","podSlotsUsedPct":"9.5%","usageData":true}
+{"time":"2026-08-15T16:34:26.5629335Z","level":"INFO","msg":"constraints","component":"planner","movable":31,"blocked":42,"stuck":0,"pdbBlocked":0,"antiAffinity":0,"spreadBound":0,"controllerPinned":42,"nodesUndrainable":0}
+{"time":"2026-08-15T16:34:26.563275563Z","level":"INFO","msg":"plan","component":"planner","id":"a76339b03288","strategy":"greedy-first-fit-decreasing","steps":0,"nodesBefore":4,"nodesAfter":4,"reclaims":0,"green":0,"yellow":0,"red":0}
+{"time":"2026-08-15T16:34:26.594760391Z","level":"INFO","msg":"plan stored","component":"planner","id":"a76339b03288"}
+{"time":"2026-08-15T16:34:55.784416757Z","level":"INFO","msg":"snapshot","component":"planner","nodes":7,"nodesOccupied":7,"pods":73,"pdbs":1,"pdbsBlocking":0,"cpuRequestedPct":"62.8%","memRequestedPct":"30.7%","podSlotsUsedPct":"9.5%","usageData":true}
+{"time":"2026-08-15T16:34:55.796106402Z","level":"INFO","msg":"constraints","component":"planner","movable":30,"blocked":43,"stuck":0,"pdbBlocked":0,"antiAffinity":0,"spreadBound":0,"controllerPinned":43,"nodesUndrainable":1}
+{"time":"2026-08-15T16:34:55.799880695Z","level":"INFO","msg":"plan","component":"planner","id":"a76339b03288","strategy":"greedy-first-fit-decreasing","steps":0,"nodesBefore":4,"nodesAfter":4,"reclaims":0,"green":0,"yellow":0,"red":0}

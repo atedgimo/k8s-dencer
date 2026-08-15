@@ -101,6 +101,9 @@ export interface GraphStats {
   nodesBefore: number;
   reclaimable: number;
   steps: number;
+  /** Nodes holding only DaemonSets and static pods: free to take, and needing
+   *  no step because there is nothing to relocate. */
+  alreadyReclaimable?: number;
   /** The utilisation fraction THIS plan refused to pack above; the Wells
    *  lens draws its ceiling line here. Absent on plans that predate it. */
   packCeiling?: number;

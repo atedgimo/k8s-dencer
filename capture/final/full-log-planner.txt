@@ -1,0 +1,106 @@
+{"time":"2026-08-15T16:34:25.216075323Z","level":"INFO","msg":"usage source enabled","component":"planner","source":"metrics-server"}
+{"time":"2026-08-15T16:34:25.364744292Z","level":"INFO","msg":"plan store","component":"planner","store":"postgres at play-postgres:5432/dencer (sslmode=disable, server certificate NOT verified)"}
+{"time":"2026-08-15T16:34:25.607885056Z","level":"INFO","msg":"waiting for informer cache sync","component":"planner"}
+{"time":"2026-08-15T16:34:25.607952592Z","level":"INFO","msg":"http server listening","component":"planner","addr":":8081"}
+{"time":"2026-08-15T16:34:25.608552301Z","level":"INFO","msg":"cache synced","component":"planner"}
+{"time":"2026-08-15T16:34:26.561665117Z","level":"INFO","msg":"snapshot","component":"planner","nodes":7,"nodesOccupied":7,"pods":73,"pdbs":1,"pdbsBlocking":0,"cpuRequestedPct":"62.8%","memRequestedPct":"30.7%","podSlotsUsedPct":"9.5%","usageData":true}
+{"time":"2026-08-15T16:34:26.5629335Z","level":"INFO","msg":"constraints","component":"planner","movable":31,"blocked":42,"stuck":0,"pdbBlocked":0,"antiAffinity":0,"spreadBound":0,"controllerPinned":42,"nodesUndrainable":0}
+{"time":"2026-08-15T16:34:26.563275563Z","level":"INFO","msg":"plan","component":"planner","id":"a76339b03288","strategy":"greedy-first-fit-decreasing","steps":0,"nodesBefore":4,"nodesAfter":4,"reclaims":0,"green":0,"yellow":0,"red":0}
+{"time":"2026-08-15T16:34:26.594760391Z","level":"INFO","msg":"plan stored","component":"planner","id":"a76339b03288"}
+{"time":"2026-08-15T16:34:55.784416757Z","level":"INFO","msg":"snapshot","component":"planner","nodes":7,"nodesOccupied":7,"pods":73,"pdbs":1,"pdbsBlocking":0,"cpuRequestedPct":"62.8%","memRequestedPct":"30.7%","podSlotsUsedPct":"9.5%","usageData":true}
+{"time":"2026-08-15T16:34:55.796106402Z","level":"INFO","msg":"constraints","component":"planner","movable":30,"blocked":43,"stuck":0,"pdbBlocked":0,"antiAffinity":0,"spreadBound":0,"controllerPinned":43,"nodesUndrainable":1}
+{"time":"2026-08-15T16:34:55.799880695Z","level":"INFO","msg":"plan","component":"planner","id":"a76339b03288","strategy":"greedy-first-fit-decreasing","steps":0,"nodesBefore":4,"nodesAfter":4,"reclaims":0,"green":0,"yellow":0,"red":0}
+{"time":"2026-08-15T16:35:25.776645684Z","level":"INFO","msg":"snapshot","component":"planner","nodes":7,"nodesOccupied":7,"pods":72,"pdbs":1,"pdbsBlocking":0,"cpuRequestedPct":"62.1%","memRequestedPct":"30.1%","podSlotsUsedPct":"9.4%","usageData":true}
+{"time":"2026-08-15T16:35:25.778422716Z","level":"INFO","msg":"constraints","component":"planner","movable":30,"blocked":42,"stuck":0,"pdbBlocked":0,"antiAffinity":0,"spreadBound":0,"controllerPinned":42,"nodesUndrainable":0}
+{"time":"2026-08-15T16:35:25.778876381Z","level":"INFO","msg":"plan","component":"planner","id":"a76339b03288","strategy":"greedy-first-fit-decreasing","steps":0,"nodesBefore":4,"nodesAfter":4,"reclaims":0,"green":0,"yellow":0,"red":0}
+{"time":"2026-08-15T16:35:55.785003914Z","level":"INFO","msg":"snapshot","component":"planner","nodes":7,"nodesOccupied":7,"pods":72,"pdbs":1,"pdbsBlocking":0,"cpuRequestedPct":"62.1%","memRequestedPct":"30.1%","podSlotsUsedPct":"9.4%","usageData":true}
+{"time":"2026-08-15T16:35:55.789021073Z","level":"INFO","msg":"constraints","component":"planner","movable":30,"blocked":42,"stuck":0,"pdbBlocked":0,"antiAffinity":0,"spreadBound":0,"controllerPinned":42,"nodesUndrainable":0}
+{"time":"2026-08-15T16:35:55.791219475Z","level":"INFO","msg":"plan","component":"planner","id":"a76339b03288","strategy":"greedy-first-fit-decreasing","steps":0,"nodesBefore":4,"nodesAfter":4,"reclaims":0,"green":0,"yellow":0,"red":0}
+{"time":"2026-08-15T16:36:25.778946422Z","level":"INFO","msg":"snapshot","component":"planner","nodes":7,"nodesOccupied":7,"pods":72,"pdbs":1,"pdbsBlocking":0,"cpuRequestedPct":"62.1%","memRequestedPct":"30.1%","podSlotsUsedPct":"9.4%","usageData":true}
+{"time":"2026-08-15T16:36:25.780238787Z","level":"INFO","msg":"constraints","component":"planner","movable":30,"blocked":42,"stuck":0,"pdbBlocked":0,"antiAffinity":0,"spreadBound":0,"controllerPinned":42,"nodesUndrainable":0}
+{"time":"2026-08-15T16:36:25.78061692Z","level":"INFO","msg":"plan","component":"planner","id":"a76339b03288","strategy":"greedy-first-fit-decreasing","steps":0,"nodesBefore":4,"nodesAfter":4,"reclaims":0,"green":0,"yellow":0,"red":0}
+{"time":"2026-08-15T16:36:55.706118662Z","level":"INFO","msg":"snapshot","component":"planner","nodes":7,"nodesOccupied":7,"pods":72,"pdbs":1,"pdbsBlocking":0,"cpuRequestedPct":"62.1%","memRequestedPct":"30.1%","podSlotsUsedPct":"9.4%","usageData":true}
+{"time":"2026-08-15T16:36:55.707199877Z","level":"INFO","msg":"constraints","component":"planner","movable":30,"blocked":42,"stuck":0,"pdbBlocked":0,"antiAffinity":0,"spreadBound":0,"controllerPinned":42,"nodesUndrainable":0}
+{"time":"2026-08-15T16:36:55.713621938Z","level":"INFO","msg":"plan","component":"planner","id":"a76339b03288","strategy":"greedy-first-fit-decreasing","steps":0,"nodesBefore":4,"nodesAfter":4,"reclaims":0,"green":0,"yellow":0,"red":0}
+{"time":"2026-08-15T16:37:25.682102193Z","level":"INFO","msg":"snapshot","component":"planner","nodes":7,"nodesOccupied":7,"pods":72,"pdbs":1,"pdbsBlocking":0,"cpuRequestedPct":"62.1%","memRequestedPct":"30.1%","podSlotsUsedPct":"9.4%","usageData":true}
+{"time":"2026-08-15T16:37:25.683553769Z","level":"INFO","msg":"constraints","component":"planner","movable":30,"blocked":42,"stuck":0,"pdbBlocked":0,"antiAffinity":0,"spreadBound":0,"controllerPinned":42,"nodesUndrainable":0}
+{"time":"2026-08-15T16:37:25.683963653Z","level":"INFO","msg":"plan","component":"planner","id":"a76339b03288","strategy":"greedy-first-fit-decreasing","steps":0,"nodesBefore":4,"nodesAfter":4,"reclaims":0,"green":0,"yellow":0,"red":0}
+{"time":"2026-08-15T16:37:55.688808255Z","level":"INFO","msg":"snapshot","component":"planner","nodes":7,"nodesOccupied":7,"pods":72,"pdbs":1,"pdbsBlocking":0,"cpuRequestedPct":"62.1%","memRequestedPct":"30.1%","podSlotsUsedPct":"9.4%","usageData":true}
+{"time":"2026-08-15T16:37:55.694889385Z","level":"INFO","msg":"constraints","component":"planner","movable":30,"blocked":42,"stuck":0,"pdbBlocked":0,"antiAffinity":0,"spreadBound":0,"controllerPinned":42,"nodesUndrainable":0}
+{"time":"2026-08-15T16:37:55.697628278Z","level":"INFO","msg":"plan","component":"planner","id":"a76339b03288","strategy":"greedy-first-fit-decreasing","steps":0,"nodesBefore":4,"nodesAfter":4,"reclaims":0,"green":0,"yellow":0,"red":0}
+{"time":"2026-08-15T16:38:25.778310697Z","level":"INFO","msg":"snapshot","component":"planner","nodes":7,"nodesOccupied":7,"pods":72,"pdbs":1,"pdbsBlocking":0,"cpuRequestedPct":"62.1%","memRequestedPct":"30.1%","podSlotsUsedPct":"9.4%","usageData":true}
+{"time":"2026-08-15T16:38:25.779564901Z","level":"INFO","msg":"constraints","component":"planner","movable":30,"blocked":42,"stuck":0,"pdbBlocked":0,"antiAffinity":0,"spreadBound":0,"controllerPinned":42,"nodesUndrainable":0}
+{"time":"2026-08-15T16:38:25.779863223Z","level":"INFO","msg":"plan","component":"planner","id":"a76339b03288","strategy":"greedy-first-fit-decreasing","steps":0,"nodesBefore":4,"nodesAfter":4,"reclaims":0,"green":0,"yellow":0,"red":0}
+{"time":"2026-08-15T16:38:55.784098444Z","level":"INFO","msg":"snapshot","component":"planner","nodes":7,"nodesOccupied":7,"pods":72,"pdbs":1,"pdbsBlocking":0,"cpuRequestedPct":"62.1%","memRequestedPct":"30.1%","podSlotsUsedPct":"9.4%","usageData":true}
+{"time":"2026-08-15T16:38:55.787015182Z","level":"INFO","msg":"constraints","component":"planner","movable":30,"blocked":42,"stuck":0,"pdbBlocked":0,"antiAffinity":0,"spreadBound":0,"controllerPinned":42,"nodesUndrainable":0}
+{"time":"2026-08-15T16:38:55.789018654Z","level":"INFO","msg":"plan","component":"planner","id":"a76339b03288","strategy":"greedy-first-fit-decreasing","steps":0,"nodesBefore":4,"nodesAfter":4,"reclaims":0,"green":0,"yellow":0,"red":0}
+{"time":"2026-08-15T16:39:25.781668364Z","level":"INFO","msg":"snapshot","component":"planner","nodes":7,"nodesOccupied":7,"pods":72,"pdbs":1,"pdbsBlocking":0,"cpuRequestedPct":"62.1%","memRequestedPct":"30.1%","podSlotsUsedPct":"9.4%","usageData":true}
+{"time":"2026-08-15T16:39:25.782922086Z","level":"INFO","msg":"constraints","component":"planner","movable":29,"blocked":43,"stuck":0,"pdbBlocked":0,"antiAffinity":0,"spreadBound":0,"controllerPinned":47,"nodesUndrainable":1}
+{"time":"2026-08-15T16:39:25.784157339Z","level":"INFO","msg":"plan","component":"planner","id":"a76339b03288","strategy":"greedy-first-fit-decreasing","steps":0,"nodesBefore":4,"nodesAfter":4,"reclaims":0,"green":0,"yellow":0,"red":0}
+{"time":"2026-08-15T16:39:55.779470371Z","level":"INFO","msg":"snapshot","component":"planner","nodes":7,"nodesOccupied":7,"pods":71,"pdbs":1,"pdbsBlocking":0,"cpuRequestedPct":"61.9%","memRequestedPct":"29.8%","podSlotsUsedPct":"9.2%","usageData":true}
+{"time":"2026-08-15T16:39:55.784410774Z","level":"INFO","msg":"constraints","component":"planner","movable":29,"blocked":42,"stuck":0,"pdbBlocked":0,"antiAffinity":0,"spreadBound":0,"controllerPinned":46,"nodesUndrainable":0}
+{"time":"2026-08-15T16:39:55.784824375Z","level":"INFO","msg":"plan","component":"planner","id":"a76339b03288","strategy":"greedy-first-fit-decreasing","steps":0,"nodesBefore":4,"nodesAfter":4,"reclaims":0,"green":0,"yellow":0,"red":0}
+{"time":"2026-08-15T16:40:25.85921731Z","level":"INFO","msg":"snapshot","component":"planner","nodes":7,"nodesOccupied":7,"pods":71,"pdbs":1,"pdbsBlocking":0,"cpuRequestedPct":"61.9%","memRequestedPct":"29.8%","podSlotsUsedPct":"9.2%","usageData":true}
+{"time":"2026-08-15T16:40:25.860663866Z","level":"INFO","msg":"constraints","component":"planner","movable":29,"blocked":42,"stuck":0,"pdbBlocked":0,"antiAffinity":0,"spreadBound":0,"controllerPinned":46,"nodesUndrainable":0}
+{"time":"2026-08-15T16:40:25.861059192Z","level":"INFO","msg":"plan","component":"planner","id":"a76339b03288","strategy":"greedy-first-fit-decreasing","steps":0,"nodesBefore":4,"nodesAfter":4,"reclaims":0,"green":0,"yellow":0,"red":0}
+{"time":"2026-08-15T16:40:55.690316226Z","level":"INFO","msg":"snapshot","component":"planner","nodes":5,"nodesOccupied":5,"pods":71,"pdbs":1,"pdbsBlocking":0,"cpuRequestedPct":"74.9%","memRequestedPct":"34.4%","podSlotsUsedPct":"10.7%","usageData":true}
+{"time":"2026-08-15T16:40:55.698444885Z","level":"INFO","msg":"constraints","component":"planner","movable":29,"blocked":42,"stuck":0,"pdbBlocked":0,"antiAffinity":0,"spreadBound":0,"controllerPinned":48,"nodesUndrainable":0}
+{"time":"2026-08-15T16:40:55.7013905Z","level":"INFO","msg":"plan","component":"planner","id":"a76339b03288","strategy":"greedy-first-fit-decreasing","steps":0,"nodesBefore":4,"nodesAfter":4,"reclaims":0,"green":0,"yellow":0,"red":0}
+{"time":"2026-08-15T16:40:55.760440339Z","level":"INFO","msg":"node reclaimed by something else","component":"planner","node":"gke-dencer-play-default-pool-846d4868-j9s8","cpuMilli":940,"note":"not drained by k8s-dencer; recorded separately"}
+{"time":"2026-08-15T16:40:55.771388136Z","level":"INFO","msg":"node reclaimed by something else","component":"planner","node":"gke-dencer-play-default-pool-846d4868-ps2n","cpuMilli":940,"note":"not drained by k8s-dencer; recorded separately"}
+[controller-runtime] log.SetLogger(...) was never called; logs will not be displayed.
+Detected at:
+	>  goroutine 64 [running]:
+	>  runtime/debug.Stack()
+	>  	runtime/debug/stack.go:26 +0x5e
+	>  sigs.k8s.io/controller-runtime/pkg/log.eventuallyFulfillRoot()
+	>  	sigs.k8s.io/controller-runtime@v0.24.1/pkg/log/log.go:60 +0xcd
+	>  sigs.k8s.io/controller-runtime/pkg/log.(*delegatingLogSink).Enabled(0x23a1ef9ea5c0, 0x4)
+	>  	sigs.k8s.io/controller-runtime@v0.24.1/pkg/log/deleg.go:111 +0x32
+	>  github.com/go-logr/logr.Logger.Info({{0x1a53358?, 0x23a1ef9ea5c0?}, 0x13?}, {0x195b7e4, 0xb}, {0x23a1efce2000, 0x6, 0x6})
+	>  	github.com/go-logr/logr@v1.4.3/logr.go:276 +0x6e
+	>  k8s.io/client-go/tools/cache.handleAnyWatch({0x1a4b978, 0x23a1ef9703c0}, {0x0?, 0x23a1ef79b978?, 0x27bf100?}, {0x1a42e70, 0x23a1ef686f00}, {0x7e2a72ff6558, 0x23a1ef6caa00}, {0x1a67ea0, ...}, ...)
+	>  	k8s.io/client-go@v0.36.3/tools/cache/reflector.go:1093 +0x151c
+	>  k8s.io/client-go/tools/cache.handleWatch({0x1a4b978?, 0x23a1ef9703c0?}, {0x0?, 0x4?, 0x27bf100?}, {0x1a42e70?, 0x23a1ef686f00?}, {0x7e2a72ff6558?, 0x23a1ef6caa00?}, {0x1a67ea0, ...}, ...)
+	>  	k8s.io/client-go@v0.36.3/tools/cache/reflector.go:958 +0xea
+	>  k8s.io/client-go/tools/cache.(*Reflector).watch(0x23a1ef566b00, {0x1a4b978, 0x23a1ef9703c0}, {0x1a42e70, 0x23a1ef686f00}, 0x23a1ef6f04d0)
+	>  	k8s.io/client-go@v0.36.3/tools/cache/reflector.go:620 +0x70f
+	>  k8s.io/client-go/tools/cache.(*Reflector).watchWithResync(0x23a1ef566b00, {0x1a4b978, 0x23a1ef9703c0}, {0x1a42e70, 0x23a1ef686f00})
+	>  	k8s.io/client-go@v0.36.3/tools/cache/reflector.go:553 +0x186
+	>  k8s.io/client-go/tools/cache.(*Reflector).ListAndWatchWithContext(0x23a1ef566b00, {0x1a4b978, 0x23a1ef9703c0})
+	>  	k8s.io/client-go@v0.36.3/tools/cache/reflector.go:508 +0x472
+	>  k8s.io/client-go/tools/cache.(*Reflector).RunWithContext.func1({0x1a4b978, 0x23a1ef9703c0})
+	>  	k8s.io/client-go@v0.36.3/tools/cache/reflector.go:429 +0x2f
+	>  k8s.io/apimachinery/pkg/util/wait.loopConditionUntilContext.func1({0x1a4b978?, 0x23a1ef9703c0?}, 0x4c0a05?)
+	>  	k8s.io/apimachinery@v0.36.3/pkg/util/wait/loop.go:53 +0x62
+	>  k8s.io/apimachinery/pkg/util/wait.loopConditionUntilContext({0x1a4b978, 0x23a1ef9703c0}, {0x1a4a620, 0x23a1ef5ecee0}, 0x1, 0x1, 0x23a1ef79bf48)
+	>  	k8s.io/apimachinery@v0.36.3/pkg/util/wait/loop.go:54 +0x115
+	>  k8s.io/apimachinery/pkg/util/wait.DelayFunc.Until(...)
+	>  	k8s.io/apimachinery@v0.36.3/pkg/util/wait/delay.go:39
+	>  k8s.io/client-go/tools/cache.(*Reflector).RunWithContext(0x23a1ef566b00, {0x1a4b978, 0x23a1ef9703c0})
+	>  	k8s.io/client-go@v0.36.3/tools/cache/reflector.go:428 +0x289
+	>  k8s.io/client-go/tools/cache.(*controller).RunWithContext.(*Group).StartWithContext.func3()
+	>  	k8s.io/apimachinery@v0.36.3/pkg/util/wait/wait.go:63 +0x1f
+	>  k8s.io/apimachinery/pkg/util/wait.(*Group).Start.func1()
+	>  	k8s.io/apimachinery@v0.36.3/pkg/util/wait/wait.go:72 +0x4c
+	>  created by k8s.io/apimachinery/pkg/util/wait.(*Group).Start in goroutine 57
+	>  	k8s.io/apimachinery@v0.36.3/pkg/util/wait/wait.go:70 +0x73
+{"time":"2026-08-15T16:41:25.793366003Z","level":"INFO","msg":"snapshot","component":"planner","nodes":5,"nodesOccupied":5,"pods":71,"pdbs":1,"pdbsBlocking":0,"cpuRequestedPct":"74.9%","memRequestedPct":"34.4%","podSlotsUsedPct":"10.7%","usageData":true}
+{"time":"2026-08-15T16:41:25.795822289Z","level":"INFO","msg":"constraints","component":"planner","movable":29,"blocked":42,"stuck":0,"pdbBlocked":0,"antiAffinity":0,"spreadBound":0,"controllerPinned":48,"nodesUndrainable":0}
+{"time":"2026-08-15T16:41:25.796916195Z","level":"INFO","msg":"plan","component":"planner","id":"a76339b03288","strategy":"greedy-first-fit-decreasing","steps":0,"nodesBefore":4,"nodesAfter":4,"reclaims":0,"green":0,"yellow":0,"red":0}
+{"time":"2026-08-15T16:41:55.707106594Z","level":"INFO","msg":"snapshot","component":"planner","nodes":5,"nodesOccupied":5,"pods":59,"pdbs":1,"pdbsBlocking":0,"cpuRequestedPct":"74.9%","memRequestedPct":"34.4%","podSlotsUsedPct":"10.7%","usageData":true}
+{"time":"2026-08-15T16:41:55.716740602Z","level":"INFO","msg":"constraints","component":"planner","movable":29,"blocked":30,"stuck":2,"pdbBlocked":0,"antiAffinity":0,"spreadBound":0,"controllerPinned":32,"nodesUndrainable":2}
+{"time":"2026-08-15T16:41:55.721239316Z","level":"INFO","msg":"plan","component":"planner","id":"a76339b03288","strategy":"greedy-first-fit-decreasing","steps":0,"nodesBefore":4,"nodesAfter":4,"reclaims":0,"green":0,"yellow":0,"red":0}
+{"time":"2026-08-15T16:42:25.780952912Z","level":"INFO","msg":"snapshot","component":"planner","nodes":5,"nodesOccupied":5,"pods":59,"pdbs":1,"pdbsBlocking":0,"cpuRequestedPct":"74.9%","memRequestedPct":"34.4%","podSlotsUsedPct":"10.7%","usageData":true}
+{"time":"2026-08-15T16:42:25.781827716Z","level":"INFO","msg":"constraints","component":"planner","movable":28,"blocked":31,"stuck":2,"pdbBlocked":0,"antiAffinity":0,"spreadBound":0,"controllerPinned":33,"nodesUndrainable":3}
+{"time":"2026-08-15T16:42:25.782045723Z","level":"INFO","msg":"plan","component":"planner","id":"a76339b03288","strategy":"greedy-first-fit-decreasing","steps":0,"nodesBefore":4,"nodesAfter":4,"reclaims":0,"green":0,"yellow":0,"red":0}
+{"time":"2026-08-15T16:42:55.702157965Z","level":"INFO","msg":"snapshot","component":"planner","nodes":5,"nodesOccupied":5,"pods":58,"pdbs":1,"pdbsBlocking":0,"cpuRequestedPct":"74.5%","memRequestedPct":"34.0%","podSlotsUsedPct":"10.5%","usageData":true}
+{"time":"2026-08-15T16:42:55.713725465Z","level":"INFO","msg":"constraints","component":"planner","movable":28,"blocked":30,"stuck":2,"pdbBlocked":0,"antiAffinity":0,"spreadBound":0,"controllerPinned":32,"nodesUndrainable":2}
+{"time":"2026-08-15T16:42:55.713969569Z","level":"INFO","msg":"plan","component":"planner","id":"a76339b03288","strategy":"greedy-first-fit-decreasing","steps":0,"nodesBefore":4,"nodesAfter":4,"reclaims":0,"green":0,"yellow":0,"red":0}
+{"time":"2026-08-15T16:43:25.976853728Z","level":"INFO","msg":"snapshot","component":"planner","nodes":5,"nodesOccupied":5,"pods":58,"pdbs":1,"pdbsBlocking":0,"cpuRequestedPct":"74.5%","memRequestedPct":"34.0%","podSlotsUsedPct":"10.5%","usageData":true}
+{"time":"2026-08-15T16:43:25.978267102Z","level":"INFO","msg":"constraints","component":"planner","movable":28,"blocked":30,"stuck":2,"pdbBlocked":0,"antiAffinity":0,"spreadBound":0,"controllerPinned":32,"nodesUndrainable":2}
+{"time":"2026-08-15T16:43:25.978736997Z","level":"INFO","msg":"plan","component":"planner","id":"a76339b03288","strategy":"greedy-first-fit-decreasing","steps":0,"nodesBefore":4,"nodesAfter":4,"reclaims":0,"green":0,"yellow":0,"red":0}
+{"time":"2026-08-15T16:43:55.776301101Z","level":"INFO","msg":"snapshot","component":"planner","nodes":4,"nodesOccupied":4,"pods":58,"pdbs":1,"pdbsBlocking":0,"cpuRequestedPct":"85.8%","memRequestedPct":"37.9%","podSlotsUsedPct":"11.8%","usageData":true}
+{"time":"2026-08-15T16:43:55.780320358Z","level":"INFO","msg":"constraints","component":"planner","movable":28,"blocked":30,"stuck":2,"pdbBlocked":0,"antiAffinity":0,"spreadBound":0,"controllerPinned":33,"nodesUndrainable":2}
+{"time":"2026-08-15T16:43:55.781236563Z","level":"INFO","msg":"plan","component":"planner","id":"a76339b03288","strategy":"greedy-first-fit-decreasing","steps":0,"nodesBefore":4,"nodesAfter":4,"reclaims":0,"green":0,"yellow":0,"red":0}
+{"time":"2026-08-15T16:43:55.798743516Z","level":"INFO","msg":"node reclaimed by something else","component":"planner","node":"gke-dencer-play-default-pool-846d4868-9f4d","cpuMilli":940,"note":"not drained by k8s-dencer; recorded separately"}

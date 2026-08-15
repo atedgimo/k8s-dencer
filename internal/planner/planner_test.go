@@ -415,3 +415,63 @@ func TestPackCeilingRefusesDestinationsAboveIt(t *testing.T) {
 			len(p.Steps), p.PackCeiling)
 	}
 }
+
+// A node carrying nothing but DaemonSets is reclaimable, and must be visible.
+//
+// It gets no step, correctly: a step is a list of pods to relocate and there
+// is nothing to relocate. But it used to vanish entirely — dropped from the
+// steps AND from NodesBefore, because NodesBefore counted only nodes the
+// packer had movable work for.
+//
+// Observed on GKE, 2026-08-15: three of seven nodes held only DaemonSets after
+// a scale-down, and the product reported "4 nodes now, 4 after, nothing to do"
+// while three machines sat there costing money. The autoscaler eventually took
+// them, which is the tell — they were reclaimable and dencer never said so.
+func TestNodesHoldingOnlyDaemonSetsAreCountedAndReported(t *testing.T) {
+	res := func(cpu int64) model.Resources {
+		return model.Resources{MilliCPU: cpu, MemoryBytes: 1 << 31, Pods: 110}
+	}
+	snap := &model.ClusterSnapshot{
+		TakenAt: time.Now().UTC(),
+		Nodes: []model.Node{
+			{Name: "busy", Ready: true, Allocatable: res(4000)},
+			{Name: "daemons-only", Ready: true, Allocatable: res(4000)},
+		},
+		Pods: []model.Pod{
+			// Real work, and it fits on "busy" alone.
+			{Namespace: "app", Name: "web", NodeName: "busy", Phase: model.PodRunning,
+				Owner:    &model.OwnerRef{Kind: "ReplicaSet", Name: "web"},
+				Requests: res(200)},
+			// The other node carries only a DaemonSet: cannot move, does not
+			// need to, and does not hold the node up.
+			{Namespace: "kube-system", Name: "agent", NodeName: "daemons-only",
+				Phase:    model.PodRunning,
+				Owner:    &model.OwnerRef{Kind: "DaemonSet", Name: "agent"},
+				Requests: res(100)},
+		},
+	}
+
+	plan := planFor(t, snap, testOptions())
+
+	// The fleet is two nodes. Both carry something.
+	if plan.NodesBefore != 2 {
+		t.Errorf("NodesBefore = %d, want 2 — the DaemonSet-only node is still a node",
+			plan.NodesBefore)
+	}
+	if plan.AlreadyReclaimable != 1 {
+		t.Errorf("AlreadyReclaimable = %d, want 1 — the DaemonSet-only node is free to take",
+			plan.AlreadyReclaimable)
+	}
+	// No step for it: there is nothing to evict, and proposing one would be
+	// a promise to move pods that cannot move.
+	for _, s := range plan.Steps {
+		if s.TargetNode == "daemons-only" {
+			t.Errorf("proposed a step for a node with nothing to relocate: %+v", s)
+		}
+	}
+	// And the arithmetic has to account for it, or the numbers stop adding up.
+	if plan.NodesAfter != plan.NodesBefore-len(plan.Steps)-plan.AlreadyReclaimable {
+		t.Errorf("NodesAfter=%d does not reconcile with before=%d steps=%d alreadyReclaimable=%d",
+			plan.NodesAfter, plan.NodesBefore, len(plan.Steps), plan.AlreadyReclaimable)
+	}
+}

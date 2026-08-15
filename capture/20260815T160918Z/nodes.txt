@@ -1,0 +1,7 @@
+NAME                                         STATUS   ROLES    AGE     VERSION               INTERNAL-IP     EXTERNAL-IP      OS-IMAGE                             KERNEL-VERSION   CONTAINER-RUNTIME
+gke-dencer-play-default-pool-846d4868-hvpx   Ready    <none>   2m47s   v1.35.6-gke.1258000   10.128.15.200   34.29.51.218     Container-Optimized OS from Google   6.12.85+         containerd://2.1.7
+gke-dencer-play-default-pool-846d4868-kzdf   Ready    <none>   2m47s   v1.35.6-gke.1258000   10.128.15.197   136.65.40.146    Container-Optimized OS from Google   6.12.85+         containerd://2.1.7
+gke-dencer-play-default-pool-846d4868-r3pj   Ready    <none>   2m49s   v1.35.6-gke.1258000   10.128.15.201   34.171.8.215     Container-Optimized OS from Google   6.12.85+         containerd://2.1.7
+gke-dencer-play-default-pool-846d4868-sbb6   Ready    <none>   2m48s   v1.35.6-gke.1258000   10.128.15.198   35.255.81.116    Container-Optimized OS from Google   6.12.85+         containerd://2.1.7
+gke-dencer-play-default-pool-846d4868-t20r   Ready    <none>   2m49s   v1.35.6-gke.1258000   10.128.15.199   136.111.41.114   Container-Optimized OS from Google   6.12.85+         containerd://2.1.7
+gke-dencer-play-default-pool-846d4868-tst6   Ready    <none>   2m47s   v1.35.6-gke.1258000   10.128.15.196   34.41.73.124     Container-Optimized OS from Google   6.12.85+         containerd://2.1.7

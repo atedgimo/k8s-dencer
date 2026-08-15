@@ -1,0 +1,6 @@
+NAME                                      READY   STATUS    RESTARTS       AGE     IP          NODE                                         NOMINATED NODE   READINESS GATES
+k8s-dencer-executor-746b89f5f5-lh5bt      1/1     Running   0              2m18s   10.76.1.8   gke-dencer-play-default-pool-846d4868-kzdf   <none>           <none>
+k8s-dencer-planner-55f445b474-mpqhh       1/1     Running   0              2m18s   10.76.1.7   gke-dencer-play-default-pool-846d4868-kzdf   <none>           <none>
+k8s-dencer-ui-backend-6fdb57844f-htdvq    1/1     Running   0              2m18s   10.76.1.6   gke-dencer-play-default-pool-846d4868-kzdf   <none>           <none>
+k8s-dencer-ui-frontend-645d84d4d8-n9zj2   1/1     Running   0              2m18s   10.76.5.5   gke-dencer-play-default-pool-846d4868-r3pj   <none>           <none>
+k8s-dencer-ui-frontend-645d84d4d8-w7gn7   1/1     Running   1 (2m7s ago)   2m18s   10.76.1.5   gke-dencer-play-default-pool-846d4868-kzdf   <none>           <none>

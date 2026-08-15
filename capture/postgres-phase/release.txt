@@ -1,0 +1,2 @@
+NAME      	NAMESPACE 	REVISION	UPDATED                             	STATUS  	CHART           	APP VERSION
+k8s-dencer	k8s-dencer	2       	2026-08-15 19:34:15.081244 +0300 IDT	deployed	k8s-dencer-0.8.1	0.8.1      

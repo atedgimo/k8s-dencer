@@ -38,7 +38,12 @@ func (Greedy) Plan(snap *model.ClusterSnapshot, analysis *constraints.Analysis, 
 	// keeps full allocatable because its question is feasibility, while the
 	// planner's question is what to aim for.
 	work := constraints.NewPlacementCeiling(snap, opts.PackCeiling)
-	nodesBefore := occupiedNodes(work)
+	// The fleet, not the subset the packer has work for. occupiedNodes counts
+	// nodes non-empty in the Placement, and the Placement holds only movable
+	// pods — so a node carrying nothing but DaemonSets reads as empty and used
+	// to be missing from the number rendered as "N nodes now".
+	nodesBefore := occupiedInSnapshot(snap)
+	alreadyReclaimable := 0
 
 	candidates := drainCandidates(snap, opts, now)
 	sortNodesForDraining(candidates, work)
@@ -51,7 +56,24 @@ func (Greedy) Plan(snap *model.ClusterSnapshot, analysis *constraints.Analysis, 
 			break
 		}
 		if work.IsEmpty(node.Name) {
-			// Already reclaimable; nothing to do and no step to propose.
+			// Nothing to relocate, so no step — a step is a list of pods to
+			// move and there are none. But it is not nothing: this node holds
+			// only DaemonSets and static pods, `kubectl drain
+			// --ignore-daemonsets` empties it instantly, and it is the
+			// cheapest capacity in the cluster.
+			//
+			// Counting it is the whole point. Until this line it was silently
+			// dropped from the plan and from NodesBefore, so on GKE three of
+			// seven nodes vanished and the product reported "4 nodes now, 4
+			// after, nothing to do" over three idle machines.
+			// Only if it is carrying something. A node with no pods at all is
+			// also IsEmpty here, but it never entered nodesBefore either, so
+			// counting it would subtract it twice and claim a smaller fleet
+			// than physics allows — caught immediately by the packing-floor
+			// assertion in planner_test.
+			if !snap.RequestedOnNode(node.Name).IsZero() {
+				alreadyReclaimable++
+			}
 			drained[node.Name] = true
 			continue
 		}
@@ -90,8 +112,11 @@ func (Greedy) Plan(snap *model.ClusterSnapshot, analysis *constraints.Analysis, 
 		Status:          model.PlanValid,
 		Steps:           steps,
 		NodesBefore:     nodesBefore,
-		NodesAfter:      nodesBefore - len(steps),
-		PackCeiling:     opts.PackCeiling,
+		// Both kinds of reclamation come off the total: the ones this plan
+		// asks for, and the ones already free for the taking.
+		NodesAfter:         nodesBefore - len(steps) - alreadyReclaimable,
+		AlreadyReclaimable: alreadyReclaimable,
+		PackCeiling:        opts.PackCeiling,
 	}, nil
 }
 

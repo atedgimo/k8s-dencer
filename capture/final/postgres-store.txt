@@ -1,0 +1,35 @@
+=== schema_version ===
+ version 
+---------
+      15
+(1 row)
+
+=== plans (finding 1 evidence) ===
+      id      | nodes_before | nodes_after | status |          generated_at          |           stored_at            | seq 
+--------------+--------------+-------------+--------+--------------------------------+--------------------------------+-----
+ a76339b03288 |            4 |           4 | Valid  | 2026-08-15T16:34:26.563264218Z | 2026-08-15T16:44:25.696415968Z |   1
+(1 row)
+
+=== reclamations ===
+                    node                    | cpu_milli | mem_bytes  | external | instance_type | capacity_type |  outcome  
+--------------------------------------------+-----------+------------+----------+---------------+---------------+-----------
+ gke-dencer-play-default-pool-846d4868-j9s8 |       940 | 2935668736 |        1 | e2-medium     | on-demand     | reclaimed
+ gke-dencer-play-default-pool-846d4868-ps2n |       940 | 2935664640 |        1 | e2-medium     | on-demand     | reclaimed
+ gke-dencer-play-default-pool-846d4868-9f4d |       940 | 2935672832 |        1 | e2-medium     | on-demand     | reclaimed
+(3 rows)
+
+=== tables ===
+            List of relations
+ Schema |      Name      | Type  | Owner  
+--------+----------------+-------+--------
+ public | node_samples   | table | dencer
+ public | plan_steps     | table | dencer
+ public | plans          | table | dencer
+ public | reclamations   | table | dencer
+ public | recoveries     | table | dencer
+ public | run_events     | table | dencer
+ public | runs           | table | dencer
+ public | samples        | table | dencer
+ public | schema_version | table | dencer
+(9 rows)
+

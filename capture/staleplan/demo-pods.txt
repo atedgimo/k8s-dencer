@@ -1,0 +1,9 @@
+NAME                          READY   STATUS    RESTARTS   AGE   IP           NODE                                         NOMINATED NODE   READINESS GATES
+play-cache-6b5554675-2gwcc    1/1     Running   0          23m   10.76.5.7    gke-dencer-play-default-pool-846d4868-r3pj   <none>           <none>
+play-cache-6b5554675-d6r2z    1/1     Running   0          23m   10.76.1.10   gke-dencer-play-default-pool-846d4868-kzdf   <none>           <none>
+play-cache-6b5554675-ldt2l    1/1     Running   0          23m   10.76.0.5    gke-dencer-play-default-pool-846d4868-tst6   <none>           <none>
+play-filler-7d4fc49cf-2wd2m   1/1     Running   0          23m   10.76.3.12   gke-dencer-play-default-pool-846d4868-t20r   <none>           <none>
+play-filler-7d4fc49cf-6bcpx   1/1     Running   0          23m   10.76.1.11   gke-dencer-play-default-pool-846d4868-kzdf   <none>           <none>
+play-web-5cddbdcfb5-52p9l     1/1     Running   0          23m   10.76.0.4    gke-dencer-play-default-pool-846d4868-tst6   <none>           <none>
+play-web-5cddbdcfb5-7lcrb     1/1     Running   0          23m   10.76.3.11   gke-dencer-play-default-pool-846d4868-t20r   <none>           <none>
+play-web-5cddbdcfb5-lr4mn     1/1     Running   0          23m   10.76.5.6    gke-dencer-play-default-pool-846d4868-r3pj   <none>           <none>

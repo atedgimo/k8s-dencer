@@ -1,0 +1,23 @@
+{"time":"2026-08-15T16:07:22.110785268Z","level":"INFO","msg":"usage source enabled","component":"planner","source":"metrics-server"}
+{"time":"2026-08-15T16:07:22.166335471Z","level":"INFO","msg":"plan store","component":"planner","store":"sqlite at /data/dencer.db"}
+{"time":"2026-08-15T16:07:22.16716512Z","level":"INFO","msg":"waiting for informer cache sync","component":"planner"}
+{"time":"2026-08-15T16:07:22.167225922Z","level":"INFO","msg":"cache synced","component":"planner"}
+{"time":"2026-08-15T16:07:22.167224375Z","level":"INFO","msg":"http server listening","component":"planner","addr":":8081"}
+{"time":"2026-08-15T16:07:22.575912332Z","level":"INFO","msg":"snapshot","component":"planner","nodes":6,"nodesOccupied":6,"pods":57,"pdbs":1,"pdbsBlocking":1,"cpuRequestedPct":"47.0%","memRequestedPct":"26.9%","podSlotsUsedPct":"8.6%","usageData":false}
+{"time":"2026-08-15T16:07:22.576951376Z","level":"INFO","msg":"constraints","component":"planner","movable":19,"blocked":38,"stuck":2,"pdbBlocked":2,"antiAffinity":0,"spreadBound":0,"controllerPinned":36,"nodesUndrainable":2}
+{"time":"2026-08-15T16:07:22.577890819Z","level":"INFO","msg":"plan","component":"planner","id":"93033b6ea5a9","strategy":"greedy-first-fit-decreasing","steps":4,"nodesBefore":6,"nodesAfter":2,"reclaims":4,"green":2,"yellow":0,"red":2}
+{"time":"2026-08-15T16:07:22.58957197Z","level":"INFO","msg":"plan stored","component":"planner","id":"93033b6ea5a9"}
+{"time":"2026-08-15T16:07:52.268371327Z","level":"INFO","msg":"snapshot","component":"planner","nodes":6,"nodesOccupied":6,"pods":66,"pdbs":1,"pdbsBlocking":0,"cpuRequestedPct":"69.3%","memRequestedPct":"30.4%","podSlotsUsedPct":"10.0%","usageData":true}
+{"time":"2026-08-15T16:07:52.269522992Z","level":"INFO","msg":"constraints","component":"planner","movable":30,"blocked":36,"stuck":2,"pdbBlocked":0,"antiAffinity":0,"spreadBound":0,"controllerPinned":36,"nodesUndrainable":1}
+{"time":"2026-08-15T16:07:52.269939661Z","level":"INFO","msg":"plan","component":"planner","id":"f3ca0d1802d6","strategy":"greedy-first-fit-decreasing","steps":2,"nodesBefore":6,"nodesAfter":4,"reclaims":2,"green":1,"yellow":0,"red":1}
+{"time":"2026-08-15T16:07:52.290762664Z","level":"INFO","msg":"plan stored","component":"planner","id":"f3ca0d1802d6"}
+{"time":"2026-08-15T16:08:22.195217441Z","level":"INFO","msg":"snapshot","component":"planner","nodes":6,"nodesOccupied":6,"pods":67,"pdbs":1,"pdbsBlocking":0,"cpuRequestedPct":"70.1%","memRequestedPct":"30.8%","podSlotsUsedPct":"10.2%","usageData":true}
+{"time":"2026-08-15T16:08:22.196182959Z","level":"INFO","msg":"constraints","component":"planner","movable":31,"blocked":36,"stuck":2,"pdbBlocked":0,"antiAffinity":0,"spreadBound":0,"controllerPinned":36,"nodesUndrainable":1}
+{"time":"2026-08-15T16:08:22.197691583Z","level":"INFO","msg":"plan","component":"planner","id":"c56ad56f9673","strategy":"greedy-first-fit-decreasing","steps":1,"nodesBefore":6,"nodesAfter":5,"reclaims":1,"green":1,"yellow":0,"red":0}
+{"time":"2026-08-15T16:08:22.216156672Z","level":"INFO","msg":"plan stored","component":"planner","id":"c56ad56f9673"}
+{"time":"2026-08-15T16:08:52.198837793Z","level":"INFO","msg":"snapshot","component":"planner","nodes":6,"nodesOccupied":6,"pods":67,"pdbs":1,"pdbsBlocking":0,"cpuRequestedPct":"70.1%","memRequestedPct":"30.8%","podSlotsUsedPct":"10.2%","usageData":true}
+{"time":"2026-08-15T16:08:52.20005152Z","level":"INFO","msg":"constraints","component":"planner","movable":31,"blocked":36,"stuck":2,"pdbBlocked":0,"antiAffinity":0,"spreadBound":0,"controllerPinned":36,"nodesUndrainable":1}
+{"time":"2026-08-15T16:08:52.200714713Z","level":"INFO","msg":"plan","component":"planner","id":"c56ad56f9673","strategy":"greedy-first-fit-decreasing","steps":1,"nodesBefore":6,"nodesAfter":5,"reclaims":1,"green":1,"yellow":0,"red":0}
+{"time":"2026-08-15T16:09:22.475570176Z","level":"INFO","msg":"snapshot","component":"planner","nodes":6,"nodesOccupied":6,"pods":66,"pdbs":1,"pdbsBlocking":0,"cpuRequestedPct":"69.3%","memRequestedPct":"30.4%","podSlotsUsedPct":"10.0%","usageData":true}
+{"time":"2026-08-15T16:09:22.47667512Z","level":"INFO","msg":"constraints","component":"planner","movable":30,"blocked":36,"stuck":2,"pdbBlocked":0,"antiAffinity":0,"spreadBound":0,"controllerPinned":36,"nodesUndrainable":1}
+{"time":"2026-08-15T16:09:22.477215065Z","level":"INFO","msg":"plan","component":"planner","id":"c56ad56f9673","strategy":"greedy-first-fit-decreasing","steps":1,"nodesBefore":6,"nodesAfter":5,"reclaims":1,"green":1,"yellow":0,"red":0}
