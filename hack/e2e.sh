@@ -96,7 +96,11 @@ esac
 red()   { printf '\033[31m%s\033[0m\n' "$*"; }
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
 bold()  { printf '\033[1m%s\033[0m\n' "$*"; }
+warn()  { printf '\033[33m%s\033[0m\n' "$*"; }
 fail()  { red "FAIL: $*"; exit 1; }
+
+# Scratch space for values files this run generates. Removed by cleanup().
+TMP="$(mktemp -d)"
 
 # k3d switches the current context on create. Anything else the operator has
 # open must not silently start pointing at a throwaway cluster — a lesson from
@@ -111,6 +115,7 @@ restore_context() {
 PF=""
 cleanup() {
   [[ -n "$PF" ]] && kill "$PF" 2>/dev/null || true
+  [[ -n "${TMP:-}" ]] && rm -rf "$TMP"
   if [[ "${KEEP:-0}" != "1" ]]; then
     cluster_delete
   fi
@@ -499,12 +504,50 @@ PGYAML
   )
 fi
 
+# Keep the product off the nodes the product is about to drain.
+#
+# There is already a step-selection guard that prefers a target node none of
+# the release's pods are on. It has a fallback, so that a single-node or
+# fully-packed cluster still exercises a drain — and the fallback is what
+# actually fires. On the Postgres run the plan had three steps, every usable
+# one targeted a node carrying a component, and the test picked one anyway:
+# it evicted the executor mid-run and the run sat at Running until the poll
+# gave up. The guard was preferring something that did not exist.
+#
+# So give it something to find. The server node is the one this test never
+# drains, and the Postgres fixture is already pinned there for exactly this
+# reason. On SQLite the ReadWriteOnce affinity did this by accident; Postgres
+# lifts that pin, which is the point of Postgres, so it has to be said out
+# loud.
+#
+# k3d only. On GKE there is no node this is safe to assume about, and the run
+# is against a real cluster where the fallback is the honest behaviour.
+PIN_SET=()
+if [[ "$PROVIDER" == "k3d" ]]; then
+  cat > "$TMP/pin.yaml" <<'PINYAML'
+# Every component onto the control-plane node, which the plan never targets.
+_pin: &pin
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: "true"
+  tolerations:
+    - {key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule}
+    - {key: node-role.kubernetes.io/master, operator: Exists, effect: NoSchedule}
+
+planner: *pin
+uiBackend: *pin
+executor: *pin
+uiFrontend: *pin
+PINYAML
+  PIN_SET=(-f "$TMP/pin.yaml")
+fi
+
 bold "==> install with execution on and readiness: Ready"
 helm --kube-context "$CTX" upgrade --install "$RELEASE" "$REPO/charts/k8s-dencer" \
   --namespace "$NS" \
   --set auth.enabled=true \
   "${STORE_SET[@]}" \
   "${PROVIDER_SET[@]}" \
+  "${PIN_SET[@]}" \
   --set executor.enabled=true \
   --set planner.minNodeAge=0s \
   --set-string planner.image.tag="$TAG" \
@@ -543,7 +586,13 @@ if [[ "$BACKEND" == "postgres" ]]; then
   [[ "$mounts" == "0" ]] || fail "a Postgres install still mounts /data in ${mounts} place(s)"
   green "  no claim, no /data mount"
 
-  bold "==> the readers are free to land anywhere"
+  # What this asserts is that the CHART stops imposing co-scheduling, which is
+  # the constraint SQLite's ReadWriteOnce claim forces and Postgres lifts. It
+  # deliberately does not assert where the pods actually landed: this run pins
+  # every component to the server node with a nodeSelector, for its own
+  # reasons — see the install step — and reading placement here would be
+  # reading back the test's own fixture.
+  bold "==> the chart no longer forces the readers onto one node"
   replicas="$(kubectl --context "$CTX" -n "$NS" get deploy "${RELEASE}-ui-backend" \
     -o jsonpath='{.status.readyReplicas}')"
   [[ "${replicas:-0}" -ge 2 ]] || fail "ui-backend has ${replicas:-0} ready replica(s); Postgres exists so this can exceed 1"
@@ -551,7 +600,7 @@ if [[ "$BACKEND" == "postgres" ]]; then
   aff="$(kubectl --context "$CTX" -n "$NS" get deploy "${RELEASE}-planner" \
     -o jsonpath='{.spec.template.spec.affinity.podAffinity}')"
   [[ -z "$aff" ]] || fail "the planner still carries the ReadWriteOnce co-scheduling affinity"
-  green "  ${replicas} ui-backend replicas, planner unpinned"
+  green "  ${replicas} ui-backend replicas Ready, and no ReadWriteOnce affinity in the chart"
 
   # Two ui-backends and a planner all migrate on startup. Before the advisory
   # lock this raced and one pod died on a duplicate key, self-healing on
@@ -712,6 +761,15 @@ else:
     print("", "", "")
 ')"
 [[ -n "${SEQ:-}" ]] || fail "no non-Red step with moves; nothing to execute"
+# The fallback firing is the shape of every flake this job has had. It used to
+# be silent, so each one arrived looking like a regression in whatever PR was
+# open rather than as the same known cause for the fourth time.
+case ",$OURS," in
+  *",$TARGET,"*)
+    warn "  ${TARGET} carries k8s-dencer's own pods — no clean node was available."
+    warn "  Evicting the executor or the ui-backend mid-run leaves the run at Running."
+    ;;
+esac
 green "  step ${SEQ} drains ${TARGET}, moving ${MOVES} pods"
 
 before_ready="$(kubectl --context "$CTX" -n "$APP_NS" get deploy web -o jsonpath='{.status.readyReplicas}')"
