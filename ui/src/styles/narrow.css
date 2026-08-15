@@ -1,0 +1,266 @@
+/*
+ * The read path at narrow widths.
+ *
+ * Every width-based media query in the product lives here rather than at the
+ * foot of the file it overrides. That is deliberate: the narrow layout is one
+ * design decision taken three times, and scattering it across ten stylesheets
+ * makes it impossible to answer "what does this look like on a phone?" by
+ * reading. Imported last, so it wins on equal specificity without !important.
+ *
+ * The requirement is READING, not operating. Nobody drains a node from a
+ * phone and nobody should: someone gets paged, looks at their phone, and
+ * needs to know whether the cluster is fine. So the plan, the verdicts, the
+ * findings and the ledger have to survive; the drain button does not, and
+ * below the smallest tier it goes away rather than inviting a fat-fingered
+ * eviction on a train.
+ *
+ * Three tiers, each doing exactly one thing:
+ *
+ *   ≤1200  the side-by-side panes stack. A 392px detail pane against a 1fr
+ *          list stops working here, not at some phone width — the list is
+ *          the first casualty and it is the part you came to read.
+ *   ≤1000  the rail loses its labels and becomes icons.
+ *   ≤720   the rail becomes a strip above the content, and everything that
+ *          evicts a pod disappears.
+ */
+
+/* ======================================================== ≤1200: unstack */
+
+@media (max-width: 1200px) {
+  /* List above, detail below — and ONE scroll for the pair.
+     
+     The first attempt kept both panes as bounded scrollers stacked on top of
+     each other, and it collapsed the step list to nothing at 1100px: the
+     detail pane asked for 46vh, the hero had already taken most of the
+     column, and the list is the flexible one so it lost. It rendered as a
+     toolbar sitting directly on top of a step detail for a step you could no
+     longer see in a list. Nested scrollers are also the wrong feel on touch,
+     where a drag lands in whichever pane it happens to start over.
+     
+     So the workspace scrolls, and every pane inside it renders at its
+     natural height. */
+  .review-main,
+  .recspage-body,
+  .clusterpage-body {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .steplist,
+  .recsqueue,
+  .rackgrid,
+  .wellsgrid,
+  .loadtable,
+  .stepdetail,
+  .recsdetail,
+  .clusterdetail,
+  .clusterdetail-wells,
+  .steplist-scrollwrap,
+  .steplist-scroll,
+  .recsqueue-list {
+    flex: 0 0 auto;
+    width: auto;
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+    border-right: 0;
+  }
+
+  .stepdetail,
+  .recsdetail,
+  .clusterdetail,
+  .clusterdetail-wells {
+    border-top: 1px solid var(--border);
+  }
+
+  /* The fade advertises more content below the fold of a scroller that no
+     longer exists. */
+  .steplist-fade {
+    display: none;
+  }
+
+  /* The triage bar was a fixed 300px column beside the headline; below the
+     headline it can have the full width instead of squeezing it. */
+  .hero {
+    flex-wrap: wrap;
+    gap: var(--space-5);
+  }
+
+  .hero-triage {
+    width: 100%;
+    flex-shrink: 1;
+  }
+
+  /* Wide grids scroll inside themselves — last, so it wins over the
+     `overflow: visible` above. The page body must never scroll sideways: a
+     horizontal page scrollbar hides the rail and the footer, which is how
+     reading on a phone turned into hunting on a phone. */
+  .rightsizing-tablewrap,
+  .ledger,
+  .loadtable {
+    overflow-x: auto;
+  }
+}
+
+/* ==================================================== ≤1000: icons only */
+
+@media (max-width: 1000px) {
+  .rail {
+    width: 58px;
+  }
+
+  /* Labels and group headers go; the icon and the badge stay, because the
+     badge is the one thing on the rail carrying live information. */
+  .rail-label,
+  .rail-group,
+  .rail-wordmark,
+  .rail-cluster,
+  .rail-identity-name {
+    display: none;
+  }
+
+  /* Positioned, because the badge no longer has a label to sit after. */
+  .rail-item {
+    position: relative;
+    justify-content: center;
+    padding: 10px 0;
+  }
+
+  /* 11px is the type floor and it holds here too — the badge shrinks by
+     losing its padding, not by going below the floor. */
+  .rail-badge {
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    margin-left: 0;
+    padding: 0 3px;
+  }
+
+  .rail-lockup,
+  .rail-nav,
+  .rail-foot {
+    padding-left: 0;
+    padding-right: 0;
+    justify-content: center;
+  }
+
+  .rail-identity {
+    justify-content: center;
+  }
+
+  /* The strategy and the plan hash are the first things the top bar can
+     afford to lose — the freshness dot is not. */
+  .topbar-strategy,
+  .topbar-sep {
+    display: none;
+  }
+}
+
+/* ============================================ ≤720: a strip, and read-only */
+
+@media (max-width: 720px) {
+  .frame {
+    flex-direction: column;
+  }
+
+  /* A horizontal strip that scrolls if six destinations do not fit, rather
+     than six icons squeezed to nothing. */
+  .rail {
+    width: auto;
+    flex-direction: row;
+    align-items: center;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+  }
+
+  .rail-lockup {
+    border-bottom: 0;
+    border-right: 1px solid var(--border);
+    padding: 0 12px;
+    height: auto;
+    align-self: stretch;
+  }
+
+  .rail-nav {
+    flex-direction: row;
+    padding: 6px;
+    gap: 4px;
+  }
+
+  /* Identity and sign-out belong on every screen — the pitch is that a human
+     approves — but the cluster row and the run note do not fit a strip. */
+  .rail-foot {
+    margin-top: 0;
+    margin-left: auto;
+    flex-direction: row;
+    align-items: center;
+    border-top: 0;
+    border-left: 1px solid var(--border);
+    padding: 0 10px;
+  }
+
+  .rail-run {
+    display: none;
+  }
+
+  /* Back into the flow. The absolute badge that works on a vertical rail
+     lands on top of the NEXT destination once the items sit in a row. */
+  .rail-badge {
+    position: static;
+    margin-left: 5px;
+    padding: 0 5px;
+  }
+
+  .rail-item {
+    padding: 8px 9px;
+  }
+
+  /* Everything that evicts a pod. The read path is the requirement, and a
+     drain confirmed by a thumb on a train is not a decision anyone wanted to
+     make. Rehearse goes too: it starts a real run, writes real events, and
+     the result needs a screen to read on. */
+  .reviewfooter-actions,
+  .steplist-selected,
+  .steprow-box,
+  .stepdetail-actions {
+    display: none;
+  }
+
+  /* What is left of the footer is the summary, which is worth reading. */
+  .reviewfooter {
+    height: auto;
+    padding: 12px var(--space-5);
+  }
+
+  .topbar {
+    height: auto;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    padding: 10px var(--space-5);
+  }
+
+  .hero {
+    padding: 18px var(--space-5) 16px;
+  }
+
+  .hero-headline {
+    font-size: var(--text-lg);
+  }
+
+  /* The step row's fixed columns do not survive 360px. Name, verdict and the
+     node it drains are the row; the rest is detail, and the detail pane
+     underneath already has it. */
+  .steprow {
+    grid-template-columns: 30px 1fr auto;
+    gap: 8px;
+    padding: 11px var(--space-5);
+  }
+
+  .steprow-pool,
+  .steprow-pods,
+  .steprow-why,
+  .steprow-chevron {
+    display: none;
+  }
+}

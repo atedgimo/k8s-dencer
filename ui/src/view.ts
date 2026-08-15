@@ -80,3 +80,17 @@ export const VIEW_LABELS: Record<FieldView, string> = {
   wells: "Wells",
   load: "Load",
 };
+
+/**
+ * What each lens is FOR, one clause each.
+ *
+ * The labels alone — Rack, Wells, Load — say what a thing is drawn as, not
+ * what question it answers, so someone who does not already know the three
+ * has no reason to try the other two. These ride as tooltips, which is the
+ * cheapest way to make a control explain itself.
+ */
+export const VIEW_HINTS: Record<FieldView, string> = {
+  rack: "Pods in place, one block per pod, width by CPU request — where the work actually is",
+  wells: "A vessel per node with its fill and the packing ceiling — how much room is left",
+  load: "Requested against measured usage per node — how much of what is reserved is used",
+};
