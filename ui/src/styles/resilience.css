@@ -26,6 +26,7 @@
   font-weight: 600;
   letter-spacing: var(--tracking-display);
   text-wrap: balance;
+  line-height: 1.15;
 }
 
 .resilience-sub {

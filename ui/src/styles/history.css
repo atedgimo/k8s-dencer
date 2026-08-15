@@ -73,6 +73,7 @@
   font-size: var(--text-display);
   font-weight: 600;
   letter-spacing: var(--tracking-display);
+  line-height: 1.15;
 }
 
 .estate-spare-word {

@@ -19,3 +19,6 @@
 @import "./styles/resilience.css";
 @import "./styles/rightsizing.css";
 @import "./styles/history.css";
+/* Last, deliberately: every width-based media query lives in one file and
+   overrides the ones above it on equal specificity. */
+@import "./styles/narrow.css";

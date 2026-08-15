@@ -142,7 +142,9 @@ export default function Rail({
                   onClick={() => onSurface(s)}
                 >
                   {ICONS[s]}
-                  {LABELS[s]}
+                  {/* The label is a span so a narrow viewport can drop it and
+                      leave an icon rail — see styles/narrow.css. */}
+                  <span className="rail-label">{LABELS[s]}</span>
                   {s === "review" && stepCount != null && stepCount > 0 && (
                     <span className="rail-badge mono">{stepCount}</span>
                   )}
