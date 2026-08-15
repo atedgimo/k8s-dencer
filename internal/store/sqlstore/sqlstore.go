@@ -607,6 +607,21 @@ func (s *Store) Save(ctx context.Context, rec store.Record) (bool, error) {
 	} else if n > 0 {
 		// Same content hash as the last write: the cluster has not changed in
 		// any way that alters the plan.
+		// The steps keep their identity and can still change their wording.
+		//
+		// planID hashes the strategy, sequence numbers, target nodes and
+		// moves — the actions — and deliberately not the rationale, impact or
+		// reasons, which describe those actions. So an upgraded planner that
+		// explains the same drain better produces the same id, takes this
+		// branch, and leaves the old explanation in place forever.
+		//
+		// That is not hypothetical: a fix that stopped a rationale repeating
+		// itself shipped, ran, and changed nothing on any existing plan,
+		// because every plan it applied to hashed the same as before. The
+		// same argument the pack_ceiling touch already makes, one level down.
+		if err := s.refreshStepText(ctx, rec); err != nil {
+			return false, err
+		}
 		return false, nil
 	}
 
@@ -685,6 +700,31 @@ func (s *Store) Save(ctx context.Context, rec store.Record) (bool, error) {
 		return false, err
 	}
 	return true, nil
+}
+
+// refreshStepText rewrites what a step says without touching what it is.
+//
+// Matched on (plan_id, sequence_number) rather than deleting and reinserting,
+// because the rows are identical in every column this does not name and the
+// dedup path exists precisely to avoid that write volume. Bounded by the step
+// count, which is tens.
+func (s *Store) refreshStepText(ctx context.Context, rec store.Record) error {
+	for _, step := range rec.Plan.Steps {
+		reasonsJSON, err := json.Marshal(step.Reasons)
+		if err != nil {
+			return fmt.Errorf("encode reasons: %w", err)
+		}
+		if _, err := s.exec(ctx, `
+			UPDATE plan_steps
+			   SET impact = ?, rationale = ?, reasons = ?, requires_maintenance_window = ?
+			 WHERE plan_id = ? AND sequence_number = ?`,
+			string(step.Impact), step.Rationale, reasonsJSON,
+			boolToInt(step.RequiresMaintenanceWindow()),
+			rec.Plan.ID, step.SequenceNumber); err != nil {
+			return fmt.Errorf("refresh step %d: %w", step.SequenceNumber, err)
+		}
+	}
+	return nil
 }
 
 // Latest returns the most recently stored record.

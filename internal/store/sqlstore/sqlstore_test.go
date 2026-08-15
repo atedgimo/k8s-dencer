@@ -559,3 +559,53 @@ func TestDedupCarriesTheCeilingForward(t *testing.T) {
 		t.Errorf("stored ceiling = %v, want 0.85 — the dedup touch dropped the policy", got.Plan.PackCeiling)
 	}
 }
+
+// A better explanation of the same drain must reach an existing plan.
+//
+// planID hashes the strategy, sequence numbers, target nodes and moves — the
+// actions — and deliberately not the rationale, impact or reasons, which
+// describe those actions. That is the right identity: the same drains are the
+// same plan however they are worded.
+//
+// But it means an upgraded planner that explains a step better produces the
+// same id, takes the dedup path, and used to leave the old wording in place
+// forever. Observed: a fix that stopped a rationale repeating itself shipped,
+// ran against a live cluster, and changed nothing — every plan it applied to
+// hashed the same as before, so the store kept the stutter.
+func TestDedupRefreshesWhatAStepSays(t *testing.T) {
+	ctx := context.Background()
+	s := openTemp(t)
+
+	before := record("samesteps", step(1, "n1", model.ImpactYellow))
+	before.Plan.Steps[0].Rationale = "Rated Yellow because: X. Also: X."
+	mustSave(t, s, before, true)
+
+	// Same actions, better words — and a changed rating, which is the same
+	// class of thing: a judgement about the step rather than the step itself.
+	after := record("samesteps", step(1, "n1", model.ImpactGreen))
+	after.Plan.Steps[0].Rationale = "Rated Green because: X."
+	after.Plan.Steps[0].Reasons = []model.ImpactReason{
+		{Kind: "BlastRadius", Subject: "n1", Detail: "moves 1 pod"},
+	}
+	if stored, err := s.Save(ctx, after); err != nil || stored {
+		t.Fatalf("identical actions should dedup: stored=%v err=%v", stored, err)
+	}
+
+	got, err := s.Latest(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Plan.Steps) != 1 {
+		t.Fatalf("steps = %d, want 1", len(got.Plan.Steps))
+	}
+	if got.Plan.Steps[0].Rationale != "Rated Green because: X." {
+		t.Errorf("rationale stale after dedup: %q — a wording fix would never reach an "+
+			"existing plan", got.Plan.Steps[0].Rationale)
+	}
+	if got.Plan.Steps[0].Impact != model.ImpactGreen {
+		t.Errorf("impact stale after dedup: %q, want Green", got.Plan.Steps[0].Impact)
+	}
+	if len(got.Plan.Steps[0].Reasons) != 1 {
+		t.Errorf("reasons stale after dedup: %d, want 1", len(got.Plan.Steps[0].Reasons))
+	}
+}
