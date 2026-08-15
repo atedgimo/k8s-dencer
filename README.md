@@ -274,11 +274,23 @@ until the next snapshot says where they truly landed.
 execution, and maintenance windows. Phase 4 — hardening toward 1000 nodes and
 50,000 pods — is in progress, with metrics, CI and the release pipeline landed.
 
-**v0.8.0 is published** — images, chart and CLI binaries on `ghcr.io` and the
+**v0.8.1 is published** — images, chart and CLI binaries on `ghcr.io` and the
 [releases page](https://github.com/atedgimo/k8s-dencer/releases), installable by
 the command above.
 
-It is the release that went looking. Every fix in it came from running the
+**Upgrade from v0.8.0 if you use `--reuse-values`:** that release added
+`database.postgres.sslRootCert`, and `helm upgrade --reuse-values` carries
+stored values forward without merging defaults for new keys — so the template
+hit a nil pointer and the upgrade would not render at all. It is nil-safe now.
+
+v0.8.1 also fixes three bugs found by driving the UI against a real cluster
+rather than reading it: the fix queue reported **0 findings for a full minute
+after sign-in** on a cluster with 34, because three polling hooks never re-read
+when a token arrived; a step's rationale printed the same reason twice when
+several pods shared one rule; and the review footer called an empty selection
+"All Green" while the screen above it said nothing was safe.
+
+v0.8.0 before it is the release that went looking. Every fix in it came from running the
 product rather than reading it: the CLI could not find its own backend unless
 the Helm release happened to be named `k8s-dencer`; it reported a plan the
 planner had just re-confirmed as twenty hours old, contradicting the UI about

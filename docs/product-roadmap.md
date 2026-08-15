@@ -239,6 +239,28 @@ everything else, including two flaws in the new test itself — it drained the
 node its own database was on, then drained the pod its own port-forward was
 talking through.
 
+### What driving it found (2026-08-15)
+- **The fix queue was blind for a minute after sign-in.** Three polling hooks
+  fetched on mount, before anyone had a token, got a 401, and swallowed it —
+  then waited out a 60-second interval. Measured on a live cluster: 0 findings
+  at t+6s, 34 at t+68s, with the screen saying "No findings against the current
+  cluster" the whole time. Not a spinner; a sentence, and a false one
+- **A rationale that stuttered** — several pods bound by one rule each
+  contribute an identically-worded reason, and every one was printed. The UI,
+  the CLI and the Kagent agent all quote that string
+- **"All Green" over a plan with nothing green**, whenever the selection was
+  empty
+- **`helm upgrade --reuse-values` into v0.8.0 could not render**, because the
+  chart grew a key and Helm does not merge defaults for keys added since the
+  stored values were written
+- **An audit script** that walks every destination in both themes and reports
+  console errors, failed requests, empty screens and cross-surface
+  contradictions
+
+None of these survived contact with a real cluster, and none of them were
+caught by unit tests, the gates, or a screenshot review. That is the pattern
+worth keeping: the reviews find the engine, the cluster finds the product.
+
 ## Next
 
 Ordered by intent; items move up when a user need pulls them.
