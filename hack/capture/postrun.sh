@@ -55,6 +55,21 @@ for c in planner ui-backend executor; do
     > "$OUT/log-$c-previous.txt" 2>/dev/null && green "  $OUT/log-$c-previous.txt"
 done
 
+# JSON as well as YAML, so the headroom question can be re-asked after the
+# cluster is gone. The 2026-08-15 capture has nodes.yaml and a pod listing
+# without requests in it, which is not enough to reconstruct why that run had
+# nowhere to move anything.
+keep nodes.json         kubectl --context "$CTX" get nodes -o json
+keep pods-all.json      kubectl --context "$CTX" get pods -A -o json
+if python3 "$(dirname "${BASH_SOURCE[0]}")/headroom.py" \
+     "$OUT/nodes.json" "$OUT/pods-all.json" > "$OUT/headroom.txt" 2>&1; then
+  green "  $OUT/headroom.txt"
+else
+  # Exit 2 means nothing was drainable, which is a finding rather than a
+  # failure of the capture.
+  warn "  $OUT/headroom.txt (nothing drainable — kept, and worth reading)"
+fi
+
 say "the workloads under test"
 keep demo-pods.txt      kubectl --context "$CTX" -n "$DEMO_NS" get pods -o wide
 keep demo-all.yaml      kubectl --context "$CTX" -n "$DEMO_NS" get all,pdb -o yaml

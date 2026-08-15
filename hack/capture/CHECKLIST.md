@@ -1,14 +1,56 @@
-# v0.5.0 on a real managed cluster — what to check
+# A real managed cluster — what to check
 
-The 2026-08-07 run found that the product could not plan on GKE at all. Every
-fix since was verified against `test/fixtures/gke-managed.yaml` and locally.
-**Nobody has watched v0.5.0 plan on a real managed cluster.** That is what this
-run is for.
+**The planning question is answered.** On 2026-08-15 the product planned on a
+real GKE cluster: 4 steps, 6 nodes to 2, with GKE's own DaemonSets and static
+pods correctly read as pinned rather than movable. The 2026-08-07 failure —
+every node undrainable, zero steps — is closed.
 
-If line 1 fails, stop and treat the fixture as wrong about something —
-everything below it is downstream of that one answer.
+**The execution question is not.** That run never drained anything, because
+the cluster was 88.5% requested and there was nowhere to move pods to. So
+cordon → evict → verify → reclaim is still verified only by the e2e and by
+OrbStack, and the savings ledger has never been filled in money by a drain of
+ours — only by GKE's autoscaler reclaiming nodes on its own. That is what the
+next run is for (issue #225).
 
-## 1. The P0 — does it plan at all?
+Sections 1–7 below are now regression checks: they were failures once, they
+are fixed, and they are cheap to re-confirm. **Section 0 is the run's actual
+purpose.**
+
+## 0. Can it drain, and will it?
+
+`run.sh` asks the first half automatically, before anything else, and says so
+loudly if the answer is no:
+
+```
+==> is there room to drain anything?
+  OK — capacity for 3 drains. Enough to execute one and still have a spare.
+```
+
+If that prints `TOO PACKED`, **relaunch with a bigger fleet immediately** —
+`REAL_NODES=8 make gcp-play`. Everything downstream will look fine and prove
+nothing, which is exactly how the last run spent its window. Add nodes rather
+than shrinking the demo workload: the movable load is what makes the plan
+interesting in the first place.
+
+It is a capacity ceiling, not a plan. Constraints can only take nodes off that
+number, so a zero is decisive and a healthy number is necessary rather than
+sufficient.
+
+Then, in the UI:
+
+- [ ] **Rehearse a Caution step.** Every guard check runs, the same events are
+      emitted, nothing is cordoned or evicted.
+- [ ] **Drain one for real.** Watch cordon → evict → verify → drained on the
+      run screen. This is the line no managed-cluster run has ever crossed.
+- [ ] **Let the reclamation close** — the node goes away and History records
+      it as ours, with money attached, rather than `external: true`.
+- [ ] **Open a Red step** and confirm it refuses without a maintenance window,
+      and reads as the product working rather than as an error.
+
+Give the Postgres phase more than ten minutes if it runs. Last time it proved
+Postgres starts and migrates, and said nothing about it under load.
+
+## 1. Regression: does it still plan at all?
 
 ```bash
 go run ./cmd/dencer plan --context gke-play
