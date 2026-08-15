@@ -171,3 +171,23 @@
   color: var(--text-5);
   text-wrap: pretty;
 }
+
+/*
+ * The row an operator was sent to, and the note that another screen has
+ * something to say about the same workload. Both are quiet: this table's job
+ * is the measurement, and a badge that shouted would compete with it.
+ */
+.rightsizing-advised {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: var(--text-2xs);
+  color: var(--text-5);
+  white-space: nowrap;
+}
+
+.rightsizing tbody tr.is-focused {
+  background: var(--raised);
+  box-shadow: inset 2px 0 0 var(--accent);
+}

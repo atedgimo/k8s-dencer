@@ -9,8 +9,8 @@
  * work. Muting removes a finding from the queue, never from the plan.
  */
 
-import { useMemo, useState } from "react";
-import { GraphPayload, PlanStep, Recommendation, formatCPU } from "../../api";
+import { useEffect, useMemo, useState } from "react";
+import { GraphPayload, PlanStep, Recommendation, api, formatCPU } from "../../api";
 import { findingKey } from "../../useMuted";
 
 interface Props {
@@ -22,6 +22,8 @@ interface Props {
   onUnmute: (key: string) => void;
   /** Cross-navigation: focus these steps on the Review screen. */
   onOpenSteps: (steps: number[]) => void;
+  /** Cross-navigation: open Rightsizing, scrolled to this workload. */
+  onOpenRightsizing: (workload: string) => void;
 }
 
 const SEV_LABEL: Record<Recommendation["severity"], string> = {
@@ -30,9 +32,43 @@ const SEV_LABEL: Record<Recommendation["severity"], string> = {
   info: "INFO",
 };
 
-export default function RecsPage({ recs, steps, graph, muted, onMute, onUnmute, onOpenSteps }: Props) {
+export default function RecsPage({
+  recs,
+  steps,
+  graph,
+  muted,
+  onMute,
+  onUnmute,
+  onOpenSteps,
+  onOpenRightsizing,
+}: Props) {
   const [showAll, setShowAll] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+
+  // Which workloads have measurements waiting on the other screen.
+  //
+  // These two screens are not halves of one thing and must not be merged: a
+  // recommendation carries a paste-ready fix, and Rightsizing deliberately
+  // carries none, because a single usage sample is not a number to set
+  // requests from. But an operator could read either without learning the
+  // other existed, and "you have no requests" is far more useful next to
+  // "here is what this workload actually uses".
+  const [measured, setMeasured] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .rightsizing()
+      .then((d) => {
+        if (cancelled || !d.available) return;
+        setMeasured(new Set((d.workloads ?? []).map((w) => w.workload)));
+      })
+      // No usage source is a normal configuration, not an error: the link
+      // simply does not appear.
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const all = recs ?? [];
   const visible = useMemo(() => {
@@ -199,6 +235,8 @@ export default function RecsPage({ recs, steps, graph, muted, onMute, onUnmute, 
             onMute={() => onMute(findingKey(current.kind, current.workload))}
             onUnmute={() => onUnmute(findingKey(current.kind, current.workload))}
             onOpenSteps={onOpenSteps}
+            measured={measured.has(current.workload)}
+            onOpenRightsizing={onOpenRightsizing}
           />
         )}
       </div>
@@ -214,6 +252,8 @@ function Detail({
   onMute,
   onUnmute,
   onOpenSteps,
+  measured,
+  onOpenRightsizing,
 }: {
   rec: Recommendation;
   steps: PlanStep[];
@@ -222,6 +262,9 @@ function Detail({
   onMute: () => void;
   onUnmute: () => void;
   onOpenSteps: (steps: number[]) => void;
+  /** True when Rightsizing has measurements for this workload. */
+  measured: boolean;
+  onOpenRightsizing: (workload: string) => void;
 }) {
   const [copied, setCopied] = useState(false);
   const blocked = rec.unblocksSteps ?? [];
@@ -318,6 +361,19 @@ function Detail({
               onClick={() => onOpenSteps(blocked)}
             >
               Open the {blocked.length} blocked step{blocked.length === 1 ? "" : "s"}
+            </button>
+          )}
+          {measured && (
+            // Deliberately a link to a measurement rather than a number
+            // repeated here. Rightsizing refuses to turn one usage sample into
+            // a suggested request, and copying its figures onto a card that
+            // already carries a paste-ready fix would imply exactly that.
+            <button
+              type="button"
+              className="btn"
+              onClick={() => onOpenRightsizing(rec.workload)}
+            >
+              See what it actually uses
             </button>
           )}
           <button type="button" className="btn" onClick={muted ? onUnmute : onMute}>
