@@ -96,6 +96,24 @@ warn "  Item 1 is the stop condition: if Review shows no steps on a cluster"
 warn "  with half-empty nodes, capture and stop — everything else is downstream."
 echo
 
+# ------------------------------------------------------ can it drain at all
+# Before anything else worth reading, because it is the question the last run
+# failed to ask. That run planned beautifully and never executed a drain: the
+# cluster was 88.5% requested and there was nowhere to move pods to, which
+# nobody knew until minute forty of a forty-five minute cluster.
+#
+# Answered here from the live cluster, at minute three, while relaunching with
+# a bigger fleet still costs nothing but time.
+bold "==> is there room to drain anything?"
+kubectl --context "$CTX" get nodes -o json > /tmp/dencer-headroom-n.json 2>/dev/null
+kubectl --context "$CTX" get pods -A -o json > /tmp/dencer-headroom-p.json 2>/dev/null
+python3 "$HERE/headroom.py" /tmp/dencer-headroom-n.json /tmp/dencer-headroom-p.json
+case $? in
+  2) red "  Relaunch before spending the window: REAL_NODES=8 make gcp-play"
+     red "  Everything below this line will look fine and prove nothing." ;;
+esac
+echo
+
 # ------------------------------------------------------------------ the run
 bold "==> first look"
 if [[ -n "$TOKEN" ]]; then
