@@ -141,6 +141,27 @@ no shell to exec into.
 
 ---
 
+## The short version
+
+Two terminals.
+
+```bash
+# Terminal 1 — launches, prints the cost, waits for a typed yes
+PLAY_MINUTES=45 SCENARIO=a-fragmented GCP_MACHINE=e2-medium REAL_NODES=6 make gcp-play
+
+# Terminal 2 — everything else
+./hack/capture/run.sh
+```
+
+`run.sh` waits for the cluster, names the context, opens the UI, prints a
+token that can also execute, tells you the first plan's step count — the P0
+question, answered before you have opened a browser — and then waits. Press
+Enter when you are done and it captures everything.
+
+The launch stays in terminal 1 deliberately: it prints what it will create and
+what that costs and waits for you to type `yes`. A wrapper that answered that
+for you would be a wrapper that spends your money without asking.
+
 ## Before you start
 
 - `hack/capture/UI-CHECKLIST.md` — what to look at on each screen and what
