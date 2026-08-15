@@ -332,3 +332,78 @@ func TestClassifyPlanOverFixture(t *testing.T) {
 		t.Logf("example: %s", plan.Steps[0].Rationale)
 	}
 }
+
+// Several pods can be bound by one rule, and each contributes a reason whose
+// detail is word-for-word the same. Printed unfiltered that reads as a
+// stutter — seen on a real cluster as "Rated Yellow because: Topology spread
+// … Also: Topology spread …", the identical sentence twice, which looks like
+// the product repeating itself rather than two pods sharing a constraint.
+//
+// Driven through ClassifyStep rather than the unexported builder, because the
+// string this produces is the one the UI, the CLI and the Kagent agent all
+// quote verbatim.
+func TestRationaleDoesNotRepeatTheSameReason(t *testing.T) {
+	// Two pods of different workloads, both bound by one spread rule over a
+	// zone with no room to move — the arrangement that produced the stutter.
+	snap := &model.ClusterSnapshot{
+		Nodes: []model.Node{
+			{Name: "n1", Ready: true, Labels: map[string]string{model.LabelZone: "z1"},
+				Allocatable: model.Resources{MilliCPU: 4000, MemoryBytes: 1 << 33, Pods: 110}},
+			{Name: "n2", Ready: true, Labels: map[string]string{model.LabelZone: "z2"},
+				Allocatable: model.Resources{MilliCPU: 4000, MemoryBytes: 1 << 33, Pods: 110}},
+		},
+		Pods: []model.Pod{
+			{Namespace: "app", Name: "web-1", NodeName: "n1", Phase: model.PodRunning,
+				Owner:  &model.OwnerRef{Kind: "ReplicaSet", Name: "web"},
+				Labels: map[string]string{"app": "web"},
+				TopologySpread: []model.TopologySpreadConstraint{{
+					TopologyKey: model.LabelZone, MaxSkew: 1,
+					WhenUnsatisfiable: model.DoNotSchedule,
+					LabelSelector:     &model.LabelSelector{MatchLabels: map[string]string{"app": "web"}},
+				}}},
+			{Namespace: "app", Name: "web-2", NodeName: "n1", Phase: model.PodRunning,
+				Owner:  &model.OwnerRef{Kind: "ReplicaSet", Name: "web"},
+				Labels: map[string]string{"app": "web"},
+				TopologySpread: []model.TopologySpreadConstraint{{
+					TopologyKey: model.LabelZone, MaxSkew: 1,
+					WhenUnsatisfiable: model.DoNotSchedule,
+					LabelSelector:     &model.LabelSelector{MatchLabels: map[string]string{"app": "web"}},
+				}}},
+		},
+	}
+	analysis := constraints.Analyze(snap)
+	step := model.PlanStep{
+		TargetNode: "n1",
+		Moves: []model.Move{
+			{Namespace: "app", Pod: "web-1", FromNode: "n1", ToNode: "n2"},
+			{Namespace: "app", Pod: "web-2", FromNode: "n1", ToNode: "n2"},
+		},
+	}
+
+	_, rationale, reasons := impact.New(impact.DefaultThresholds()).ClassifyStep(step, snap, analysis)
+
+	// Only meaningful if the arrangement really did produce repeats.
+	dupes := map[string]int{}
+	for _, r := range reasons {
+		dupes[r.Detail]++
+	}
+	repeated := false
+	for _, n := range dupes {
+		if n > 1 {
+			repeated = true
+		}
+	}
+	if !repeated {
+		t.Skip("this snapshot did not produce duplicate reasons; nothing to assert")
+	}
+
+	for detail, n := range dupes {
+		if n > 1 && strings.Count(rationale, detail) > 1 {
+			t.Errorf("a reason shared by %d pods is printed %d times:\n%s",
+				n, strings.Count(rationale, detail), rationale)
+		}
+	}
+	if strings.Contains(rationale, "Also: .") {
+		t.Errorf("empty Also clause left behind:\n%s", rationale)
+	}
+}

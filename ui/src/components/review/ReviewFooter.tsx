@@ -66,9 +66,15 @@ export default function ReviewFooter({
             ? "Read-only session. Plan and rehearse; draining is hidden by your own choice at sign-in."
             : stale
             ? "A newer plan exists — Recompute before running."
-            : nonGreen > 0
-              ? `${nonGreen} non-Green in the selection. The Safety Guard re-runs before every step.`
-              : "All Green. Safety Guard re-runs per step; the run halts on the first refusal."}
+            : picked.length === 0
+              ? // An empty selection is not "all green" — there is no all.
+                // The plan can be entirely Held back and this line would still
+                // have claimed everything was safe, which is the opposite of
+                // what the screen above it says.
+                "Nothing selected. Choose the steps you want to run."
+              : nonGreen > 0
+                ? `${nonGreen} non-Green in the selection. The Safety Guard re-runs before every step.`
+                : "All Green. Safety Guard re-runs per step; the run halts on the first refusal."}
         </span>
       </div>
 

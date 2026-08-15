@@ -273,3 +273,40 @@ func TestObservedNodeStatesAreDrawnNotJustParsed(t *testing.T) {
 			"position is a lie until the next snapshot")
 	}
 }
+
+// Every app-level poll must re-read when a token arrives.
+//
+// The app mounts before anyone has signed in, so a hook's first fetch is
+// unauthenticated. It 401s, the catch swallows it — correctly, because a
+// transient failure must not blank the screen — and the hook then waits out
+// its interval before trying again.
+//
+// The cost was measured on a real install: for a full minute after sign-in,
+// Recommendations said "No findings against the current cluster" while the
+// cluster had 34. Not a spinner. A sentence, and a false one. The rail badge
+// was empty for the same minute, and the ledger overlays with it.
+//
+// usePlan had always subscribed to onTokenChange, which is why the plan
+// appeared immediately and hid the problem — one hook getting it right made
+// the other three look like they had.
+func TestPollingHooksReReadWhenTheTokenArrives(t *testing.T) {
+	// The hooks App mounts before authentication exists. A hook that only
+	// runs when its screen is opened is not in this list: by then the token
+	// is already held.
+	for _, name := range []string{
+		"useRecommendations.ts",
+		"useReclamations.ts",
+		"useVersion.ts",
+	} {
+		src := read(t, name)
+		if !strings.Contains(src, "onTokenChange") {
+			t.Errorf("%s polls but does not re-read on sign-in; its screen will show "+
+				"a confident zero until the interval fires", name)
+		}
+		// Subscribing without unsubscribing leaks a listener per mount, and
+		// the listener holds a stale setState.
+		if strings.Contains(src, "onTokenChange") && !strings.Contains(src, "stopAuth()") {
+			t.Errorf("%s subscribes to onTokenChange but never unsubscribes", name)
+		}
+	}
+}

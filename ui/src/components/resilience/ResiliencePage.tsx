@@ -98,7 +98,7 @@ export default function ResiliencePage() {
       {groups.map(([kind, findings]) => (
         <section className="resilience-group" key={kind}>
           <h3 className="resilience-kind">
-            {kind}
+            {spaced(kind)}
             <span className="resilience-count mono">{findings.length}</span>
           </h3>
           <ul className="resilience-list">
@@ -133,6 +133,19 @@ function Frame({ children }: { children: React.ReactNode }) {
       {children}
     </div>
   );
+}
+
+/**
+ * The analyzer's kinds are CamelCase identifiers. Uppercasing them whole, as
+ * an eyebrow style does, turned PDBZeroHeadroom into PDBZEROHEADROOM — a word
+ * nobody can read at a glance. Splitting on the case boundaries keeps the
+ * analyzer's own vocabulary while letting it be read: acronym runs stay
+ * together, so PDBZeroHeadroom becomes "PDB Zero Headroom".
+ */
+function spaced(kind: string): string {
+  return kind
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2");
 }
 
 /** Grouped by the analyzer's own constraint kind, largest group first. */
