@@ -274,21 +274,42 @@ until the next snapshot says where they truly landed.
 execution, and maintenance windows. Phase 4 — hardening toward 1000 nodes and
 50,000 pods — is in progress, with metrics, CI and the release pipeline landed.
 
-**v0.8.1 is published** — images, chart and CLI binaries on `ghcr.io` and the
+**v0.9.0 is published** — images, chart and CLI binaries on `ghcr.io` and the
 [releases page](https://github.com/atedgimo/k8s-dencer/releases), installable by
 the command above.
 
-**Upgrade from v0.8.0 if you use `--reuse-values`:** that release added
-`database.postgres.sslRootCert`, and `helm upgrade --reuse-values` carries
-stored values forward without merging defaults for new keys — so the template
-hit a nil pointer and the upgrade would not render at all. It is nil-safe now.
+v0.9.0 is the release the first GKE run produced. That run answered the
+question it existed to ask — the product plans on a real managed cluster, 4
+steps, 6 nodes to 2 — and then found what a laptop could not.
 
-v0.8.1 also fixes three bugs found by driving the UI against a real cluster
-rather than reading it: the fix queue reported **0 findings for a full minute
-after sign-in** on a cluster with 34, because three polling hooks never re-read
-when a token arrived; a step's rationale printed the same reason twice when
-several pods shared one rule; and the review footer called an empty selection
-"All Green" while the screen above it said nothing was safe.
+**Upgrade if you have ever read a rationale that repeated itself.** A plan is
+identified by its *actions*: the strategy, the sequence, the target nodes and
+the moves. That is the right identity, and it meant a planner that explained
+the same drain better produced the same id, took the deduplication path, and
+left the old wording in the store. The v0.8.1 fix for a stuttering rationale
+shipped, ran, and changed nothing on any plan that already existed. The store
+now refreshes what a step *says* as well as what it *is*.
+
+v0.9.0 also stops hiding nodes that are already free — a node carrying only
+DaemonSets read as empty, so "N nodes now" described the subset the packer had
+work for rather than the fleet — puts a monthly rate and a per-step forecast on
+Review rather than on the least-visited screen, and exports a plan as a
+**change record** in Markdown, for a PR body or a ticket.
+
+The UI now survives a narrow viewport, read path only: three tiers, and below
+the smallest one everything that evicts a pod disappears. Nobody drains a node
+from a phone. Someone does get paged, look at their phone, and need to know
+whether the cluster is fine.
+
+v0.8.1 before it fixed three bugs found by driving the UI rather than reading
+it: the fix queue reported **0 findings for a full minute after sign-in** on a
+cluster with 34, because three polling hooks never re-read when a token
+arrived; a step's rationale printed the same reason twice when several pods
+shared one rule; and the review footer called an empty selection "All Green"
+while the screen above it said nothing was safe. It also made the chart
+nil-safe for `helm upgrade --reuse-values` into v0.8.0, which added a key and
+could not render at all — Helm carries stored values forward without merging
+defaults for keys added since.
 
 v0.8.0 before it is the release that went looking. Every fix in it came from running the
 product rather than reading it: the CLI could not find its own backend unless

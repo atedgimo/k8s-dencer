@@ -5,7 +5,7 @@ milestones. The engineering history behind each item, with measurements and
 design reasoning, is in **[roadmap.md](roadmap.md)**; this page is the view for
 deciding what to build next and telling users what they get.
 
-*Last updated: 2026-08-01.*
+*Last updated: 2026-08-15.*
 
 ## Shipped
 
@@ -260,6 +260,39 @@ talking through.
 None of these survived contact with a real cluster, and none of them were
 caught by unit tests, the gates, or a screenshot review. That is the pattern
 worth keeping: the reviews find the engine, the cluster finds the product.
+
+### Stale words, and a UI that fits on a phone (2026-08-15)
+- **A better explanation now reaches a plan that already exists.** `planID`
+  hashes the strategy, sequence numbers, target nodes and moves — the actions
+  — and deliberately not the rationale, impact or reasons, which describe
+  them. Correct identity, wrong consequence: an upgraded planner explaining
+  the same drain better produced the same id, took the dedup path, and left
+  the old wording in place. The v0.8.1 stutter fix shipped, ran against a live
+  cluster, and changed nothing on any existing plan
+- **Nodes carrying only DaemonSets were invisible**, so "N nodes now"
+  described the subset the packer had work for rather than the fleet, and a
+  node already free to take was never offered
+- **The money moved to the screen where the decision is made** — a monthly
+  rate on Review and a per-step forecast, with the doctrine intact: unknown is
+  never zero, spot is never on-demand, a rate is never a total
+- **A plan exports as a change record** — Markdown for a PR body or a ticket:
+  what changes, why each step is rated as it is, what the run does, how to
+  reverse it. Every team with a change process needs the approval to exist
+  somewhere other than this UI
+- **The read path survives a narrow viewport.** Three tiers; below the
+  smallest, everything that evicts a pod disappears. Nobody drains a node from
+  a phone — but someone gets paged, looks at their phone, and needs to know
+  whether the cluster is fine
+- **The landing screen leads with the answer**, the rail separates deciding
+  from understanding, and an empty plan reads as a cluster packed as tightly
+  as its rules allow rather than as an absence
+
+Three of these were found by building the thing and looking at it, after the
+automated checks reported clean: six CSS selectors that named elements called
+something else, a step list that collapsed to zero height at 1100px, and
+display headlines inheriting body leading. Two more — `--space-5` and
+`--text-primary`, neither of which exists — had been silently deleting whole
+declarations since the redesign. All five are now gates.
 
 ## Next
 
