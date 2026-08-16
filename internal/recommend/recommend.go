@@ -72,6 +72,7 @@ func fromPlanReasons(plan *model.Plan, snap *model.ClusterSnapshot) []Recommenda
 	type group struct {
 		rec   Recommendation
 		steps map[int]bool
+		nodes map[string]bool
 		worst model.ImpactRating
 	}
 	groups := map[string]*group{}
@@ -96,12 +97,16 @@ func fromPlanReasons(plan *model.Plan, snap *model.ClusterSnapshot) []Recommenda
 						Why:      r.Detail,
 					},
 					steps: map[int]bool{},
+					nodes: map[string]bool{},
 					worst: step.Impact,
 				}
 				groups[key] = g
 				order = append(order, key)
 			}
 			g.steps[step.SequenceNumber] = true
+			if step.TargetNode != "" {
+				g.nodes[step.TargetNode] = true
+			}
 			if g.rec.Why == "" {
 				g.rec.Why = r.Detail
 			}
@@ -124,6 +129,7 @@ func fromPlanReasons(plan *model.Plan, snap *model.ClusterSnapshot) []Recommenda
 			g.rec.UnblocksSteps = append(g.rec.UnblocksSteps, seq)
 		}
 		sort.Ints(g.rec.UnblocksSteps)
+		g.rec.Pools = poolsOf(g.nodes, snap)
 		out = append(out, g.rec)
 	}
 	return out
@@ -158,6 +164,82 @@ type Recommendation struct {
 	// it, because only the plan knows; Build stays snapshot-pure. Empty
 	// means the finding is advice, not a blocker.
 	UnblocksSteps []int `json:"unblocksSteps,omitempty"`
+
+	// Pools names where those steps would reclaim capacity.
+	//
+	// "This PDB blocks three steps" is a quantity; "this PDB blocks three
+	// steps on your spot pool" is a decision, because spot is the capacity
+	// an operator is most willing to move work off and least willing to hold
+	// open for a budget written without thinking about it.
+	//
+	// Grouped by whatever the nodes actually say. A cluster with node-pool
+	// labels groups by pool and names its capacity type; a cluster with no
+	// pool labels but known capacity — the KWOK fabric, and any self-managed
+	// cluster — still groups by spot versus on-demand, because that is the
+	// half the operator acts on. Nothing known about a node means no entry:
+	// unlabelled is not a pool called "unknown", the same way an unpriced
+	// node is not a free one.
+	Pools []BlockedPool `json:"pools,omitempty"`
+}
+
+// BlockedPool is one group of nodes a finding holds capacity in.
+type BlockedPool struct {
+	// Name is the node-pool label, empty on a cluster that has none. An
+	// entry with no name is still worth showing when its capacity type is
+	// known — "2 spot" answers the question a pool name only decorates.
+	Name string `json:"name,omitempty"`
+	// CapacityType is "spot" or "on-demand", empty when the node says
+	// neither. Never guessed: spot is never reported as on-demand, and a
+	// node no cloud has labelled is reported as neither rather than as the
+	// cheaper-sounding one.
+	CapacityType string `json:"capacityType,omitempty"`
+	// Nodes in this group that the finding holds back.
+	Nodes int `json:"nodes"`
+}
+
+// poolsOf resolves blocked node names to the groups they belong to.
+//
+// Ordered most-nodes-first, then by name, so the group a finding costs most
+// reads first and the order is stable across cycles.
+func poolsOf(nodes map[string]bool, snap *model.ClusterSnapshot) []BlockedPool {
+	if len(nodes) == 0 || snap == nil {
+		return nil
+	}
+	byNode := make(map[string]*model.Node, len(snap.Nodes))
+	for i := range snap.Nodes {
+		byNode[snap.Nodes[i].Name] = &snap.Nodes[i]
+	}
+
+	seen := map[BlockedPool]int{}
+	for name := range nodes {
+		n := byNode[name]
+		if n == nil {
+			continue
+		}
+		key := BlockedPool{Name: n.Pool(), CapacityType: n.CapacityType()}
+		if key.Name == "" && key.CapacityType == "" {
+			// The node says nothing about where it belongs or how it is
+			// bought. An entry here would be a row that answers no question.
+			continue
+		}
+		seen[key]++
+	}
+
+	out := make([]BlockedPool, 0, len(seen))
+	for key, count := range seen {
+		key.Nodes = count
+		out = append(out, key)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Nodes != out[j].Nodes {
+			return out[i].Nodes > out[j].Nodes
+		}
+		if out[i].Name != out[j].Name {
+			return out[i].Name < out[j].Name
+		}
+		return out[i].CapacityType < out[j].CapacityType
+	})
+	return out
 }
 
 // Build derives recommendations from a snapshot and nothing else — same
