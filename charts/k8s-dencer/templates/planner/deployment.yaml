@@ -87,6 +87,31 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            {{- /*
+              The cluster's own label, read from uiBackend.clusterLabel rather
+              than duplicated here. It is one fact about the cluster, and two
+              places to set it is two places to set it differently -- a
+              notification that says "prod" about staging is worse than one
+              that says nothing.
+            */}}
+            {{- with .Values.uiBackend.clusterLabel }}
+            - name: CLUSTER_LABEL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if (.Values.planner.notify).existingSecret }}
+            - name: NOTIFY_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ (.Values.planner.notify).existingSecret }}
+                  key: {{ (.Values.planner.notify).secretKey | default "url" }}
+            {{- else if (.Values.planner.notify).url }}
+            - name: NOTIFY_WEBHOOK_URL
+              value: {{ (.Values.planner.notify).url | quote }}
+            {{- end }}
+            {{- with (.Values.planner.notify).linkUrl }}
+            - name: NOTIFY_LINK_URL
+              value: {{ . | quote }}
+            {{- end }}
             {{- with .Values.planner.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

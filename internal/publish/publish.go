@@ -34,6 +34,7 @@ import (
 	"github.com/atedgimo/k8s-dencer/internal/constraints"
 	"github.com/atedgimo/k8s-dencer/internal/impact"
 	"github.com/atedgimo/k8s-dencer/internal/model"
+	"github.com/atedgimo/k8s-dencer/internal/notify"
 	"github.com/atedgimo/k8s-dencer/internal/planner"
 	"github.com/atedgimo/k8s-dencer/internal/reclaim"
 	"github.com/atedgimo/k8s-dencer/internal/store"
@@ -58,6 +59,9 @@ type Publisher struct {
 	// plan.
 	Retain  int
 	Metrics *telemetry.Metrics
+	// Notify is optional. Nil, or one with no sink, means notifications are
+	// off — the planner must behave identically either way.
+	Notify *notify.Notifier
 
 	latest         atomic.Pointer[model.ClusterSnapshot]
 	latestAnalysis atomic.Pointer[constraints.Analysis]
@@ -276,6 +280,17 @@ func (p *Publisher) Cycle(ctx context.Context) {
 		return
 	}
 	p.Log.Info("plan stored", "id", plan.ID)
+
+	// Only on the stored path. The dedup early-return above is the cluster
+	// not having changed, and announcing that every resync is how a
+	// notification channel becomes one people filter out.
+	safe := 0
+	for _, st := range plan.Steps {
+		if st.Impact == model.ImpactGreen {
+			safe++
+		}
+	}
+	p.Notify.PlanStored(plan.ID, safe, len(plan.Steps), plan.NodesBefore, plan.NodesAfter)
 
 	if pruned, err := p.DB.Prune(ctx, p.Retain); err != nil {
 		p.Log.Warn("pruning plan history failed", "error", err)

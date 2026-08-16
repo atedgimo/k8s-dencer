@@ -23,6 +23,7 @@ import (
 	"github.com/atedgimo/k8s-dencer/internal/cluster/metrics"
 	"github.com/atedgimo/k8s-dencer/internal/httpserver"
 	"github.com/atedgimo/k8s-dencer/internal/impact"
+	"github.com/atedgimo/k8s-dencer/internal/notify"
 	"github.com/atedgimo/k8s-dencer/internal/planner"
 	"github.com/atedgimo/k8s-dencer/internal/publish"
 	sqlitestore "github.com/atedgimo/k8s-dencer/internal/store/sqlstore"
@@ -117,6 +118,22 @@ func run(ctx context.Context, log *slog.Logger) error {
 		DB:      db,
 		Retain:  intEnv(log, "RETAIN_PLANS", 200),
 		Metrics: metrics,
+		// Off unless an operator supplied a URL. NewWebhook returns nil for
+		// an empty one, and a Notifier with a nil Sink is a no-op -- so the
+		// unconfigured path is the same code, not a branch around it.
+		Notify: &notify.Notifier{
+			Sink:    notify.NewWebhook(os.Getenv("NOTIFY_WEBHOOK_URL")),
+			Log:     log,
+			Cluster: os.Getenv("CLUSTER_LABEL"),
+			BaseURL: os.Getenv("NOTIFY_LINK_URL"),
+		},
+	}
+	if os.Getenv("NOTIFY_WEBHOOK_URL") != "" {
+		// Worth one line at startup: this is the only thing the planner does
+		// that leaves the cluster, and an operator should be able to confirm
+		// it is on without reading a Secret. The URL itself is never logged
+		// -- a webhook URL is a bearer credential.
+		log.Info("plan notifications enabled")
 	}
 
 	health := &httpserver.Health{}
