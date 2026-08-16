@@ -94,6 +94,26 @@
   background: var(--caution);
 }
 
+/* The sentence the bars have been implying. Sits between the headline and
+   the chart because it is the reading, not a footnote to it. */
+.estate-trend {
+  margin: 0 0 var(--space-4);
+  max-width: 68ch;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--text-3);
+}
+
+.estate-trend strong {
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.estate-trend code {
+  font-size: var(--text-xs);
+  color: var(--text-4);
+}
+
 .estate-chart {
   display: flex;
   align-items: flex-end;

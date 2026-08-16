@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { HistoryResponse, api, formatCPU } from "../api";
+import { estateTrend, windowLabel } from "../trend";
 
 /**
  * History (assets/design/README.md, 2e): the estate over time as needed vs
@@ -83,6 +84,46 @@ export default function History({ pricing }: { pricing?: Pricing }) {
   );
 }
 
+/* ----------------------------------------------------------- estate trend */
+
+/**
+ * What the bars have been saying, in a sentence.
+ *
+ * The chart above shows the shape and never states it. This is the line
+ * somebody quotes in a budget conversation, which is exactly why it declines
+ * to speak on a window too short to support it.
+ *
+ * Reservation and usage stay separate on purpose. The GKE run measured ~890m
+ * requested against ~50m used of 940m allocatable — full by reservation and
+ * idle by usage. Consolidation only addresses the first; collapsing both into
+ * one "over-provisioned" number would point an operator at the wrong lever.
+ */
+function EstateTrend({ data }: { data: HistoryResponse }) {
+  const trend = useMemo(() => estateTrend(data.samples), [data]);
+  if (!trend) return null;
+
+  const period = windowLabel(trend.hours);
+  return (
+    <p className="estate-trend">
+      Over the past <strong>{period}</strong> your workloads reserved{" "}
+      <strong>{Math.round(trend.reservedPct)}%</strong> of the fleet
+      {trend.usedPct === undefined ? (
+        <>
+          . Usage is unmeasured, so how much of that was needed is unknown —
+          set <code>planner.usageSource</code> to find out.
+        </>
+      ) : (
+        <>
+          {" "}
+          and used <strong>{Math.round(trend.usedPct)}%</strong> of it. Reserved
+          capacity is held whether or not it is used, so the gap is a
+          right-sizing question rather than a consolidation one.
+        </>
+      )}
+    </p>
+  );
+}
+
 /* ------------------------------------------------------------ estate bars */
 
 const BUCKETS = 48;
@@ -143,6 +184,8 @@ function EstateBars({ data }: { data: HistoryResponse }) {
           </span>
         </div>
       </div>
+
+      <EstateTrend data={data} />
 
       <div className="estate-chart">
         <div className="estate-yaxis mono" aria-hidden="true">
