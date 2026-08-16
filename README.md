@@ -268,9 +268,16 @@ Full index: **[docs/](docs/README.md)**. The ones most people want first:
 execution, and maintenance windows. Phase 4 — hardening toward 1000 nodes and
 50,000 pods — is in progress, with metrics, CI and the release pipeline landed.
 
-**v0.9.0 is published** — images, chart and CLI binaries on `ghcr.io` and the
+**v0.10.0 is published** — images, chart and CLI binaries on `ghcr.io` and the
 [releases page](https://github.com/atedgimo/k8s-dencer/releases), installable by
 the command above.
+
+v0.10.0 is the release that stops waiting to be visited. The planner can tell
+you a plan exists — a small JSON body to an endpoint you supply, on transitions
+only, carrying counts and a link but never the plan itself. Findings now say
+*where* they hold capacity ("blocks three steps on your spot pool"), and
+History states what its bars have been saying rather than leaving you to read
+it off the chart.
 
 > **Upgrading from v0.8.x?** A plan is identified by its *actions*, so a planner
 > that explained the same drain better produced the same id and the store kept

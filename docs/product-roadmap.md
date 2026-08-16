@@ -5,7 +5,7 @@ milestones. The engineering history behind each item, with measurements and
 design reasoning, is in **[roadmap.md](roadmap.md)**; this page is the view for
 deciding what to build next and telling users what they get.
 
-*Last updated: 2026-08-15.*
+*Last updated: 2026-08-16.*
 
 ## Shipped
 
@@ -293,6 +293,26 @@ something else, a step list that collapsed to zero height at 1100px, and
 display headlines inheriting body leading. Two more — `--space-5` and
 `--text-primary`, neither of which exists — had been silently deleting whole
 declarations since the redesign. All five are now gates.
+
+### It reaches out, and it says where (2026-08-16)
+- **A plan can tell you it exists** — an operator-supplied webhook, fired on
+  transitions rather than on a timer. Counts and a link, never the plan: a
+  chat channel is not an authorization boundary. Off by default, because it
+  is the only outbound connection any component makes
+- **Findings name the pool they hold open** — "blocks three steps on your spot
+  pool" rather than "blocks three steps". Grouped by whatever the nodes
+  actually say, and silent where they say nothing
+- **History states its own trend** — reservation and usage as two separate
+  numbers, over a window it names, and no sentence at all when the window is
+  too short to support one
+
+The notifier shipped with a bug worth recording: `NewWebhook` returned a typed
+nil pointer into an interface field, where it compares unequal to nil, so an
+unconfigured install panicked the planner on the first plan with a safe step.
+Every unit test passed — they exercised a shape the planner never builds. The
+e2e caught it as a reclamation histogram reading zero. The fix returns the
+interface, and the send goroutine now recovers, so "notifications cannot fail
+a planning cycle" is true of a bug in that file too.
 
 ## Next
 

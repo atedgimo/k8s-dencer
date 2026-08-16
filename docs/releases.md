@@ -14,6 +14,38 @@ they hid rather than by release, are in [findings.md](findings.md).
 
 ---
 
+## v0.10.0 — 2026-08-16
+
+The release that stops waiting to be visited.
+
+**The planner can tell you a plan exists.** A small JSON body to an endpoint
+you supply, on two transitions — safe steps appearing where there were none,
+and an actionable plan being replaced. Off by default; this is the only
+outbound connection any component makes. What leaves the cluster is a plan id,
+four counts, your cluster label and a sentence — never the plan, because a
+webhook endpoint is readable by anyone holding the URL and a chat channel is
+not an authorization boundary. See
+[install.md](install.md#being-told-instead-of-remembering-to-look).
+
+**Findings say where they hold capacity**, not just how much: "blocks three
+steps on your spot pool" rather than "blocks three steps". Grouped by whatever
+the nodes actually say — pool and capacity type where both are labelled,
+capacity type alone where only that is, and nothing at all where neither is,
+because an unlabelled node is not a pool called "unknown".
+
+**History states what its bars have been saying.** "Over the past 16 days your
+workloads reserved 28% of the fleet and used 6% of it." Reservation and usage
+stay separate on purpose: the GKE run measured ~890m requested against ~50m
+used of 940m allocatable, and consolidation only ever addresses the first.
+It declines to speak on a window too short to support the claim, and reports
+no usage at all rather than averaging a measured number against a zero that
+only meant nobody was looking.
+
+Also: a documented migration for going **back** to SQLite from Postgres, where
+`helm upgrade` fails once on the Deployment strategy — the API server defaults
+a `rollingUpdate` block that is illegal beside `type: Recreate`, and Helm does
+not own it, so the chart cannot clear it.
+
 ## v0.9.0 — 2026-08-15
 
 The release the first GKE run produced. That run answered the question it
