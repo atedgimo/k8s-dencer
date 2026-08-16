@@ -230,6 +230,95 @@ by switching — the planner rebuilds its plan on the next resync, and the
 savings ledger starts recording from the switch — but the history before the
 switch does not come with it.
 
+### Going back to SQLite
+
+`helm upgrade` in that direction fails, once, on the Deployment strategy:
+
+```
+spec.strategy.rollingUpdate: Forbidden: may not be specified when strategy `type` is 'Recreate'
+```
+
+Postgres lets the ui-backend roll; SQLite cannot, because a rolling update
+would briefly run two writers against one ReadWriteOnce file. The API server
+defaults a `rollingUpdate` block onto a RollingUpdate Deployment, server-side
+apply merges rather than replaces, and the leftover block is illegal beside
+`type: Recreate`.
+
+The chart cannot fix it — Helm owns `strategy.type` and not the block the API
+server added. Clear it and the type together, in one operation, then upgrade:
+
+```bash
+kubectl -n k8s-dencer patch deploy k8s-dencer-ui-backend --type=merge \
+  -p '{"spec":{"strategy":{"type":"Recreate","rollingUpdate":null}}}'
+```
+
+Removing `rollingUpdate` on its own does nothing: while the type is still
+RollingUpdate the API server immediately puts it back.
+
+## Being told, instead of remembering to look
+
+The planner can POST a small JSON body to an endpoint you supply when
+something changes that a person would want to know about. It is off by
+default: this is the only outbound connection any component makes.
+
+```yaml
+planner:
+  notify:
+    # A webhook URL is a bearer credential — anyone holding it can post to
+    # your channel, and inline values show up in `helm get values`.
+    existingSecret: dencer-webhook   # key: url
+    linkUrl: https://dencer.internal.example.com
+```
+
+```bash
+kubectl -n k8s-dencer create secret generic dencer-webhook \
+  --from-literal=url='https://hooks.example.com/services/...'
+```
+
+**Transitions only.** Two of them:
+
+| | |
+|---|---|
+| `plan.actionable` | safe steps exist where a moment ago there were none |
+| `plan.superseded` | a plan that had safe steps has been replaced |
+
+Not a heartbeat. A message every resync is a message nobody reads, and once
+people build a filter for it the one that mattered is filtered too.
+
+**What leaves the cluster** is a plan id, four counts, your `clusterLabel`, a
+link and a sentence:
+
+```json
+{
+  "kind": "plan.actionable",
+  "planId": "823b6dad6576",
+  "cluster": "orbstack-lab",
+  "safeSteps": 9,
+  "totalSteps": 10,
+  "nodesBefore": 17,
+  "nodesAfter": 7,
+  "link": "https://dencer.internal.example.com",
+  "text": "k8s-dencer on orbstack-lab: 9 steps can be run safely — 17 nodes now, 7 after. Nothing has been executed."
+}
+```
+
+Never the plan itself. No node names, no workload names, no rationale. The
+plan is behind authentication and stays there — a webhook endpoint is readable
+by anyone who has the URL, and a chat channel is not an authorization
+boundary. The link is useless without a token.
+
+**It cannot fail a planning cycle.** Every send is off the cycle's goroutine,
+bounded by a five-second timeout with one retry, and a dead endpoint costs a
+log line. A planner that stopped planning because a chat server was down would
+be a worse product than one that never notified.
+
+Two consequences worth knowing:
+
+- A planner restart re-announces an actionable plan once, because the
+  "was there anything safe last time" state is per-process. A duplicate is
+  recoverable; a missed message is the thing this exists to prevent.
+- If you restrict planner egress with a NetworkPolicy, it has to allow this.
+
 ## Known constraints
 
 - **SQLite is single-writer.** `uiBackend.replicaCount` is pinned to 1 and enforced by the schema; the planner is co-scheduled with ui-backend via a `requiredDuringScheduling` podAffinity, because a ReadWriteOnce claim only permits multiple pods on the same node. Both constraints are lifted by `database.type=postgres` (above) — and only by that; they are properties of the file, not preferences.

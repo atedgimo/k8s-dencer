@@ -430,5 +430,31 @@ if ! helm template dencer "$CHART" --set serviceMonitor.enabled=true \
 fi
 green "  monitoring namespace admitted when scraped"
 
+bold "==> contract: notifications are off, secret-friendly, and nil-safe"
+# The only outbound connection any component makes, so all three properties
+# are contract rather than preference.
+if render defaults | grep -q 'name: NOTIFY_WEBHOOK_URL'; then
+  fail "notifications are configured by default; reaching outward must be opt-in"
+fi
+green "  off unless asked for"
+
+# A webhook URL is a bearer credential: anyone holding it can post to the
+# channel. The secret path must not fall back to an inline value.
+secret_env="$(helm template dencer "$CHART" \
+  --set planner.notify.existingSecret=hook --set planner.notify.url=https://inline.example \
+  | awk '/name: NOTIFY_WEBHOOK_URL/,/key:/')"
+grep -q 'secretKeyRef' <<<"$secret_env" \
+  || fail "existingSecret did not produce a secretKeyRef"
+grep -q 'inline.example' <<<"$secret_env" \
+  && fail "existingSecret was set and the inline URL leaked into the manifest anyway"
+green "  existingSecret wins over an inline url"
+
+# helm upgrade --reuse-values carries stored values forward WITHOUT merging
+# defaults for keys added since. v0.8.1 shipped a chart that could not render
+# at all for exactly this reason, one release after the same mistake.
+helm template dencer "$CHART" --set planner.notify=null >/dev/null 2>&1 \
+  || fail "the chart cannot render when planner.notify is absent; --reuse-values upgrades will fail"
+green "  renders when the whole notify block is missing"
+
 green "
 All chart contract checks passed."

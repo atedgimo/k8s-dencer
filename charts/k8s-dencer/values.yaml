@@ -157,6 +157,35 @@ planner:
   # volume is a fixed size; identical plans are deduplicated on their content
   # hash, so this counts distinct plans rather than planning cycles.
   retainPlans: 200
+
+  # Tell someone a plan exists, instead of waiting to be visited.
+  #
+  # The planner POSTs a small JSON body to an operator-supplied endpoint when
+  # something changes that a person would want to know about: safe steps
+  # appearing where there were none, and an actionable plan being replaced.
+  # Transitions only -- a message every resync is a message nobody reads.
+  #
+  # What leaves the cluster is a plan id, four counts, a link and a sentence.
+  # Never the plan: that is behind authentication and stays there, because a
+  # webhook endpoint is readable by anyone holding the URL and a chat channel
+  # is not an authorization boundary.
+  #
+  # This is the only outbound connection any component makes. A NetworkPolicy
+  # that restricts planner egress has to allow it, and a failure to deliver is
+  # logged and dropped -- it can never fail a planning cycle.
+  notify:
+    # Prefer existingSecret. A webhook URL is a bearer credential: anyone with
+    # it can post to your channel, and values end up in `helm get values`.
+    url: ""
+    existingSecret: ""
+    secretKey: url
+
+    # Where the UI is reachable, so the message can point at it. Empty means
+    # the message carries no link rather than a guessed one.
+    #
+    #   linkUrl: https://dencer.internal.example.com
+    linkUrl: ""
+
   resources:
     requests:
       cpu: 50m
