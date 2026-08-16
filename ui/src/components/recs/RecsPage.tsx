@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { GraphPayload, PlanStep, Recommendation, api, formatCPU } from "../../api";
+import { BlockedPool, GraphPayload, PlanStep, Recommendation, api, formatCPU } from "../../api";
 import { findingKey } from "../../useMuted";
 
 interface Props {
@@ -219,6 +219,12 @@ export default function RecsPage({
                     {worth > 0 && (
                       <span className="recsrow-worth mono">{formatCPU(worth)} cores</span>
                     )}
+                    {/* Where the capacity is held, not just how much. Spot
+                        first when the finding touches both, because that is
+                        the pool an operator is most willing to act on. */}
+                    {r.pools && r.pools.length > 0 && (
+                      <span className="recsrow-pools mono">{poolSummary(r.pools)}</span>
+                    )}
                   </span>
                 </button>
               );
@@ -389,6 +395,26 @@ function Detail({
 }
 
 /** ns/Kind/name → name, the part an operator scans for. */
+/**
+ * The pools a finding holds open, in one line.
+ *
+ * "burst (spot)" reads as a place to go and look; "2 pools" reads as a
+ * number. Capacity type is only ever printed when the node actually said so
+ * — a pool whose nodes disagree, or that no cloud has labelled, carries no
+ * suffix rather than a guessed one.
+ */
+function poolSummary(pools: BlockedPool[]): string {
+  const shown = pools.slice(0, 2).map((p) => {
+    // A cluster with pool labels gets "burst (spot)". One without still gets
+    // "spot", which is the half an operator acts on. Neither known means the
+    // engine sent no entry at all, so there is no third case here.
+    if (p.name && p.capacityType) return `${p.name} (${p.capacityType})`;
+    return p.name || p.capacityType;
+  });
+  const rest = pools.length - shown.length;
+  return rest > 0 ? `${shown.join(", ")} +${rest}` : shown.join(", ");
+}
+
 function shortName(workload: string): string {
   const parts = workload.split("/");
   return parts[parts.length - 1] ?? workload;

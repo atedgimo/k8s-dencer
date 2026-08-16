@@ -209,6 +209,14 @@
   color: var(--accent-text);
 }
 
+/* Where the finding holds capacity. Quieter than the step count, which is
+   the ranking key, but readable — it is the half that makes the row a
+   decision rather than a quantity. */
+.recsrow-pools {
+  font-size: var(--text-2xs);
+  color: var(--text-4);
+}
+
 .recsrow-worth {
   font-size: var(--text-2xs);
   color: var(--text-faint);

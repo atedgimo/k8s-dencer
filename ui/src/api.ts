@@ -220,6 +220,22 @@ export interface Recommendation {
    * absent means the finding is advice, not a blocker.
    */
   unblocksSteps?: number[];
+  /**
+   * The node groups those steps would reclaim, most-nodes-first.
+   *
+   * "Blocks three steps" is a quantity; "blocks three steps on your spot
+   * pool" is a decision. Absent when no blocked node carries a pool label —
+   * unlabelled is not a pool called "unknown".
+   */
+  pools?: BlockedPool[];
+}
+
+/** One node group a finding holds capacity in. */
+export interface BlockedPool {
+  name: string;
+  /** "spot" | "on-demand", absent when the node says neither. Never guessed. */
+  capacityType?: string;
+  nodes: number;
 }
 
 const base = () => runtimeConfig().apiBaseUrl;
