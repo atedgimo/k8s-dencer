@@ -94,7 +94,14 @@ type Webhook struct {
 // NewWebhook builds a Sink for url. An empty url yields nil, which every
 // caller treats as "notifications are off" — the same shape as the pricing
 // table, and for the same reason: unconfigured must never mean guessed.
-func NewWebhook(url string) *Webhook {
+//
+// It returns the INTERFACE, not *Webhook, and that is the whole point.
+// Returning a nil *Webhook put a typed nil inside the Sink field, where it
+// compares unequal to nil — so the "notifications are off" guard passed, Send
+// ran on a nil receiver, and the planner panicked on the first plan that had
+// anything safe in it. Returning Sink makes `return nil` a true nil interface
+// and removes the trap rather than documenting it.
+func NewWebhook(url string) Sink {
 	if strings.TrimSpace(url) == "" {
 		return nil
 	}
@@ -230,6 +237,19 @@ func (n *Notifier) PlanStored(planID string, safe, total, nodesBefore, nodesAfte
 	n.inflight.Add(1)
 	go func() {
 		defer n.inflight.Done()
+		// A panic on this goroutine takes the whole planner with it, because
+		// an unrecovered panic anywhere ends the process. That is not
+		// hypothetical: the first version of this package put a typed nil in
+		// the Sink field and killed the planner on the first plan that had a
+		// safe step, which read downstream as a lost metric and a migration
+		// race. "Notifications cannot fail a planning cycle" has to be true
+		// of a bug in this file too, not just of a slow endpoint.
+		defer func() {
+			if r := recover(); r != nil && n.Log != nil {
+				n.Log.Error("notification panicked; notifications may be misconfigured",
+					"kind", ev.Kind, "panic", r)
+			}
+		}()
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		if err := n.Sink.Send(ctx, ev); err != nil && n.Log != nil {

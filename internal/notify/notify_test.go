@@ -177,8 +177,7 @@ func TestWebhookPostsTheEventAndRetriesOnce(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	wh := NewWebhook(srv.URL)
-	wh.Attempts = 2
+	wh := &Webhook{URL: srv.URL, Attempts: 2}
 	if err := wh.Send(context.Background(), Event{Kind: KindActionable, PlanID: "p1", SafeSteps: 2}); err != nil {
 		t.Fatalf("send: %v", err)
 	}
@@ -196,8 +195,7 @@ func TestAFailingWebhookReportsRatherThanPanics(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	wh := NewWebhook(srv.URL)
-	wh.Attempts = 1
+	wh := &Webhook{URL: srv.URL, Attempts: 1}
 	err := wh.Send(context.Background(), Event{Kind: KindActionable})
 	if err == nil {
 		t.Fatal("a 403 reported success")
@@ -219,4 +217,44 @@ func TestTheSentenceSaysNothingWasExecuted(t *testing.T) {
 	if one := sentence(Event{Kind: KindActionable, SafeSteps: 1}); !strings.Contains(one, "1 step can") {
 		t.Errorf("singular reads wrong: %q", one)
 	}
+}
+
+// The wiring the planner actually uses, which the first version of this
+// package panicked on.
+//
+// NewWebhook returned *Webhook, and an unconfigured install got a nil one.
+// Assigned into the Sink interface field, that is NOT nil — an interface
+// holding a typed nil pointer compares unequal to nil — so the `Sink == nil`
+// guard passed, Send was called on a nil receiver, and the planner died on
+// the first plan with a safe step in it.
+//
+// Every unit test passed: they used a literal `&Notifier{}` with Sink never
+// assigned, which is a true nil interface and the one shape the planner never
+// constructs. The e2e caught it as "1 container restart(s)" and a reclamation
+// histogram that read zero because the process that recorded it had died.
+func TestTheUnconfiguredWiringDoesNotPanic(t *testing.T) {
+	n := &Notifier{Sink: NewWebhook(""), Cluster: "prod"}
+	// The transition that fires: safe steps where there were none.
+	n.PlanStored("p1", 3, 8, 6, 3)
+	n.Wait()
+	// Reaching here without a panic is the assertion.
+}
+
+type panicSink struct{}
+
+func (panicSink) Send(context.Context, Event) error { panic("sink exploded") }
+
+// A bug in a notification sink must not end the planner.
+//
+// An unrecovered panic on any goroutine ends the process, so "notifications
+// cannot fail a planning cycle" has to hold for a bug in this package too,
+// not only for a slow or dead endpoint. Learned the direct way: a typed nil
+// in the Sink field killed the planner on the first plan with a safe step,
+// and the symptom three layers downstream was a reclamation histogram
+// reading zero because the process that recorded it had restarted.
+func TestASinkThatPanicsDoesNotTakeThePlannerWithIt(t *testing.T) {
+	n := &Notifier{Sink: panicSink{}}
+	n.PlanStored("p1", 2, 4, 6, 4)
+	n.Wait()
+	// Surviving to here is the assertion.
 }
