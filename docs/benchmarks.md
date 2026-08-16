@@ -58,7 +58,7 @@ no layout thrash.
 M18 made the planner fast enough; M17 addresses what it costs to *hold* and
 *keep* a cluster this size. Three changes, each measured.
 
-**Stored plans are gzipped** ([sqlite.go](../internal/store/sqlite/sqlite.go)).
+**Stored plans are gzipped** ([sqlstore.go](../internal/store/sqlstore/sqlstore.go)).
 JSON of a cluster snapshot is extremely repetitive, and the snapshot and
 analysis BLOBs compress accordingly. The encoding is self-describing via the
 gzip magic bytes, so no migration was needed and rows written before this change
