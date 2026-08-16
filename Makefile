@@ -111,7 +111,7 @@ build: ## Compile the Go binaries locally
 test: ## Run Go and UI tests
 	go vet ./...
 	go test ./...
-	cd ui && npm run typecheck && npm run test:density
+	cd ui && npm run typecheck && npm run test:density && npm run test:trend
 
 .PHONY: images
 images: ## Build native-arch images for the local cluster
